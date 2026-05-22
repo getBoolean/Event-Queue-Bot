@@ -181,6 +181,10 @@ export const EVENT_TABLE = sqliteTable("event", ({
 	parentSubMutuallyExclusive: integer("parent_sub_mutually_exclusive", { mode: "boolean" }).notNull().default(true),
 	roomCategoryId: text("room_category_id").$type<Snowflake>(),
 	moderatorRoleId: text("moderator_role_id").$type<Snowflake>(),
+	roleInRoomQueue: integer("role_in_room_queue", { mode: "boolean" }).notNull().default(true),
+	roleOnRoomPull: integer("role_on_room_pull", { mode: "boolean" }).notNull().default(false),
+	roleInSubQueue: integer("role_in_sub_queue", { mode: "boolean" }).notNull().default(false),
+	roleOnSubPull: integer("role_on_sub_pull", { mode: "boolean" }).notNull().default(true),
 }),
 (table) => ({
 	unq: unique().on(table.name, table.guildId),

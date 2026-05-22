@@ -12,8 +12,29 @@ export const embeds = [
 - Create events with room and sub queue sets
 - Configure room and sub queue defaults separately
 - Schedule event occurrences with automatic open, lock, room ping, and cleanup timing
-- Set announcements and room ping messages with placeholders
-- Configure per-room ping channel overrides`,
+- Set announcements and room ping messages with placeholders`,
+			},
+			{
+				name: "Auto-created per-room channels and roles",
+				value: `${"`room_category`"} is required on ${"`/events add`"}. The bot creates one private \`room-{N}\` text channel and one \`{event} Room {N}\` role per room under that category, and wires them into the event.
+
+- ${"`/events add-room-channel suffix:code slowmode:5 slowmode_time:minutes`"} creates an extra \`room-code-{N}\` channel per room with optional slowmode.
+- ${"`/events remove-room-channel`"} removes a template and its channels.
+- ${"`/events sync-room-channels`"} recreates anything deleted out-of-band and re-applies permissions.
+- ${"`/events delete`"} cleans up all auto-created channels and roles.
+
+Requires the **Manage Channels** permission in the target category.`,
+			},
+			{
+				name: "Room role assignment flags",
+				value: `Four booleans on the event template decide where the auto-created room role is assigned:
+
+- ${"`role_in_room_queue`"} (default \`true\`) — assigned while a user is in the room queue
+- ${"`role_on_room_pull`"} (default \`false\`) — assigned when pulled from the room queue
+- ${"`role_in_sub_queue`"} (default \`false\`) — assigned while in the sub queue
+- ${"`role_on_sub_pull`"} (default \`true\`) — assigned when pulled from the sub queue
+
+Set them on ${"`/events add`"} or ${"`/events set`"}.`,
 			},
 			{
 				name: "Pull messages can post in-channel",

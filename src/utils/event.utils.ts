@@ -19,6 +19,7 @@ import { DisplayUpdateType, EventQueueRole, MemberRemovalReason, RoomScheduling 
 import { ClientUtils } from "./client.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
 import {
+	CustomError,
 	EventRoomCountShrinkError,
 	LockBeforeOpenError,
 	OccurrenceInPastError,
@@ -47,6 +48,14 @@ export namespace EventUtils {
 	// ====================================================================
 	//                        Public API
 	// ====================================================================
+
+	export function assertHasRoomCategory(event: DbEvent) {
+		if (!event.roomCategoryId) {
+			throw new CustomError({
+				message: `Event "${event.name}" has no \`room_category\`. Run \`/events set event:${event.name} room_category:…\` first.`,
+			});
+		}
+	}
 
 	export async function insertEvent(store: Store, newEvent: Omit<NewEvent, "guildId">) {
 		validateEventOffsets(
@@ -122,8 +131,16 @@ export namespace EventUtils {
 			|| update.roomCount !== undefined
 			|| (update.moderatorRoleId === undefined && oldModeratorRoleId !== updatedEvent.moderatorRoleId);
 
+		const roleFlagsChanged = update.roleInRoomQueue !== undefined
+			|| update.roleOnRoomPull !== undefined
+			|| update.roleInSubQueue !== undefined
+			|| update.roleOnSubPull !== undefined;
+
 		if (channelsChanged && updatedEvent.roomCategoryId) {
 			await EventChannelUtils.reconcileRoomChannels(store, updatedEvent);
+		}
+		else if (roleFlagsChanged && updatedEvent.roomCategoryId) {
+			await EventChannelUtils.reconcileRoleAssignments(store, updatedEvent);
 		}
 
 		return updatedEvent;

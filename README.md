@@ -57,11 +57,12 @@ Restricted to users with the **Administrator** permission and users added via `/
 
 OAuth scopes: `bot`, `applications.commands`.
 
-- **View Channels** — read channels
-- **Send Messages** — post displays and responses
-- **Read Message History** — update existing displays
+- **Manage Channels** — create / delete / configure auto-created event room channels
 - **Manage Roles** — assign queue / pull roles
-- **Move Members** — pull into voice destination
-- **Mute Members** — reserved for future use
 - **Manage Threads** — reserved for future use
 - **Mention Everyone** — `@everyone` / `@here` in announcements
+- **Move Members** — pull into voice destination
+- **Mute Members** — reserved for future use
+- **Read Message History** — update existing displays
+- **Send Messages** — post displays and responses
+- **View Channels** — read channels

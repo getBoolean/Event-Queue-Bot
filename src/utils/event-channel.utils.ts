@@ -17,6 +17,7 @@ import type {
 import { Store } from "../db/store.ts";
 import { EventQueueRole } from "../types/db.types.ts";
 import { CustomError } from "./error.utils.ts";
+import { QueueUtils } from "./queue.utils.ts";
 
 const DISCORD_MAX_SLOWMODE_SECONDS = 21600;
 
@@ -87,10 +88,9 @@ export namespace EventChannelUtils {
 		store: Store,
 		event: DbEvent,
 		eventQueue: DbEventQueue,
-		queue: DbQueue,
 	): Promise<Snowflake | null> {
-		if (queue.roleInQueueId) {
-			return queue.roleInQueueId;
+		if (eventQueue.autoCreatedRoleId) {
+			return eventQueue.autoCreatedRoleId;
 		}
 
 		const roleName = `${event.name} Room ${eventQueue.queueIndex}`;
@@ -99,7 +99,6 @@ export namespace EventChannelUtils {
 				name: roleName,
 				reason: `Auto-created for event "${event.name}" room ${eventQueue.queueIndex}`,
 			});
-			store.updateQueue({ id: queue.id, roleInQueueId: role.id });
 			store.updateEventQueue({ id: eventQueue.id, autoCreatedRoleId: role.id });
 			return role.id;
 		}
@@ -195,9 +194,7 @@ export namespace EventChannelUtils {
 		// Ensure room roles for every room (lazy creation)
 		const roleByRoomIndex = new Map<bigint, Snowflake | null>();
 		for (const roomEq of roomEqs) {
-			const queue = Queries.selectQueue({ guildId: store.guild.id, id: roomEq.queueId });
-			if (!queue) continue;
-			const roleId = await ensureRoomRole(store, event, roomEq, queue);
+			const roleId = await ensureRoomRole(store, event, roomEq);
 			roleByRoomIndex.set(roomEq.queueIndex, roleId);
 		}
 
@@ -293,6 +290,53 @@ export namespace EventChannelUtils {
 					}
 				}
 			}
+		}
+
+		await reconcileRoleAssignments(store, event);
+	}
+
+	export async function reconcileRoleAssignments(store: Store, event: DbEvent) {
+		const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+		const byRoomIndex = new Map<bigint, { room?: DbEventQueue, sub?: DbEventQueue }>();
+		for (const eq of eventQueues) {
+			const slot = byRoomIndex.get(eq.queueIndex) ?? {};
+			if (eq.queueRole === EventQueueRole.Room) slot.room = eq;
+			else if (eq.queueRole === EventQueueRole.Sub) slot.sub = eq;
+			byRoomIndex.set(eq.queueIndex, slot);
+		}
+
+		for (const { room: roomEq, sub: subEq } of byRoomIndex.values()) {
+			if (!roomEq?.autoCreatedRoleId) continue;
+			const autoRoleId = roomEq.autoCreatedRoleId;
+
+			const roomQueue = Queries.selectQueue({ guildId: store.guild.id, id: roomEq.queueId });
+			if (roomQueue) {
+				await applyOrPreserveRole(store, roomQueue, "roleInQueueId", autoRoleId, event.roleInRoomQueue);
+				await applyOrPreserveRole(store, roomQueue, "roleOnPullId", autoRoleId, event.roleOnRoomPull);
+			}
+			if (subEq) {
+				const subQueue = Queries.selectQueue({ guildId: store.guild.id, id: subEq.queueId });
+				if (subQueue) {
+					await applyOrPreserveRole(store, subQueue, "roleInQueueId", autoRoleId, event.roleInSubQueue);
+					await applyOrPreserveRole(store, subQueue, "roleOnPullId", autoRoleId, event.roleOnSubPull);
+				}
+			}
+		}
+	}
+
+	async function applyOrPreserveRole(
+		store: Store,
+		queue: DbQueue,
+		slot: "roleInQueueId" | "roleOnPullId",
+		autoRoleId: Snowflake,
+		flag: boolean,
+	) {
+		const current = queue[slot];
+		if (flag && current !== autoRoleId) {
+			await QueueUtils.updateQueues(store, [queue], { [slot]: autoRoleId } as Partial<DbQueue>);
+		}
+		else if (!flag && current === autoRoleId) {
+			await QueueUtils.updateQueues(store, [queue], { [slot]: null } as Partial<DbQueue>);
 		}
 	}
 

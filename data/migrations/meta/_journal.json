@@ -43,6 +43,13 @@
       "when": 1779478596095,
       "tag": "0005_groovy_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1779480714743,
+      "tag": "0006_free_echo",
+      "breakpoints": true
     }
   ]
 }
