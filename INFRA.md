@@ -87,19 +87,18 @@ The workflow generates the server `.env` file from these secrets during deploy.
 
 ## 5. Optional GitHub Variables
 
-Defaults:
+| Variable | Default |
+| --- | --- |
+| `DO_REGION` | `nyc3` |
+| `DO_SIZE` | `s-1vcpu-1gb` |
+| `DO_IMAGE` | `ubuntu-24-04-x64` |
+| `DO_DROPLET_NAME` | `event-queue-bot` |
+| `DO_ENABLE_BACKUPS` | `false` |
+| `APP_PATH` | `/opt/event-queue-bot` |
 
-```text
-DO_REGION=nyc3
-DO_SIZE=s-1vcpu-1gb
-DO_IMAGE=ubuntu-24-04-x64
-DO_DROPLET_NAME=event-queue-bot
-DO_ENABLE_BACKUPS=false
-APP_PATH=/opt/event-queue-bot
-```
-
-Set `DO_ENABLE_BACKUPS=true` before the first deploy if you want DigitalOcean
-Droplet backups.
+Set `DO_ENABLE_BACKUPS` to `true` before the first deploy if you want DigitalOcean
+Droplet backups. Backups add 20% to the droplet cost. You can also back up the
+database manually via `scp` — see [Backup Before Deleting](#backup-before-deleting).
 
 ## 6. Run Deploy
 
