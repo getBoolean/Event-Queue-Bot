@@ -1,4 +1,4 @@
-import { channelMention, type Collection, EmbedBuilder, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
+import { channelMention, type Collection, EmbedBuilder, PermissionsBitField, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
 import { isNil, omitBy } from "lodash-es";
 
 import { Queries } from "../../db/queries.ts";
@@ -46,7 +46,7 @@ import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.o
 import { AdminCommand } from "../../types/command.types.ts";
 import { Color, EventQueueRole, type RoomScheduling } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
-import { RoomIndexNotFoundError } from "../../utils/error.utils.ts";
+import { CustomError, RoomIndexNotFoundError } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
@@ -54,6 +54,14 @@ import { commandMention, describeTable, eventMention, queuesMention } from "../.
 
 const HOURS_TO_MS = 3_600_000n;
 const MINUTES_TO_MS = 60_000n;
+
+function verifyMentionEveryonePermission(inter: SlashInteraction, message: string, channelId: string) {
+	if (/@(everyone|here)/.test(message) && !inter.member.permissionsIn(channelId).has(PermissionsBitField.Flags.MentionEveryone)) {
+		throw new CustomError({
+			message: "Your announcement message contains @everyone or @here, but you lack the 'Mention Everyone' permission in the announcement channel",
+		});
+	}
+}
 
 export class EventsCommand extends AdminCommand {
 	static readonly ID = "events";
@@ -236,6 +244,10 @@ export class EventsCommand extends AdminCommand {
 			}, isNil),
 		};
 
+		if (newEvent.announcementMessage && newEvent.announcementChannelId) {
+			verifyMentionEveryonePermission(inter, newEvent.announcementMessage, newEvent.announcementChannelId);
+		}
+
 		const event = await EventUtils.insertEvent(inter.store, newEvent);
 
 		const eventQueues = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id });
@@ -285,6 +297,12 @@ export class EventsCommand extends AdminCommand {
 			announcementMessage: EventsCommand.SET_OPTIONS.announcementMessage.get(inter),
 			roomPingMessage: EventsCommand.SET_OPTIONS.roomPingMessage.get(inter),
 		}, isNil);
+
+		const effectiveMessage = update.announcementMessage ?? event.announcementMessage;
+		const effectiveChannel = update.announcementChannelId ?? event.announcementChannelId;
+		if (effectiveMessage && effectiveChannel) {
+			verifyMentionEveryonePermission(inter, effectiveMessage, effectiveChannel);
+		}
 
 		const updatedEvent = await EventUtils.updateEvent(inter.store, event, update);
 
