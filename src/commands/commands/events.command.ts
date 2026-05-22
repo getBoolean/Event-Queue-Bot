@@ -595,11 +595,11 @@ export class EventsCommand extends AdminCommand {
 			});
 		}
 
-		await EventChannelUtils.deleteChannelsForSuffix(inter.store, event, suffix);
+		EventChannelUtils.untrackChannelsForSuffix(inter.store, event, suffix);
 		inter.store.deleteRoomChannelTemplate({ eventId: event.id, suffix });
 
 		await inter.respond(
-			`Removed ${inlineCode(`room-${suffix}-{N}`)} channel template from ${eventMention(event)} and deleted associated channels.`,
+			`Removed ${inlineCode(`room-${suffix}-{N}`)} channel template from ${eventMention(event)}. Existing channels are left in place — re-adding the template will adopt them.`,
 			true,
 		);
 	}

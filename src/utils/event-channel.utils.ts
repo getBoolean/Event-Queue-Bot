@@ -198,10 +198,11 @@ export namespace EventChannelUtils {
 			roleByRoomIndex.set(roomEq.queueIndex, roleId);
 		}
 
-		// To-delete: existing − desired
+		// To-untrack: existing − desired (we leave the Discord channels alone; if the
+		// same key becomes desired again later, ensureRoomChannel will adopt it back).
 		for (const [key, row] of existingByKey) {
 			if (desiredByKey.has(key)) continue;
-			await deleteRoomChannel(store, row);
+			untrackRoomChannel(store, row);
 		}
 
 		// To-create + to-update
@@ -212,79 +213,19 @@ export namespace EventChannelUtils {
 			const channelName = buildChannelName(d.suffix, d.roomIndex);
 
 			if (!existingRow) {
-				// Create
-				try {
-					const channel = await store.guild.channels.create({
-						name: channelName,
-						type: ChannelType.GuildText,
-						parent: event.roomCategoryId,
-						rateLimitPerUser: d.slowmodeSeconds > 0 ? d.slowmodeSeconds : undefined,
-						permissionOverwrites: overwrites,
-						reason: `Auto-created for event "${event.name}" room ${d.roomIndex}${d.suffix ? ` (${d.suffix})` : ""}`,
-					});
-					store.insertEventRoomChannel({
-						guildId: store.guild.id,
-						eventId: event.id,
-						roomIndex: d.roomIndex,
-						suffix: d.suffix,
-						channelId: channel.id,
-					});
-					if (d.suffix === null) {
-						store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: channel.id });
-					}
-				}
-				catch (e) {
-					console.error(`EventChannelUtils.reconcileRoomChannels: failed to create channel "${channelName}" for event ${event.id}:`, e);
-					throw new CustomError({
-						message: `Failed to create channel \`${channelName}\`. Check that the bot has the Manage Channels permission in the selected category.`,
-					});
-				}
+				const channelId = await ensureRoomChannel(store, event, d, overwrites, channelName);
+				trackRoomChannel(store, event, d, channelId);
 			}
 			else {
-				// Update: verify channel still exists; re-apply overwrites and slowmode
 				const channel = await tryFetchChannel(store, existingRow.channelId);
 				if (!channel) {
-					// Channel was deleted out-of-band — recreate
+					// Tracked channel is gone — drop the row and adopt/create afresh.
 					store.deleteEventRoomChannel({ id: existingRow.id });
-					try {
-						const newChannel = await store.guild.channels.create({
-							name: channelName,
-							type: ChannelType.GuildText,
-							parent: event.roomCategoryId,
-							rateLimitPerUser: d.slowmodeSeconds > 0 ? d.slowmodeSeconds : undefined,
-							permissionOverwrites: overwrites,
-							reason: `Re-created (drift recovery) for event "${event.name}" room ${d.roomIndex}${d.suffix ? ` (${d.suffix})` : ""}`,
-						});
-						store.insertEventRoomChannel({
-							guildId: store.guild.id,
-							eventId: event.id,
-							roomIndex: d.roomIndex,
-							suffix: d.suffix,
-							channelId: newChannel.id,
-						});
-						if (d.suffix === null) {
-							store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: newChannel.id });
-						}
-					}
-					catch (e) {
-						console.error(`EventChannelUtils.reconcileRoomChannels: failed to recreate channel "${channelName}" for event ${event.id}:`, e);
-						throw new CustomError({
-							message: `Failed to recreate channel \`${channelName}\`. Check that the bot has the Manage Channels permission in the selected category.`,
-						});
-					}
+					const channelId = await ensureRoomChannel(store, event, d, overwrites, channelName);
+					trackRoomChannel(store, event, d, channelId);
 				}
 				else {
-					try {
-						if ("permissionOverwrites" in channel && channel.permissionOverwrites) {
-							await channel.permissionOverwrites.set(overwrites);
-						}
-						if ("setRateLimitPerUser" in channel) {
-							await (channel as any).setRateLimitPerUser(d.slowmodeSeconds);
-						}
-					}
-					catch (e) {
-						console.error(`EventChannelUtils.reconcileRoomChannels: failed to re-apply settings on channel ${channel.id} for event ${event.id}:`, e);
-					}
+					await applyChannelSettings(channel, overwrites, d.slowmodeSeconds);
 					if (d.suffix === null && d.roomEventQueue.pingChannelId !== channel.id) {
 						store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: channel.id });
 					}
@@ -297,10 +238,27 @@ export namespace EventChannelUtils {
 	}
 
 	async function reorderRoomChannels(store: Store, event: DbEvent) {
+		if (!event.roomCategoryId) return;
+
 		const rows = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
 		if (rows.length === 0) return;
 
-		const sorted = [...rows].sort((a, b) => {
+		const category = await store.jsChannel(event.roomCategoryId);
+		if (!category || category.type !== ChannelType.GuildCategory) return;
+
+		// Pair tracked rows with their live Discord channels (skip any that have gone missing).
+		const live: { row: DbEventRoomChannel, channel: GuildBasedChannel }[] = [];
+		for (const row of rows) {
+			const channel = category.children?.cache.get(row.channelId);
+			if (channel) live.push({ row, channel });
+		}
+		if (live.length === 0) return;
+
+		// Redistribute only the slots currently held by our tracked room channels. Every
+		// other channel in the category (and the guild) keeps its position untouched.
+		const slots = live.map(l => (l.channel as any).position as number).sort((a, b) => a - b);
+
+		const sortedRows = live.map(l => l.row).sort((a, b) => {
 			const indexDiff = Number(a.roomIndex) - Number(b.roomIndex);
 			if (indexDiff !== 0) return indexDiff;
 			// null suffix (main channel) sorts LAST within each room
@@ -310,9 +268,9 @@ export namespace EventChannelUtils {
 			return a.suffix.localeCompare(b.suffix);
 		});
 
-		const payload = sorted.map((row, position) => ({
+		const payload = sortedRows.map((row, i) => ({
 			channel: row.channelId,
-			position,
+			position: slots[i],
 		}));
 
 		try {
@@ -380,31 +338,82 @@ export namespace EventChannelUtils {
 		}
 	}
 
-	async function deleteRoomChannel(store: Store, row: DbEventRoomChannel) {
+	async function findCategoryChild(store: Store, categoryId: Snowflake, name: string): Promise<GuildBasedChannel | undefined> {
+		const category = await store.jsChannel(categoryId);
+		if (!category || category.type !== ChannelType.GuildCategory) return undefined;
+		return category.children?.cache.find(c => c.name === name && c.type === ChannelType.GuildText);
+	}
+
+	async function applyChannelSettings(channel: GuildBasedChannel, overwrites: OverwriteResolvable[], slowmodeSeconds: number) {
 		try {
-			const channel = await tryFetchChannel(store, row.channelId);
-			if (channel) {
-				await channel.delete(`Cleanup of auto-managed event room channel`);
+			if ("permissionOverwrites" in channel && channel.permissionOverwrites) {
+				await channel.permissionOverwrites.set(overwrites);
+			}
+			if ("setRateLimitPerUser" in channel) {
+				await (channel as any).setRateLimitPerUser(slowmodeSeconds);
 			}
 		}
 		catch (e) {
-			console.error(`EventChannelUtils.deleteRoomChannel: failed to delete channel ${row.channelId}:`, e);
+			console.error(`EventChannelUtils.applyChannelSettings: failed on channel ${channel.id}:`, e);
 		}
+	}
+
+	async function ensureRoomChannel(
+		store: Store,
+		event: DbEvent,
+		d: DesiredChannel,
+		overwrites: OverwriteResolvable[],
+		channelName: string,
+	): Promise<Snowflake> {
+		const adopted = await findCategoryChild(store, event.roomCategoryId, channelName);
+		if (adopted) {
+			await applyChannelSettings(adopted, overwrites, d.slowmodeSeconds);
+			return adopted.id;
+		}
+		try {
+			const channel = await store.guild.channels.create({
+				name: channelName,
+				type: ChannelType.GuildText,
+				parent: event.roomCategoryId,
+				rateLimitPerUser: d.slowmodeSeconds > 0 ? d.slowmodeSeconds : undefined,
+				permissionOverwrites: overwrites,
+				reason: `Auto-created for event "${event.name}" room ${d.roomIndex}${d.suffix ? ` (${d.suffix})` : ""}`,
+			});
+			return channel.id;
+		}
+		catch (e) {
+			console.error(`EventChannelUtils.ensureRoomChannel: failed to create channel "${channelName}" for event ${event.id}:`, e);
+			throw new CustomError({
+				message: `Failed to create channel \`${channelName}\`. Check that the bot has the Manage Channels permission in the selected category.`,
+			});
+		}
+	}
+
+	function trackRoomChannel(store: Store, event: DbEvent, d: DesiredChannel, channelId: Snowflake) {
+		store.insertEventRoomChannel({
+			guildId: store.guild.id,
+			eventId: event.id,
+			roomIndex: d.roomIndex,
+			suffix: d.suffix,
+			channelId,
+		});
+		if (d.suffix === null) {
+			store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: channelId });
+		}
+	}
+
+	function untrackRoomChannel(store: Store, row: DbEventRoomChannel) {
 		store.deleteEventRoomChannel({ id: row.id });
 	}
 
-	export async function deleteAllEventChannels(store: Store, event: DbEvent) {
+	export function untrackAllEventChannels(store: Store, event: DbEvent) {
 		const rows = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
-		for (const row of rows) {
-			await deleteRoomChannel(store, row);
-		}
+		for (const row of rows) untrackRoomChannel(store, row);
 	}
 
-	export async function deleteChannelsForSuffix(store: Store, event: DbEvent, suffix: string) {
+	export function untrackChannelsForSuffix(store: Store, event: DbEvent, suffix: string) {
 		const rows = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id })
 			.filter(r => r.suffix === suffix);
-		for (const row of rows) {
-			await deleteRoomChannel(store, row);
-		}
+		for (const row of rows) untrackRoomChannel(store, row);
 	}
 }

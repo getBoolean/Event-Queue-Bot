@@ -157,7 +157,7 @@ export namespace EventUtils {
 	}
 
 	export async function deleteEvent(store: Store, event: DbEvent) {
-		await EventChannelUtils.deleteAllEventChannels(store, event);
+		EventChannelUtils.untrackAllEventChannels(store, event);
 		await EventChannelUtils.deleteAutoCreatedRoles(store, event);
 
 		const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
