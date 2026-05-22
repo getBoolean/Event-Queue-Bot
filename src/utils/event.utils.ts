@@ -121,7 +121,6 @@ export namespace EventUtils {
 			}
 		}
 
-		const oldModeratorRoleId = event.moderatorRoleId;
 		const updatedEvent = store.updateEvent({ id: event.id, ...update });
 
 		// Re-arm pending occurrences if timing-related fields changed
@@ -137,9 +136,7 @@ export namespace EventUtils {
 		}
 
 		const channelsChanged = update.roomCategoryId !== undefined
-			|| update.moderatorRoleId !== undefined
-			|| update.roomCount !== undefined
-			|| (update.moderatorRoleId === undefined && oldModeratorRoleId !== updatedEvent.moderatorRoleId);
+			|| update.roomCount !== undefined;
 
 		const roleFlagsChanged = update.roleInRoomQueue !== undefined
 			|| update.roleOnRoomPull !== undefined

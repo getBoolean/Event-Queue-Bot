@@ -5,10 +5,11 @@ import { db } from "../db/db.ts";
 import type { Store } from "../db/store.ts";
 import type { Mentionable } from "../types/parsing.types.ts";
 import { AdminAccessError } from "./error.utils.ts";
+import { EventChannelUtils } from "./event-channel.utils.ts";
 
 export namespace AdminUtils {
-	export function insertAdmins(store: Store, mentionables: Mentionable[]) {
-		return db.transaction(() => compact(
+	export async function insertAdmins(store: Store, mentionables: Mentionable[]) {
+		const inserted = db.transaction(() => compact(
 			mentionables.map(mentionable =>
 				store.insertAdmin({
 					guildId: store.guild.id,
@@ -17,10 +18,24 @@ export namespace AdminUtils {
 				})
 			)
 		));
+		try {
+			await EventChannelUtils.reconcileAllGuildEvents(store);
+		}
+		catch (e) {
+			console.error("AdminUtils.insertAdmins: failed to reconcile event room channels after admin insert:", e);
+		}
+		return inserted;
 	}
 
-	export function deleteAdmins(store: Store, adminIds: bigint[]) {
-		return compact(adminIds.map(adminId => store.deleteAdmin({ id: adminId })));
+	export async function deleteAdmins(store: Store, adminIds: bigint[]) {
+		const deleted = compact(adminIds.map(adminId => store.deleteAdmin({ id: adminId })));
+		try {
+			await EventChannelUtils.reconcileAllGuildEvents(store);
+		}
+		catch (e) {
+			console.error("AdminUtils.deleteAdmins: failed to reconcile event room channels after admin delete:", e);
+		}
+		return deleted;
 	}
 
 	export function isAdmin(store: Store, member: GuildMember) {

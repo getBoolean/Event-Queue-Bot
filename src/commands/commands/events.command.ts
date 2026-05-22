@@ -1,4 +1,4 @@
-import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, roleMention, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
+import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
 import { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { findKey, isNil, omitBy } from "lodash-es";
 
@@ -27,7 +27,6 @@ import { LockToggleOption } from "../../options/options/lock-toggle.option.ts";
 import { MaxRoomsPerUserOption } from "../../options/options/max-rooms-per-user.option.ts";
 import { MaxSubsPerUserOption } from "../../options/options/max-subs-per-user.option.ts";
 import { MemberDisplayTypeOption } from "../../options/options/member-display-type.option.ts";
-import { ModeratorRoleOption } from "../../options/options/moderator-role.option.ts";
 import { NameOption } from "../../options/options/name.option.ts";
 import { ParentSubMutuallyExclusiveOption } from "../../options/options/parent-sub-mutually-exclusive.option.ts";
 import { PullBatchSizeOption } from "../../options/options/pull-batch-size.option.ts";
@@ -245,7 +244,6 @@ export class EventsCommand extends AdminCommand {
 				subQueuesChannelId: channelMention(event.subQueuesChannelId),
 				announcementChannelId: event.announcementChannelId ? channelMention(event.announcementChannelId) : null,
 				roomCategoryId: event.roomCategoryId ? channelMention(event.roomCategoryId) : null,
-				moderatorRoleId: event.moderatorRoleId ? roleMention(event.moderatorRoleId) : null,
 				roomChannelTemplates: templateSummary,
 			};
 		});
@@ -284,7 +282,6 @@ export class EventsCommand extends AdminCommand {
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
-		moderatorRole: new ModeratorRoleOption({ description: "Moderator role for room channels" }),
 		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign room role while in room queue" }),
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
@@ -320,7 +317,6 @@ export class EventsCommand extends AdminCommand {
 				maxRoomsPerUser: EventsCommand.ADD_OPTIONS.maxRoomsPerUser.get(inter),
 				maxSubsPerUser: EventsCommand.ADD_OPTIONS.maxSubsPerUser.get(inter),
 				parentSubMutuallyExclusive: EventsCommand.ADD_OPTIONS.parentSubMutuallyExclusive.get(inter),
-				moderatorRoleId: EventsCommand.ADD_OPTIONS.moderatorRole.get(inter)?.id,
 				roleInRoomQueue: EventsCommand.ADD_OPTIONS.roleInRoomQueue.get(inter),
 				roleOnRoomPull: EventsCommand.ADD_OPTIONS.roleOnRoomPull.get(inter),
 				roleInSubQueue: EventsCommand.ADD_OPTIONS.roleInSubQueue.get(inter),
@@ -366,7 +362,6 @@ export class EventsCommand extends AdminCommand {
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
 		roomCategory: new RoomCategoryOption({ description: "Category for per-room channels" }),
-		moderatorRole: new ModeratorRoleOption({ description: "Moderator role for room channels" }),
 		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign room role while in room queue" }),
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
@@ -403,7 +398,6 @@ export class EventsCommand extends AdminCommand {
 			maxSubsPerUser: EventsCommand.SET_OPTIONS.maxSubsPerUser.get(inter),
 			parentSubMutuallyExclusive: EventsCommand.SET_OPTIONS.parentSubMutuallyExclusive.get(inter),
 			roomCategoryId: EventsCommand.SET_OPTIONS.roomCategory.get(inter)?.id,
-			moderatorRoleId: EventsCommand.SET_OPTIONS.moderatorRole.get(inter)?.id,
 			roleInRoomQueue: EventsCommand.SET_OPTIONS.roleInRoomQueue.get(inter),
 			roleOnRoomPull: EventsCommand.SET_OPTIONS.roleOnRoomPull.get(inter),
 			roleInSubQueue: EventsCommand.SET_OPTIONS.roleInSubQueue.get(inter),
@@ -621,19 +615,20 @@ export class EventsCommand extends AdminCommand {
 
 		if (event) {
 			EventUtils.assertHasRoomCategory(event);
+			await EventChannelUtils.reconcileRoomChannels(inter.store, event);
+			await inter.respond("Synced room channels for 1 event(s).", true);
+			return;
 		}
 
-		const events = event ? [event] : [...inter.store.dbEvents().values()];
-		const targeted = events.filter(e => !!e.roomCategoryId);
+		const allEvents = [...inter.store.dbEvents().values()];
+		const targeted = allEvents.filter(e => !!e.roomCategoryId);
 
 		if (targeted.length === 0) {
 			await inter.respond(`No events have a ${inlineCode("room_category")} configured. Set one with ${commandMention("events", "set")}.`);
 			return;
 		}
 
-		for (const ev of targeted) {
-			await EventChannelUtils.reconcileRoomChannels(inter.store, ev);
-		}
+		await EventChannelUtils.reconcileAllGuildEvents(inter.store);
 
 		await inter.respond(
 			`Synced room channels for ${targeted.length} event(s).`,
@@ -663,7 +658,6 @@ export class EventsCommand extends AdminCommand {
 			{ name: RoomLengthMinutesOption.ID, value: EVENT_TABLE.roomLengthMs.name },
 			{ name: `${AnnouncementChannelOption.ID} + ${AnnouncementMessageOption.ID}`, value: ANNOUNCEMENT_PAIR_VALUE },
 			{ name: RoomPingMessageOption.ID, value: EVENT_TABLE.roomPingMessage.name },
-			{ name: ModeratorRoleOption.ID, value: EVENT_TABLE.moderatorRoleId.name },
 			{ name: RoleInRoomQueueOption.ID, value: EVENT_TABLE.roleInRoomQueue.name },
 			{ name: RoleOnRoomPullOption.ID, value: EVENT_TABLE.roleOnRoomPull.name },
 			{ name: RoleInSubQueueOption.ID, value: EVENT_TABLE.roleInSubQueue.name },

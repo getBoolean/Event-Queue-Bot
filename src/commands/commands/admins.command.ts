@@ -82,7 +82,7 @@ export class AdminsCommand extends AdminCommand {
 			AdminsCommand.ADD_OPTIONS.mentionable5.get(inter),
 		]);
 
-		const insertedAdmins = AdminUtils.insertAdmins(inter.store, mentionables);
+		const insertedAdmins = await AdminUtils.insertAdmins(inter.store, mentionables);
 
 		await inter.respond(`Granted Queue Bot admin access to ${mentionablesMention(insertedAdmins)}.`, true);
 
@@ -100,7 +100,7 @@ export class AdminsCommand extends AdminCommand {
 	static async admins_delete(inter: SlashInteraction) {
 		const admins = await AdminsCommand.DELETE_OPTIONS.admins.get(inter);
 
-		const deletedAdmins = AdminUtils.deleteAdmins(inter.store, admins.map(admin => admin.id));
+		const deletedAdmins = await AdminUtils.deleteAdmins(inter.store, admins.map(admin => admin.id));
 
 		await inter.respond(`Revoked Queue Bot admin access from ${mentionablesMention(deletedAdmins)}.`, true);
 

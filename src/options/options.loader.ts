@@ -42,7 +42,6 @@ import { MembersOption } from "./options/members.option.ts";
 import { MentionableOption } from "./options/mentionable.option.ts";
 import { MessageOption } from "./options/message.option.ts";
 import { MessageChannelOption } from "./options/message-channel.option.ts";
-import { ModeratorRoleOption } from "./options/moderator-role.option.ts";
 import { NameOption } from "./options/name.option.ts";
 import { NumberOption } from "./options/number.option.ts";
 import { ParentSubMutuallyExclusiveOption } from "./options/parent-sub-mutually-exclusive.option.ts";
@@ -129,7 +128,6 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[MentionableOption.ID, new MentionableOption()],
 	[MessageChannelOption.ID, new MessageChannelOption()],
 	[MessageOption.ID, new MessageOption()],
-	[ModeratorRoleOption.ID, new ModeratorRoleOption()],
 	[NameOption.ID, new NameOption()],
 	[NumberOption.ID, new NumberOption()],
 	[ParentSubMutuallyExclusiveOption.ID, new ParentSubMutuallyExclusiveOption()],

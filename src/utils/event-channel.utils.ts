@@ -49,7 +49,6 @@ export namespace EventChannelUtils {
 	function buildOverwrites(
 		store: Store,
 		roomRoleId: Snowflake | null | undefined,
-		moderatorRoleId: Snowflake | null | undefined,
 	): OverwriteResolvable[] {
 		// View Channel is the only permission we manage here. Everything else
 		// (Send Messages, Read History, etc.) falls through to guild-level role perms.
@@ -70,12 +69,14 @@ export namespace EventChannelUtils {
 		if (roomRoleId) {
 			overwrites.push({
 				id: roomRoleId,
+				type: OverwriteType.Role,
 				allow: [PermissionFlagsBits.ViewChannel],
 			});
 		}
-		if (moderatorRoleId) {
+		for (const admin of Queries.selectManyAdmins({ guildId: store.guild.id })) {
 			overwrites.push({
-				id: moderatorRoleId,
+				id: admin.subjectId,
+				type: admin.isRole ? OverwriteType.Role : OverwriteType.Member,
 				allow: [PermissionFlagsBits.ViewChannel],
 			});
 		}
@@ -211,7 +212,7 @@ export namespace EventChannelUtils {
 		for (const [key, d] of desiredByKey) {
 			const existingRow = existingByKey.get(key);
 			const roomRoleId = roleByRoomIndex.get(d.roomIndex) ?? null;
-			const overwrites = buildOverwrites(store, roomRoleId, event.moderatorRoleId);
+			const overwrites = buildOverwrites(store, roomRoleId);
 			const channelName = buildChannelName(d.suffix, d.roomIndex);
 
 			if (!existingRow) {
@@ -237,6 +238,14 @@ export namespace EventChannelUtils {
 
 		await reorderRoomChannels(store, event);
 		await reconcileRoleAssignments(store, event);
+	}
+
+	export async function reconcileAllGuildEvents(store: Store) {
+		const events = Queries.selectManyEvents({ guildId: store.guild.id });
+		for (const event of events) {
+			if (!event.roomCategoryId) continue;
+			await reconcileRoomChannels(store, event);
+		}
 	}
 
 	async function reorderRoomChannels(store: Store, event: DbEvent) {
@@ -378,7 +387,7 @@ export namespace EventChannelUtils {
 			if (err?.code === 50001 || err?.status === 403) {
 				// Adopted channel the bot can't edit. Track it as-is; the user owns
 				// permissions there. Surface a single-line hint instead of a stack.
-				console.warn(`EventChannelUtils.applyChannelSettings: missing access on channel ${channel.id} (#${(channel as any).name ?? "?"}). Grant the bot Manage Channels here to auto-apply room-role + moderator overwrites and slowmode.`);
+				console.warn(`EventChannelUtils.applyChannelSettings: missing access on channel ${channel.id} (#${(channel as any).name ?? "?"}). Grant the bot Manage Channels here to auto-apply room-role + admin overwrites and slowmode.`);
 				return;
 			}
 			console.error(`EventChannelUtils.applyChannelSettings: failed on channel ${channel.id}:`, e);
