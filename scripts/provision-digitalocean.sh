@@ -84,6 +84,7 @@ perl -0pe '
 
 echo "Provisioning DigitalOcean resources for ${DO_DROPLET_NAME}"
 
+echo "Looking up tag ${DO_TAG}"
 if doctl compute tag get "$DO_TAG" >/dev/null 2>&1; then
   echo "Reusing tag ${DO_TAG}"
 else
@@ -91,6 +92,7 @@ else
   doctl compute tag create "$DO_TAG"
 fi
 
+echo "Listing SSH keys"
 ssh_keys_json="$(doctl compute ssh-key list --output json)"
 ssh_key_id="$(
   jq -r --arg fp "$ssh_key_fingerprint" '
@@ -128,6 +130,7 @@ else
   )"
 fi
 
+echo "Listing Droplets"
 droplets_json="$(doctl compute droplet list --output json)"
 droplet_count="$(
   jq -r --arg name "$DO_DROPLET_NAME" '[.[] | select(.name == $name)] | length' <<< "$droplets_json"
@@ -189,7 +192,23 @@ else
 fi
 
 if [ -n "$DO_PROJECT_NAME" ]; then
-  projects_json="$(doctl projects list --output json)"
+  echo "Looking up project ${DO_PROJECT_NAME}"
+  projects_stdout="$(mktemp)"
+  projects_stderr="$(mktemp)"
+  set +e
+  doctl projects list --output json >"$projects_stdout" 2>"$projects_stderr"
+  projects_rc=$?
+  set -e
+  echo "doctl projects list exit=${projects_rc}"
+  if [ "$projects_rc" -ne 0 ]; then
+    echo "--- doctl projects list stderr ---"
+    cat "$projects_stderr"
+    echo "----------------------------------"
+    rm -f "$projects_stdout" "$projects_stderr"
+    exit "$projects_rc"
+  fi
+  projects_json="$(cat "$projects_stdout")"
+  rm -f "$projects_stdout" "$projects_stderr"
   project_id="$(
     jq -r --arg name "$DO_PROJECT_NAME" '
       [.[] | select(.name == $name)] |
@@ -220,6 +239,7 @@ if [ -n "$DO_PROJECT_NAME" ]; then
   doctl projects resources assign "$project_id" --resource="do:droplet:${droplet_id}" >/dev/null
 fi
 
+echo "Listing Firewalls"
 firewalls_json="$(doctl compute firewall list --output json)"
 firewall_count="$(
   jq -r --arg name "$DO_FIREWALL_NAME" '[.[] | select(.name == $name)] | length' <<< "$firewalls_json"

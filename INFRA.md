@@ -11,12 +11,13 @@ Do not also store these values as repository-wide secrets.
 
 ## 1. Create DigitalOcean Token
 
-Create a DigitalOcean API token with access to manage:
+Create a DigitalOcean API token with these custom scopes:
 
-- Droplets
-- SSH keys
-- Firewalls
-- Tags
+- `droplet:read`, `droplet:create`
+- `ssh_key:read`, `ssh_key:create`
+- `firewall:read`, `firewall:create`, `firewall:update`
+- `tag:read`, `tag:create`
+- `project:read`, `project:create`, `project:update`
 
 Save it as this GitHub environment secret:
 
