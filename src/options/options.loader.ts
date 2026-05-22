@@ -13,9 +13,11 @@ import { ChannelSuffixOption } from "./options/channel-suffix.option.ts";
 import { CleanupOffsetHoursOption } from "./options/cleanup-offset-hours.option.ts";
 import { ColorOption } from "./options/color.option.ts";
 import { CommandOption } from "./options/command.option.ts";
+import { CreateDiscordEventToggleOption } from "./options/create-discord-event-toggle.option.ts";
 import { CreateOffsetHoursOption } from "./options/create-offset-hours.option.ts";
 import { CronOption } from "./options/cron.option.ts";
 import { CustomCronOption } from "./options/custom-cron.option.ts";
+import { DiscordEventDescriptionOption } from "./options/discord-event-description.option.ts";
 import { DisplayOption } from "./options/display.option.ts";
 import { ButtonsToggleOption } from "./options/display-buttons.option.ts";
 import { DisplayUpdateTypeOption } from "./options/display-update-type.option.ts";
@@ -99,9 +101,11 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[CleanupOffsetHoursOption.ID, new CleanupOffsetHoursOption()],
 	[ColorOption.ID, new ColorOption()],
 	[CommandOption.ID, new CommandOption()],
+	[CreateDiscordEventToggleOption.ID, new CreateDiscordEventToggleOption()],
 	[CreateOffsetHoursOption.ID, new CreateOffsetHoursOption()],
 	[CronOption.ID, new CronOption()],
 	[CustomCronOption.ID, new CustomCronOption()],
+	[DiscordEventDescriptionOption.ID, new DiscordEventDescriptionOption()],
 	[DisplayOption.ID, new DisplayOption()],
 	[DisplaysOption.ID, new DisplaysOption()],
 	[DisplayUpdateTypeOption.ID, new DisplayUpdateTypeOption()],

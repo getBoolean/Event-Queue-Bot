@@ -58,6 +58,7 @@ Restricted to users with the **Administrator** permission and users added via `/
 OAuth scopes: `bot`, `applications.commands`.
 
 - **Manage Channels** — create / delete / configure auto-created event room channels
+- **Manage Events** — create / edit / delete a native Discord scheduled event per occurrence
 - **Manage Roles** — assign queue / pull roles
 - **Manage Threads** — reserved for future use
 - **Mention Everyone** — `@everyone` / `@here` in announcements

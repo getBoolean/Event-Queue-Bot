@@ -185,6 +185,8 @@ export const EVENT_TABLE = sqliteTable("event", ({
 	roleOnRoomPull: integer("role_on_room_pull", { mode: "boolean" }).notNull().default(false),
 	roleInSubQueue: integer("role_in_sub_queue", { mode: "boolean" }).notNull().default(false),
 	roleOnSubPull: integer("role_on_sub_pull", { mode: "boolean" }).notNull().default(true),
+	createDiscordEvent: integer("create_discord_event", { mode: "boolean" }).notNull().default(true),
+	discordEventDescription: text("discord_event_description"),
 }),
 (table) => ({
 	unq: unique().on(table.name, table.guildId),
@@ -204,6 +206,7 @@ export const EVENT_OCCURRENCE_TABLE = sqliteTable("event_occurrence", ({
 	timezone: text("timezone"),
 	openHandledAt: integer("open_handled_at").$type<bigint>(),
 	lockHandledAt: integer("lock_handled_at").$type<bigint>(),
+	discordEventId: text("discord_event_id").$type<Snowflake>(),
 }),
 (table) => ({
 	unq: unique().on(table.eventId, table.startTime),

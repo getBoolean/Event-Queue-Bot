@@ -12,7 +12,9 @@ import { BadgeToggleOption } from "../../options/options/badge-toggle.option.ts"
 import { ChannelSuffixOption } from "../../options/options/channel-suffix.option.ts";
 import { CleanupOffsetHoursOption } from "../../options/options/cleanup-offset-hours.option.ts";
 import { ColorOption } from "../../options/options/color.option.ts";
+import { CreateDiscordEventToggleOption } from "../../options/options/create-discord-event-toggle.option.ts";
 import { CreateOffsetHoursOption } from "../../options/options/create-offset-hours.option.ts";
+import { DiscordEventDescriptionOption } from "../../options/options/discord-event-description.option.ts";
 import { ButtonsToggleOption } from "../../options/options/display-buttons.option.ts";
 import { DisplayUpdateTypeOption } from "../../options/options/display-update-type.option.ts";
 import { DmOnPullToggleOption } from "../../options/options/dm-on-pull-toggle.option.ts";
@@ -238,6 +240,7 @@ export class EventsCommand extends AdminCommand {
 				cleanupOffsetMs: `${Number(event.cleanupOffsetMs) / 3_600_000}h`,
 				roomLengthMs: event.roomLengthMs ? `${Number(event.roomLengthMs) / 60_000}min` : null,
 				nextOccurrence: nextOcc ? time(new Date(Number(nextOcc.startTime)), TimestampStyles.LongDateTime) : "None",
+				nextOccurrenceDiscordEventId: nextOcc?.discordEventId ?? null,
 				roomChannelId: channelMention(event.roomChannelId),
 				subChannelId: channelMention(event.subChannelId),
 				announcementChannelId: event.announcementChannelId ? channelMention(event.announcementChannelId) : null,
@@ -286,6 +289,8 @@ export class EventsCommand extends AdminCommand {
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign the auto-created room role to users pulled from the room queue" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign the auto-created room role to users in the sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign the auto-created room role to users pulled from the sub queue" }),
+		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create a native Discord scheduled event for each occurrence" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Override the auto-generated Discord event description (template)" }),
 	};
 
 	static async events_add(inter: SlashInteraction) {
@@ -320,6 +325,8 @@ export class EventsCommand extends AdminCommand {
 				roleOnRoomPull: EventsCommand.ADD_OPTIONS.roleOnRoomPull.get(inter),
 				roleInSubQueue: EventsCommand.ADD_OPTIONS.roleInSubQueue.get(inter),
 				roleOnSubPull: EventsCommand.ADD_OPTIONS.roleOnSubPull.get(inter),
+				createDiscordEvent: EventsCommand.ADD_OPTIONS.createDiscordEvent.get(inter),
+				discordEventDescription: EventsCommand.ADD_OPTIONS.discordEventDescription.get(inter),
 			}, isNil),
 		};
 
@@ -364,6 +371,8 @@ export class EventsCommand extends AdminCommand {
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign the auto-created room role to users pulled from the room queue" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign the auto-created room role to users in the sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign the auto-created room role to users pulled from the sub queue" }),
+		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create a native Discord scheduled event for each occurrence" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Override the auto-generated Discord event description (template)" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -399,6 +408,8 @@ export class EventsCommand extends AdminCommand {
 			roleOnRoomPull: EventsCommand.SET_OPTIONS.roleOnRoomPull.get(inter),
 			roleInSubQueue: EventsCommand.SET_OPTIONS.roleInSubQueue.get(inter),
 			roleOnSubPull: EventsCommand.SET_OPTIONS.roleOnSubPull.get(inter),
+			createDiscordEvent: EventsCommand.SET_OPTIONS.createDiscordEvent.get(inter),
+			discordEventDescription: EventsCommand.SET_OPTIONS.discordEventDescription.get(inter),
 		}, isNil);
 
 		const effectiveMessage = announcementMessage ?? event.announcementMessage;
@@ -657,6 +668,8 @@ export class EventsCommand extends AdminCommand {
 			{ name: RoleOnRoomPullOption.ID, value: EVENT_TABLE.roleOnRoomPull.name },
 			{ name: RoleInSubQueueOption.ID, value: EVENT_TABLE.roleInSubQueue.name },
 			{ name: RoleOnSubPullOption.ID, value: EVENT_TABLE.roleOnSubPull.name },
+			{ name: CreateDiscordEventToggleOption.ID, value: EVENT_TABLE.createDiscordEvent.name },
+			{ name: DiscordEventDescriptionOption.ID, value: EVENT_TABLE.discordEventDescription.name },
 		];
 		const selectMenuTransactor = new SelectMenuTransactor(inter);
 		const propertiesToReset = await selectMenuTransactor.sendAndReceive("Event properties to reset", selectMenuOptions) ?? [];
@@ -868,7 +881,8 @@ export class EventsCommand extends AdminCommand {
 				"- **T − create_offset** (default 24h before): queues unlock, displays refresh, announcement posts\n" +
 				"- **T + lock_offset** (default 0): room queues lock (sub queues stay open)\n" +
 				"- **Per-room ping**: at each room's start time a ping posts in the room's channel\n" +
-				"- **T + cleanup_offset** (default 24h after): all members cleared, all queues locked\n\n" +
+				"- **T + cleanup_offset** (default 24h after): all members cleared, all queues locked\n" +
+				"- A native Discord scheduled event is created per occurrence when `create_discord_event` is on (default).\n\n" +
 				"**Missed actions** (bot was down): run automatically on next startup.\n\n" +
 				"**Signup policies** (set via `/events add` or `/events set`):\n" +
 				"- `max_rooms_per_user` — cap on room queues a single user may sit in at once (`0` = unlimited)\n" +

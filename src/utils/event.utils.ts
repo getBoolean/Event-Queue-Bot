@@ -1,4 +1,14 @@
-import { channelMention, type GuildTextBasedChannel, type Snowflake, time, TimestampStyles } from "discord.js";
+import {
+	channelMention,
+	type DiscordAPIError,
+	type GuildScheduledEventCreateOptions,
+	GuildScheduledEventEntityType,
+	GuildScheduledEventPrivacyLevel,
+	type GuildTextBasedChannel,
+	type Snowflake,
+	time,
+	TimestampStyles,
+} from "discord.js";
 import { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { compact, findKey, isNil, omitBy } from "lodash-es";
 import nodeSchedule, { type Job } from "node-schedule";
@@ -157,6 +167,7 @@ export namespace EventUtils {
 
 		const occurrences = Queries.selectManyOccurrences({ guildId: store.guild.id, eventId: event.id });
 		for (const occ of occurrences) {
+			await deleteDiscordScheduledEvent(store, occ);
 			unregisterJobs(occ.id);
 		}
 
@@ -248,10 +259,15 @@ export namespace EventUtils {
 
 		await armOccurrence(event, occurrence);
 
+		if (event.createDiscordEvent) {
+			await createDiscordScheduledEvent(store, event, occurrence);
+		}
+
 		return occurrence;
 	}
 
 	export async function cancelOccurrence(store: Store, occurrence: DbEventOccurrence) {
+		await deleteDiscordScheduledEvent(store, occurrence);
 		unregisterJobs(occurrence.id);
 		store.deleteOccurrence({ id: occurrence.id });
 	}
@@ -395,6 +411,7 @@ export namespace EventUtils {
 		const occurrences = Queries.selectManyOccurrences({ guildId: store.guild.id, eventId: event.id });
 		for (const occ of occurrences) {
 			await armOccurrence(event, occ);
+			await updateDiscordScheduledEvent(store, event, occ);
 		}
 	}
 
@@ -570,6 +587,97 @@ export namespace EventUtils {
 			start_time: time(startDate, TimestampStyles.LongDateTime),
 			start_time_relative: time(startDate, TimestampStyles.RelativeTime),
 		};
+	}
+
+	// ====================================================================
+	//                        Discord scheduled events
+	// ====================================================================
+
+	const DISCORD_EVENT_NAME_LIMIT = 100;
+	const DISCORD_EVENT_DESCRIPTION_LIMIT = 1000;
+	const DISCORD_EVENT_LOCATION_LIMIT = 100;
+	const DISCORD_UNKNOWN_GUILD_SCHEDULED_EVENT = 10070;
+
+	function resolveRoomChannelName(store: Store, event: DbEvent): string {
+		const cached = store.guild.channels.cache.get(event.roomChannelId);
+		return cached?.name ?? event.roomChannelId;
+	}
+
+	function renderDiscordEventDescription(event: DbEvent, occurrence: DbEventOccurrence): string {
+		if (event.discordEventDescription) {
+			return renderTemplate(event.discordEventDescription, buildAnnouncementContext(event, occurrence));
+		}
+		const scheduling = (event.roomScheduling as RoomScheduling) === RoomScheduling.Sequential
+			? "sequential"
+			: "parallel";
+		return [
+			`Room channel: ${channelMention(event.roomChannelId)}`,
+			`Sub channel: ${channelMention(event.subChannelId)}`,
+			`Rooms: ${event.roomCount} (${scheduling})`,
+		].join("\n");
+	}
+
+	function buildDiscordEventOptions(
+		event: DbEvent,
+		occurrence: DbEventOccurrence,
+		roomChannelName: string,
+	): GuildScheduledEventCreateOptions {
+		const startMs = Number(occurrence.startTime);
+		const endMs = startMs + Number(event.cleanupOffsetMs);
+		return {
+			name: event.name.substring(0, DISCORD_EVENT_NAME_LIMIT),
+			scheduledStartTime: new Date(startMs),
+			scheduledEndTime: new Date(endMs),
+			privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+			entityType: GuildScheduledEventEntityType.External,
+			description: renderDiscordEventDescription(event, occurrence).substring(0, DISCORD_EVENT_DESCRIPTION_LIMIT),
+			entityMetadata: {
+				location: roomChannelName.substring(0, DISCORD_EVENT_LOCATION_LIMIT),
+			},
+		};
+	}
+
+	function isUnknownDiscordEventError(e: unknown): boolean {
+		const err = e as DiscordAPIError;
+		return err?.code === DISCORD_UNKNOWN_GUILD_SCHEDULED_EVENT || err?.status === 404;
+	}
+
+	async function createDiscordScheduledEvent(store: Store, event: DbEvent, occurrence: DbEventOccurrence) {
+		if (Number(occurrence.startTime) <= Date.now()) {
+			// Discord rejects external events whose start time is not in the future
+			return;
+		}
+		try {
+			const options = buildDiscordEventOptions(event, occurrence, resolveRoomChannelName(store, event));
+			const created = await store.guild.scheduledEvents.create(options);
+			store.updateOccurrence({ id: occurrence.id }, { discordEventId: created.id });
+		}
+		catch (e) {
+			console.error(`Failed to create Discord scheduled event for occurrence ${occurrence.id}:`, e);
+		}
+	}
+
+	async function updateDiscordScheduledEvent(store: Store, event: DbEvent, occurrence: DbEventOccurrence) {
+		if (!occurrence.discordEventId) return;
+		try {
+			const options = buildDiscordEventOptions(event, occurrence, resolveRoomChannelName(store, event));
+			await store.guild.scheduledEvents.edit(occurrence.discordEventId, options);
+		}
+		catch (e) {
+			if (isUnknownDiscordEventError(e)) return;
+			console.error(`Failed to update Discord scheduled event for occurrence ${occurrence.id}:`, e);
+		}
+	}
+
+	async function deleteDiscordScheduledEvent(store: Store, occurrence: DbEventOccurrence) {
+		if (!occurrence.discordEventId) return;
+		try {
+			await store.guild.scheduledEvents.delete(occurrence.discordEventId);
+		}
+		catch (e) {
+			if (isUnknownDiscordEventError(e)) return;
+			console.error(`Failed to delete Discord scheduled event for occurrence ${occurrence.id}:`, e);
+		}
 	}
 
 	// ====================================================================
