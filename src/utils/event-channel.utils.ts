@@ -3,6 +3,7 @@ import {
 	type DiscordAPIError,
 	type GuildBasedChannel,
 	type OverwriteResolvable,
+	OverwriteType,
 	PermissionFlagsBits,
 	type Snowflake,
 } from "discord.js";
@@ -46,16 +47,32 @@ export namespace EventChannelUtils {
 	}
 
 	function buildOverwrites(
-		guildId: Snowflake,
+		store: Store,
 		roomRoleId: Snowflake | null | undefined,
 		moderatorRoleId: Snowflake | null | undefined,
 	): OverwriteResolvable[] {
 		const overwrites: OverwriteResolvable[] = [
 			{
-				id: guildId,
+				id: store.guild.id,
 				deny: [PermissionFlagsBits.ViewChannel],
 			},
 		];
+		// Pin the bot itself with explicit allow so the @everyone deny above doesn't
+		// lock the bot out of its own auto-managed channels.
+		const botUserId = store.guild.members.me?.id;
+		if (botUserId) {
+			overwrites.push({
+				id: botUserId,
+				type: OverwriteType.Member,
+				allow: [
+					PermissionFlagsBits.ViewChannel,
+					PermissionFlagsBits.ManageChannels,
+					PermissionFlagsBits.ManageRoles,
+					PermissionFlagsBits.SendMessages,
+					PermissionFlagsBits.ReadMessageHistory,
+				],
+			});
+		}
 		if (roomRoleId) {
 			overwrites.push({
 				id: roomRoleId,
@@ -209,7 +226,7 @@ export namespace EventChannelUtils {
 		for (const [key, d] of desiredByKey) {
 			const existingRow = existingByKey.get(key);
 			const roomRoleId = roleByRoomIndex.get(d.roomIndex) ?? null;
-			const overwrites = buildOverwrites(store.guild.id, roomRoleId, event.moderatorRoleId);
+			const overwrites = buildOverwrites(store, roomRoleId, event.moderatorRoleId);
 			const channelName = buildChannelName(d.suffix, d.roomIndex);
 
 			if (!existingRow) {
@@ -246,19 +263,34 @@ export namespace EventChannelUtils {
 		const category = await store.jsChannel(event.roomCategoryId);
 		if (!category || category.type !== ChannelType.GuildCategory) return;
 
-		// Pair tracked rows with their live Discord channels (skip any that have gone missing).
-		const live: { row: DbEventRoomChannel, channel: GuildBasedChannel }[] = [];
-		for (const row of rows) {
-			const channel = category.children?.cache.get(row.channelId);
-			if (channel) live.push({ row, channel });
+		const rowByChannelId = new Map<Snowflake, DbEventRoomChannel>();
+		for (const row of rows) rowByChannelId.set(row.channelId, row);
+
+		// Walk the category in current position order, breaking into runs of consecutive
+		// tracked channels. Any non-tracked channel ends the current run — so reordering
+		// only ever rearranges tracked channels within their own contiguous block, never
+		// across a non-tracked channel.
+		const children = [...(category.children?.cache.values() ?? [])]
+			.sort((a, b) => (a as any).position - (b as any).position);
+
+		const blocks: { rows: DbEventRoomChannel[], slots: number[] }[] = [];
+		let current: { rows: DbEventRoomChannel[], slots: number[] } | null = null;
+		for (const ch of children) {
+			const row = rowByChannelId.get(ch.id);
+			if (row) {
+				if (!current) current = { rows: [], slots: [] };
+				current.rows.push(row);
+				current.slots.push((ch as any).position);
+			}
+			else if (current) {
+				blocks.push(current);
+				current = null;
+			}
 		}
-		if (live.length === 0) return;
+		if (current) blocks.push(current);
+		if (blocks.length === 0) return;
 
-		// Redistribute only the slots currently held by our tracked room channels. Every
-		// other channel in the category (and the guild) keeps its position untouched.
-		const slots = live.map(l => (l.channel as any).position as number).sort((a, b) => a - b);
-
-		const sortedRows = live.map(l => l.row).sort((a, b) => {
+		const desiredOrder = (a: DbEventRoomChannel, b: DbEventRoomChannel) => {
 			const indexDiff = Number(a.roomIndex) - Number(b.roomIndex);
 			if (indexDiff !== 0) return indexDiff;
 			// null suffix (main channel) sorts LAST within each room
@@ -266,12 +298,15 @@ export namespace EventChannelUtils {
 			if (a.suffix === null) return 1;
 			if (b.suffix === null) return -1;
 			return a.suffix.localeCompare(b.suffix);
-		});
+		};
 
-		const payload = sortedRows.map((row, i) => ({
-			channel: row.channelId,
-			position: slots[i],
-		}));
+		const payload: { channel: Snowflake, position: number }[] = [];
+		for (const block of blocks) {
+			const sorted = [...block.rows].sort(desiredOrder);
+			for (let i = 0; i < sorted.length; i++) {
+				payload.push({ channel: sorted[i].channelId, position: block.slots[i] });
+			}
+		}
 
 		try {
 			await store.guild.channels.setPositions(payload);
@@ -354,6 +389,13 @@ export namespace EventChannelUtils {
 			}
 		}
 		catch (e) {
+			const err = e as DiscordAPIError;
+			if (err?.code === 50001 || err?.status === 403) {
+				// Adopted channel the bot can't edit. Track it as-is; the user owns
+				// permissions there. Surface a single-line hint instead of a stack.
+				console.warn(`EventChannelUtils.applyChannelSettings: missing access on channel ${channel.id} (#${(channel as any).name ?? "?"}). Grant the bot Manage Channels here to auto-apply room-role + moderator overwrites and slowmode.`);
+				return;
+			}
 			console.error(`EventChannelUtils.applyChannelSettings: failed on channel ${channel.id}:`, e);
 		}
 	}
