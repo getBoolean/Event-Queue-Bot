@@ -259,6 +259,8 @@ export class EventsCommand extends AdminCommand {
 		const createOffsetHours = EventsCommand.ADD_OPTIONS.createOffsetHours.get(inter);
 		const lockOffsetMinutes = EventsCommand.ADD_OPTIONS.lockOffsetMinutes.get(inter);
 		const cleanupOffsetHours = EventsCommand.ADD_OPTIONS.cleanupOffsetHours.get(inter);
+		const announcementChannelId = EventsCommand.ADD_OPTIONS.announcementChannel.get(inter)?.id;
+		const announcementMessage = EventsCommand.ADD_OPTIONS.announcementMessage.get(inter);
 
 		const newEvent = {
 			name: EventsCommand.ADD_OPTIONS.name.get(inter)?.substring(0, 240),
@@ -271,14 +273,14 @@ export class EventsCommand extends AdminCommand {
 				createOffsetMs: createOffsetHours != null ? BigInt(createOffsetHours) * HOURS_TO_MS : undefined,
 				lockOffsetMs: lockOffsetMinutes != null ? BigInt(lockOffsetMinutes) * MINUTES_TO_MS : undefined,
 				cleanupOffsetMs: cleanupOffsetHours != null ? BigInt(cleanupOffsetHours) * HOURS_TO_MS : undefined,
-				announcementChannelId: EventsCommand.ADD_OPTIONS.announcementChannel.get(inter)?.id,
-				announcementMessage: EventsCommand.ADD_OPTIONS.announcementMessage.get(inter),
+				announcementChannelId,
+				announcementMessage,
 				roomPingMessage: EventsCommand.ADD_OPTIONS.roomPingMessage.get(inter),
 			}, isNil),
 		};
 
-		if (newEvent.announcementMessage && newEvent.announcementChannelId) {
-			verifyMentionEveryonePermission(inter, newEvent.announcementMessage, newEvent.announcementChannelId);
+		if (announcementMessage && announcementChannelId) {
+			verifyMentionEveryonePermission(inter, announcementMessage, announcementChannelId);
 		}
 
 		const event = await EventUtils.insertEvent(inter.store, newEvent);
@@ -318,6 +320,8 @@ export class EventsCommand extends AdminCommand {
 		const createOffsetHours = EventsCommand.SET_OPTIONS.createOffsetHours.get(inter);
 		const lockOffsetMinutes = EventsCommand.SET_OPTIONS.lockOffsetMinutes.get(inter);
 		const cleanupOffsetHours = EventsCommand.SET_OPTIONS.cleanupOffsetHours.get(inter);
+		const announcementChannelId = EventsCommand.SET_OPTIONS.announcementChannel.get(inter)?.id;
+		const announcementMessage = EventsCommand.SET_OPTIONS.announcementMessage.get(inter);
 
 		const update = omitBy({
 			roomCount: EventsCommand.SET_OPTIONS.roomCount.get(inter) ? BigInt(EventsCommand.SET_OPTIONS.roomCount.get(inter)) : undefined,
@@ -326,13 +330,13 @@ export class EventsCommand extends AdminCommand {
 			createOffsetMs: createOffsetHours != null ? BigInt(createOffsetHours) * HOURS_TO_MS : undefined,
 			lockOffsetMs: lockOffsetMinutes != null ? BigInt(lockOffsetMinutes) * MINUTES_TO_MS : undefined,
 			cleanupOffsetMs: cleanupOffsetHours != null ? BigInt(cleanupOffsetHours) * HOURS_TO_MS : undefined,
-			announcementChannelId: EventsCommand.SET_OPTIONS.announcementChannel.get(inter)?.id,
-			announcementMessage: EventsCommand.SET_OPTIONS.announcementMessage.get(inter),
+			announcementChannelId,
+			announcementMessage,
 			roomPingMessage: EventsCommand.SET_OPTIONS.roomPingMessage.get(inter),
 		}, isNil);
 
-		const effectiveMessage = update.announcementMessage ?? event.announcementMessage;
-		const effectiveChannel = update.announcementChannelId ?? event.announcementChannelId;
+		const effectiveMessage = announcementMessage ?? event.announcementMessage;
+		const effectiveChannel = announcementChannelId ?? event.announcementChannelId;
 		if (effectiveMessage && effectiveChannel) {
 			verifyMentionEveryonePermission(inter, effectiveMessage, effectiveChannel);
 		}
