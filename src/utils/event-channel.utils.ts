@@ -51,47 +51,32 @@ export namespace EventChannelUtils {
 		roomRoleId: Snowflake | null | undefined,
 		moderatorRoleId: Snowflake | null | undefined,
 	): OverwriteResolvable[] {
+		// View Channel is the only permission we manage here. Everything else
+		// (Send Messages, Read History, etc.) falls through to guild-level role perms.
 		const overwrites: OverwriteResolvable[] = [
 			{
 				id: store.guild.id,
 				deny: [PermissionFlagsBits.ViewChannel],
 			},
 		];
-		// Pin the bot itself with explicit allow so the @everyone deny above doesn't
-		// lock the bot out of its own auto-managed channels.
-		const botUserId = store.guild.members.me?.id;
-		if (botUserId) {
+		const botMember = store.guild.members.me;
+		if (botMember) {
 			overwrites.push({
-				id: botUserId,
+				id: botMember.id,
 				type: OverwriteType.Member,
-				allow: [
-					PermissionFlagsBits.ViewChannel,
-					PermissionFlagsBits.ManageChannels,
-					PermissionFlagsBits.ManageRoles,
-					PermissionFlagsBits.SendMessages,
-					PermissionFlagsBits.ReadMessageHistory,
-				],
+				allow: [PermissionFlagsBits.ViewChannel],
 			});
 		}
 		if (roomRoleId) {
 			overwrites.push({
 				id: roomRoleId,
-				allow: [
-					PermissionFlagsBits.ViewChannel,
-					PermissionFlagsBits.SendMessages,
-					PermissionFlagsBits.ReadMessageHistory,
-				],
+				allow: [PermissionFlagsBits.ViewChannel],
 			});
 		}
 		if (moderatorRoleId) {
 			overwrites.push({
 				id: moderatorRoleId,
-				allow: [
-					PermissionFlagsBits.ViewChannel,
-					PermissionFlagsBits.SendMessages,
-					PermissionFlagsBits.ReadMessageHistory,
-					PermissionFlagsBits.ManageMessages,
-				],
+				allow: [PermissionFlagsBits.ViewChannel],
 			});
 		}
 		return overwrites;
