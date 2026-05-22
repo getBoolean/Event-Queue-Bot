@@ -854,6 +854,13 @@
           "autoincrement": false,
           "default": "'private'"
         },
+        "pull_message_channel_id": {
+          "name": "pull_message_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "rejoin_cooldown_period": {
           "name": "rejoin_cooldown_period",
           "type": "integer",

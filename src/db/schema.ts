@@ -60,6 +60,7 @@ export const QUEUE_TABLE = sqliteTable("queue", ({
 	pullBatchSize: integer("pull_batch_size").$type<bigint>().notNull().default(1n),
 	pullMessage: text("pull_message"),
 	pullMessageDisplayType: text("pull_message_display_type").$type<PullMessageDisplayType>().notNull().default(PullMessageDisplayType.Private),
+	pullMessageChannelId: text("pull_message_channel_id").$type<Snowflake>(),
 	rejoinCooldownPeriod: integer("rejoin_cooldown_period").$type<bigint>().notNull().default(0n),
 	rejoinGracePeriod: integer("rejoin_grace_period").$type<bigint>().notNull().default(0n),
 	requireMessageToJoin: integer("require_message_to_join", { mode: "boolean" }).default(false),

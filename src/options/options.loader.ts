@@ -38,6 +38,7 @@ import { PrioritizedsOption } from "./options/prioritizeds.option.ts";
 import { PriorityOrderOption } from "./options/priority-order.option.ts";
 import { PullBatchSizeOption } from "./options/pull-batch-size.option.ts";
 import { PullMessageOption } from "./options/pull-message.option.ts";
+import { PullMessageChannelOption } from "./options/pull-message-channel.option.ts";
 import { PullMessageDisplayTypeOption } from "./options/pull-message-display-type.option.ts";
 import { QueueOption } from "./options/queue.option.ts";
 import { QueuesOption } from "./options/queues.option.ts";
@@ -97,6 +98,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[PriorityOrderOption.ID, new PriorityOrderOption()],
 	[PullBatchSizeOption.ID, new PullBatchSizeOption()],
 	[PullMessageOption.ID, new PullMessageOption()],
+	[PullMessageChannelOption.ID, new PullMessageChannelOption()],
 	[PullMessageDisplayTypeOption.ID, new PullMessageDisplayTypeOption()],
 	[QueueOption.ID, new QueueOption()],
 	[QueuesOption.ID, new QueuesOption()],

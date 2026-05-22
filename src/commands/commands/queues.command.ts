@@ -16,6 +16,7 @@ import { MemberDisplayTypeOption } from "../../options/options/member-display-ty
 import { NameOption } from "../../options/options/name.option.ts";
 import { PullBatchSizeOption } from "../../options/options/pull-batch-size.option.ts";
 import { PullMessageOption } from "../../options/options/pull-message.option.ts";
+import { PullMessageChannelOption } from "../../options/options/pull-message-channel.option.ts";
 import { PullMessageDisplayTypeOption } from "../../options/options/pull-message-display-type.option.ts";
 import { QueueOption } from "../../options/options/queue.option.ts";
 import { QueuesOption } from "../../options/options/queues.option.ts";
@@ -108,6 +109,7 @@ export class QueuesCommand extends AdminCommand {
 				roleOnPullId: roleMention,
 				rejoinCooldownPeriod: timeMention,
 				rejoinGracePeriod: timeMention,
+				pullMessageChannelId: channelMention,
 				voiceDestinationChannelId: channelMention,
 			},
 			entries: [...queues.values()],
@@ -135,6 +137,7 @@ export class QueuesCommand extends AdminCommand {
 		pullBatchSize: new PullBatchSizeOption({ description: "How many queue members to include in a pull" }),
 		pullMessage: new PullMessageOption({ description: "Additional message to include on pull" }),
 		pullMessageDisplayType: new PullMessageDisplayTypeOption({ description: "How to display pull message" }),
+		pullMessageChannel: new PullMessageChannelOption({ description: "Channel for the public pull message (requires pull_message_display_type: public)" }),
 		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "# of seconds a member must wait before re-queueing after being pulled" }),
 		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "# of seconds a member has to reclaim their queue spot after leaving" }),
 		requireMessageToJoin: new RequireMessageToJoinOption({ description: "Require a message to join the queue" }),
@@ -164,6 +167,7 @@ export class QueuesCommand extends AdminCommand {
 				pullBatchSize: QueuesCommand.ADD_OPTIONS.pullBatchSize.get(inter),
 				pullMessage: QueuesCommand.ADD_OPTIONS.pullMessage.get(inter),
 				pullMessageDisplayType: QueuesCommand.ADD_OPTIONS.pullMessageDisplayType.get(inter),
+				pullMessageChannelId: QueuesCommand.ADD_OPTIONS.pullMessageChannel.get(inter)?.id,
 				rejoinCooldownPeriod: QueuesCommand.ADD_OPTIONS.rejoinCooldownPeriod.get(inter),
 				rejoinGracePeriod: QueuesCommand.ADD_OPTIONS.rejoinGracePeriod.get(inter),
 				requireMessageToJoin: QueuesCommand.ADD_OPTIONS.requireMessageToJoin.get(inter),
@@ -203,6 +207,7 @@ export class QueuesCommand extends AdminCommand {
 		pullBatchSize: new PullBatchSizeOption({ description: "How many queue members to include in a pull" }),
 		pullMessage: new PullMessageOption({ description: "Additional message to include on pull" }),
 		pullMessageDisplayType: new PullMessageDisplayTypeOption({ description: "How to display pull message" }),
+		pullMessageChannel: new PullMessageChannelOption({ description: "Channel for the public pull message (requires pull_message_display_type: public)" }),
 		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "# of seconds a  member must wait before re-queueing after being pulled" }),
 		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "# of seconds a  member has to reclaim their queue spot after leaving" }),
 		requireMessageToJoin: new RequireMessageToJoinOption({ description: "Require a message to join the queue" }),
@@ -231,6 +236,7 @@ export class QueuesCommand extends AdminCommand {
 			pullBatchSize: QueuesCommand.SET_OPTIONS.pullBatchSize.get(inter),
 			pullMessage: QueuesCommand.SET_OPTIONS.pullMessage.get(inter),
 			pullMessageDisplayType: QueuesCommand.SET_OPTIONS.pullMessageDisplayType.get(inter),
+			pullMessageChannelId: QueuesCommand.SET_OPTIONS.pullMessageChannel.get(inter)?.id,
 			rejoinCooldownPeriod: QueuesCommand.SET_OPTIONS.rejoinCooldownPeriod.get(inter),
 			rejoinGracePeriod: QueuesCommand.SET_OPTIONS.rejoinGracePeriod.get(inter),
 			requireMessageToJoin: QueuesCommand.SET_OPTIONS.requireMessageToJoin.get(inter),
@@ -296,6 +302,7 @@ export class QueuesCommand extends AdminCommand {
 			{ name: PullBatchSizeOption.ID, value: QUEUE_TABLE.pullBatchSize.name },
 			{ name: PullMessageOption.ID, value: QUEUE_TABLE.pullMessage.name },
 			{ name: PullMessageDisplayTypeOption.ID, value: QUEUE_TABLE.pullMessageDisplayType.name },
+			{ name: PullMessageChannelOption.ID, value: QUEUE_TABLE.pullMessageChannelId.name },
 			{ name: RejoinCooldownPeriodOption.ID, value: QUEUE_TABLE.rejoinCooldownPeriod.name },
 			{ name: RejoinGracePeriodOption.ID, value: QUEUE_TABLE.rejoinGracePeriod.name },
 			{ name: RequireMessageToJoinOption.ID, value: QUEUE_TABLE.requireMessageToJoin.name },

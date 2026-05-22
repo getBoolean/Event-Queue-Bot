@@ -107,6 +107,7 @@ CREATE TABLE `queue` (
 	`pull_batch_size` integer DEFAULT 1 NOT NULL,
 	`pull_message` text,
 	`pull_message_display_type` text DEFAULT 'private' NOT NULL,
+	`pull_message_channel_id` text,
 	`rejoin_cooldown_period` integer DEFAULT 0 NOT NULL,
 	`rejoin_grace_period` integer DEFAULT 0 NOT NULL,
 	`require_message_to_join` integer DEFAULT false,

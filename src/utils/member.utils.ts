@@ -157,14 +157,19 @@ export namespace MemberUtils {
 				const messageToSend = await describePulledMembers(store, queue, deleted, reason);
 				let link;
 
-				if (messageChannelId && queue.pullMessageDisplayType === PullMessageDisplayType.Public) {
-					const messageChannel = await store.jsChannel(messageChannelId) as GuildTextBasedChannel;
-					if (messageChannel) {
-						const sentMessage = await messageChannel.send(messageToSend).catch(() => null);
-						LoggingUtils.log(store, true, sentMessage).catch(() => null);
-						link = sentMessage?.url;
+				if (queue.pullMessageDisplayType === PullMessageDisplayType.Public) {
+					const effectiveChannelId = queue.pullMessageChannelId ?? messageChannelId;
+					if (effectiveChannelId) {
+						const messageChannel = await store.jsChannel(effectiveChannelId) as GuildTextBasedChannel;
+						if (messageChannel) {
+							const sentMessage = await messageChannel.send(messageToSend).catch(() => null);
+							LoggingUtils.log(store, true, sentMessage).catch(() => null);
+							link = sentMessage?.url;
+						}
 					}
-					await store.inter.respond(`${upperFirst(reason)}.`, false);
+					if (store.inter) {
+						await store.inter.respond(`${upperFirst(reason)}.`, false);
+					}
 				}
 				else if (queue.pullMessageDisplayType === PullMessageDisplayType.Private) {
 					if (store.inter) {
