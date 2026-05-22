@@ -38,28 +38,32 @@ Save the public key as:
 BOT_SSH_PUBLIC_KEY
 ```
 
-## 3. Add Bot Environment
+## 3. Add Bot Secrets
 
-Save the full production `.env` content as this GitHub repository secret:
+Save these required GitHub repository secrets:
 
 ```text
-BOT_ENV
+BOT_APP_ID
+BOT_TOKEN
 ```
 
-Example:
+| Secret | Where to find it |
+| --- | --- |
+| `BOT_APP_ID` | Discord Developer Portal -> your application -> `General Information` -> `Application ID` |
+| `BOT_TOKEN` | Discord Developer Portal -> your application -> `Bot` -> token |
 
-```dotenv
-CLIENT_ID=123456789012345678
-TOKEN=your_discord_bot_token
-TOP_GG_TOKEN=
-PATCH_NOTES_CHANNEL_ID=
-DEFAULT_COLOR=Random
-DEFAULT_SCHEDULE_TIMEZONE=america/chicago
-ENABLE_LEGACY_MIGRATION=false
-FORCE_SEND_PATCH_NOTES=false
-```
+Optional bot secrets:
 
-Only `CLIENT_ID` and `TOKEN` are required.
+| Secret | If omitted |
+| --- | --- |
+| `TOP_GG_TOKEN` | empty |
+| `PATCH_NOTES_CHANNEL_ID` | empty |
+| `DEFAULT_COLOR` | `Random` |
+| `DEFAULT_SCHEDULE_TIMEZONE` | `america/chicago` |
+| `ENABLE_LEGACY_MIGRATION` | `false` |
+| `FORCE_SEND_PATCH_NOTES` | `false` |
+
+The workflow generates the server `.env` file from these secrets during deploy.
 
 ## 4. Optional GitHub Variables
 
