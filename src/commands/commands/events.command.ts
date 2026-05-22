@@ -421,14 +421,14 @@ export class EventsCommand extends AdminCommand {
 
 	static readonly SET_ROOM_OPTIONS = {
 		event: new EventOption({ required: true, description: "Event to configure" }),
-		roomIndex: new RoomIndexOption({ required: true, description: "Room number (1-based)" }),
+		room: new RoomIndexOption({ required: true, description: "Room to configure (shows current ping channel)" }),
 		pingChannel: new PingChannelOption({ description: "Override ping channel for this room" }),
 	};
 
 	static async events_set_room(inter: SlashInteraction) {
 		await inter.deferReply({ ephemeral: true });
 		const event = await EventsCommand.SET_ROOM_OPTIONS.event.get(inter);
-		const roomIndex = EventsCommand.SET_ROOM_OPTIONS.roomIndex.get(inter);
+		const roomIndex = EventsCommand.SET_ROOM_OPTIONS.room.get(inter);
 		const pingChannel = EventsCommand.SET_ROOM_OPTIONS.pingChannel.get(inter);
 
 		const eventQueues = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id });
@@ -444,8 +444,26 @@ export class EventsCommand extends AdminCommand {
 			inter.store.updateEventQueue({ id: targetEq.id, pingChannelId: pingChannel.id });
 		}
 
-		const pingStr = pingChannel ? ` ping channel → ${channelMention(pingChannel.id)}` : "";
-		await inter.respond(`Updated Room ${roomIndex} of ${eventMention(event)}:${pingStr}.`, true);
+		const roomsAfter = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id })
+			.filter(eq => eq.queueRole === EventQueueRole.Room)
+			.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+
+		const lines = roomsAfter.map(room => {
+			const ping = room.pingChannelId
+				? channelMention(room.pingChannelId)
+				: `(default → ${channelMention(event.roomChannelId)})`;
+			return `**Room ${room.queueIndex}** — ${ping}`;
+		});
+
+		const title = pingChannel
+			? `Updated Room ${roomIndex} of ${event.name}`
+			: `Rooms for ${event.name}`;
+		const embed = new EmbedBuilder()
+			.setTitle(title)
+			.setColor(Color.Indigo)
+			.setDescription(lines.join("\n"));
+
+		await inter.respond({ embeds: [embed] }, true);
 	}
 
 	// ====================================================================
