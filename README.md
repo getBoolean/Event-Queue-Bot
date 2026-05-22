@@ -1,14 +1,14 @@
 <div align="center">
-   <h1>Queue Bot</h1>
+   <h1>Event Queue Bot</h1>
 </div>
 
-**Queue Bot** is a Discord bot that provides live user queues with powerful and easy customization.
+**Event Queue Bot** is a Discord bot that provides live user queues and scheduled events with powerful and easy customization.
 Built with [Discord.js](https://discord.js.org/).
 
 <p align="center">
-  <a href="https://discord.gg/RbmfnP3">⛑️ Support server</a> |
-  <a href="https://github.com/ArrowM/Queue-Bot">🗃️ GitHub</a> |
-  <a href="https://www.buymeacoffee.com/Arroww">💖 Donate</a>
+  <a href="https://discord.gg/RbmfnP3">⛑️ Upstream Support Server</a> |
+  <a href="https://github.com/ArrowM/Queue-Bot">🗃️ Upstream GitHub</a> |
+  <a href="https://www.buymeacoffee.com/Arroww">💖 Donate to ArrowM</a>
 </p>
 
 ## Getting started
@@ -64,4 +64,3 @@ OAuth scopes: `bot`, `applications.commands`.
 - **Mute Members** — reserved for future use
 - **Manage Threads** — reserved for future use
 - **Mention Everyone** — `@everyone` / `@here` in announcements
-
