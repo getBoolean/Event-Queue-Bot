@@ -292,7 +292,35 @@ export namespace EventChannelUtils {
 			}
 		}
 
+		await reorderRoomChannels(store, event);
 		await reconcileRoleAssignments(store, event);
+	}
+
+	async function reorderRoomChannels(store: Store, event: DbEvent) {
+		const rows = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
+		if (rows.length === 0) return;
+
+		const sorted = [...rows].sort((a, b) => {
+			const indexDiff = Number(a.roomIndex) - Number(b.roomIndex);
+			if (indexDiff !== 0) return indexDiff;
+			// null suffix (main channel) sorts LAST within each room
+			if (a.suffix === null && b.suffix === null) return 0;
+			if (a.suffix === null) return 1;
+			if (b.suffix === null) return -1;
+			return a.suffix.localeCompare(b.suffix);
+		});
+
+		const payload = sorted.map((row, position) => ({
+			channel: row.channelId,
+			position,
+		}));
+
+		try {
+			await store.guild.channels.setPositions(payload);
+		}
+		catch (e) {
+			console.error(`EventChannelUtils.reorderRoomChannels: failed to set positions for event ${event.id}:`, e);
+		}
 	}
 
 	export async function reconcileRoleAssignments(store: Store, event: DbEvent) {

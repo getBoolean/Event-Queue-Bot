@@ -152,7 +152,7 @@ export class EventsCommand extends AdminCommand {
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("sync-room-channels")
-				.setDescription("Recreate any missing room channels and re-apply permissions");
+				.setDescription("Recreate any missing room channels, re-apply permissions, and restore channel order");
 			Object.values(EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
@@ -896,7 +896,7 @@ export class EventsCommand extends AdminCommand {
 				"**Extra per-room channels:**\n" +
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
 				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +
-				`- ${commandMention("events", "sync-room-channels")} recreates any channels you accidentally deleted and re-applies permissions.\n\n` +
+				`- ${commandMention("events", "sync-room-channels")} recreates any channels you accidentally deleted, re-applies permissions, and restores channel order.\n\n` +
 				"**Announcement placeholders:** `{event_name}`, `{start_time}`, `{start_time_relative}`, `{room_channel}`, `{sub_channel}`\n" +
 				"**Ping placeholders:** `{room_role}`, `{room_name}`, `{room_index}`, `{room_channel}`, `{ping_channel}`, `{start_time}`, `{start_time_relative}`",
 			)];
