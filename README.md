@@ -51,3 +51,17 @@ Restricted to users with the **Administrator** permission and users added via `/
 `/schedules` - manage scheduled commands  
 `/shuffle` - shuffle queue(s)  
 `/voice` - manage voice integrations  
+
+## Required bot permissions
+
+OAuth scopes: `bot`, `applications.commands`.
+
+- **View Channels** — read channels
+- **Send Messages** — post displays and responses
+- **Read Message History** — update existing displays
+- **Manage Roles** — assign queue / pull roles
+- **Move Members** — pull into voice destination
+- **Mute Members** — reserved for future use
+- **Manage Threads** — reserved for future use
+- **Mention Everyone** — `@everyone` / `@here` in announcements
+
