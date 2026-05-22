@@ -107,8 +107,8 @@ scp deploy@your_server_ip:/opt/event-queue-bot/data/main.sqlite ./main.sqlite.ba
 To remove the deployment, delete these DigitalOcean resources:
 
 ```text
-event-queue-bot
-event-queue-bot-ssh
-event-queue-bot-deploy
-event-queue-bot
+Droplet:  event-queue-bot
+Firewall: event-queue-bot-ssh
+SSH key:  event-queue-bot-deploy
+Tag:      event-queue-bot
 ```
