@@ -18,7 +18,14 @@ yaml_quote() {
   printf "%s" "$1" | sed "s/'/''/g; s/^/'/; s/$/'/"
 }
 
-require_env BOT_SSH_PUBLIC_KEY
+require_env BOT_SSH_DEPLOY_PUBLIC_KEY
+require_env BOT_SSH_HOST_PRIVATE_KEY
+require_env BOT_SSH_HOST_PUBLIC_KEY
+
+if [[ ! "$BOT_SSH_HOST_PUBLIC_KEY" =~ ^ssh-ed25519[[:space:]] ]]; then
+  echo "BOT_SSH_HOST_PUBLIC_KEY must be an ed25519 public key (ssh-ed25519 ...)" >&2
+  exit 1
+fi
 
 if ! command -v doctl >/dev/null 2>&1; then
   echo "doctl is required. Install it with digitalocean/action-doctl in GitHub Actions." >&2
@@ -53,16 +60,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
-printf '%s\n' "$BOT_SSH_PUBLIC_KEY" > "$public_key_file"
+printf '%s\n' "$BOT_SSH_DEPLOY_PUBLIC_KEY" > "$public_key_file"
 
 ssh_key_fingerprint="$(ssh-keygen -E md5 -lf "$public_key_file" | awk '{print $2}' | sed 's/^MD5://')"
-ssh_public_key_yaml="$(yaml_quote "$BOT_SSH_PUBLIC_KEY")"
+ssh_public_key_yaml="$(yaml_quote "$BOT_SSH_DEPLOY_PUBLIC_KEY")"
 app_path_shell="'$APP_PATH'"
+ssh_host_private_key_b64="$(printf '%s' "$BOT_SSH_HOST_PRIVATE_KEY" | base64 -w0)"
 
 SSH_PUBLIC_KEY_YAML="$ssh_public_key_yaml" \
 APP_PATH_SHELL="$app_path_shell" \
-perl -0pe 's/\{\{SSH_PUBLIC_KEY_YAML\}\}/$ENV{SSH_PUBLIC_KEY_YAML}/g; s/\{\{APP_PATH_SHELL\}\}/$ENV{APP_PATH_SHELL}/g' \
-  infra/digitalocean/cloud-init.yml > "$cloud_init_file"
+SSH_HOST_PRIVATE_KEY_B64="$ssh_host_private_key_b64" \
+SSH_HOST_PUBLIC_KEY="$BOT_SSH_HOST_PUBLIC_KEY" \
+perl -0pe '
+  s/\{\{SSH_PUBLIC_KEY_YAML\}\}/$ENV{SSH_PUBLIC_KEY_YAML}/g;
+  s/\{\{APP_PATH_SHELL\}\}/$ENV{APP_PATH_SHELL}/g;
+  s/\{\{SSH_HOST_PRIVATE_KEY_B64\}\}/$ENV{SSH_HOST_PRIVATE_KEY_B64}/g;
+  s/\{\{SSH_HOST_PUBLIC_KEY\}\}/$ENV{SSH_HOST_PUBLIC_KEY}/g
+' infra/digitalocean/cloud-init.yml > "$cloud_init_file"
 
 echo "Provisioning DigitalOcean resources for ${DO_DROPLET_NAME}"
 
@@ -73,12 +87,12 @@ else
   doctl compute tag create "$DO_TAG"
 fi
 
-ssh_keys_json="$(doctl compute ssh-key list --format ID,Name,FingerPrint --output json)"
+ssh_keys_json="$(doctl compute ssh-key list --output json)"
 ssh_key_id="$(
   jq -r --arg fp "$ssh_key_fingerprint" '
-    map(select(.FingerPrint == $fp)) |
+    map(select(.fingerprint == $fp)) |
     if length > 1 then error("multiple SSH keys match fingerprint")
-    elif length == 1 then .[0].ID
+    elif length == 1 then .[0].id
     else "" end
   ' <<< "$ssh_keys_json"
 )"
@@ -88,9 +102,9 @@ if [ -n "$ssh_key_id" ]; then
 else
   existing_key_by_name="$(
     jq -r --arg name "$DO_SSH_KEY_NAME" '
-      map(select(.Name == $name)) |
+      map(select(.name == $name)) |
       if length > 1 then error("multiple SSH keys match name")
-      elif length == 1 then .[0].FingerPrint
+      elif length == 1 then .[0].fingerprint
       else "" end
     ' <<< "$ssh_keys_json"
   )"
@@ -110,9 +124,9 @@ else
   )"
 fi
 
-droplets_json="$(doctl compute droplet list --format ID,Name,PublicIPv4,Status --output json)"
+droplets_json="$(doctl compute droplet list --output json)"
 droplet_count="$(
-  jq -r --arg name "$DO_DROPLET_NAME" '[.[] | select(.Name == $name)] | length' <<< "$droplets_json"
+  jq -r --arg name "$DO_DROPLET_NAME" '[.[] | select(.name == $name)] | length' <<< "$droplets_json"
 )"
 
 if [ "$droplet_count" -gt 1 ]; then
@@ -121,7 +135,7 @@ if [ "$droplet_count" -gt 1 ]; then
 fi
 
 if [ "$droplet_count" -eq 1 ]; then
-  droplet_id="$(jq -r --arg name "$DO_DROPLET_NAME" '.[] | select(.Name == $name) | .ID' <<< "$droplets_json")"
+  droplet_id="$(jq -r --arg name "$DO_DROPLET_NAME" '.[] | select(.name == $name) | .id' <<< "$droplets_json")"
   echo "Reusing Droplet ${DO_DROPLET_NAME}"
 else
   echo "Creating Droplet ${DO_DROPLET_NAME}"
@@ -147,9 +161,9 @@ else
   droplet_id="$(doctl "${create_args[@]}" | awk 'NR == 1 { print $1 }')"
 fi
 
-firewalls_json="$(doctl compute firewall list --format ID,Name --output json)"
+firewalls_json="$(doctl compute firewall list --output json)"
 firewall_count="$(
-  jq -r --arg name "$DO_FIREWALL_NAME" '[.[] | select(.Name == $name)] | length' <<< "$firewalls_json"
+  jq -r --arg name "$DO_FIREWALL_NAME" '[.[] | select(.name == $name)] | length' <<< "$firewalls_json"
 )"
 
 if [ "$firewall_count" -gt 1 ]; then
@@ -161,7 +175,7 @@ inbound_rules="protocol:tcp,ports:22,address:0.0.0.0/0,address:::/0"
 outbound_rules="protocol:icmp,address:0.0.0.0/0,address:::/0 protocol:tcp,ports:all,address:0.0.0.0/0,address:::/0 protocol:udp,ports:all,address:0.0.0.0/0,address:::/0"
 
 if [ "$firewall_count" -eq 1 ]; then
-  firewall_id="$(jq -r --arg name "$DO_FIREWALL_NAME" '.[] | select(.Name == $name) | .ID' <<< "$firewalls_json")"
+  firewall_id="$(jq -r --arg name "$DO_FIREWALL_NAME" '.[] | select(.name == $name) | .id' <<< "$firewalls_json")"
   echo "Updating Firewall ${DO_FIREWALL_NAME}"
   doctl compute firewall update "$firewall_id" \
     --name "$DO_FIREWALL_NAME" \
@@ -178,11 +192,11 @@ else
 fi
 
 for attempt in {1..60}; do
-  droplet_json="$(doctl compute droplet get "$droplet_id" --format ID,Name,PublicIPv4,Status --output json)"
-  droplet_status="$(jq -r '.[0].Status' <<< "$droplet_json")"
-  bot_host="$(jq -r '.[0].PublicIPv4' <<< "$droplet_json")"
+  droplet_json="$(doctl compute droplet get "$droplet_id" --output json)"
+  droplet_status="$(jq -r '.[0].status' <<< "$droplet_json")"
+  bot_host="$(jq -r '[.[0].networks.v4[]? | select(.type == "public") | .ip_address][0] // ""' <<< "$droplet_json")"
 
-  if [ "$droplet_status" = "active" ] && [ -n "$bot_host" ] && [ "$bot_host" != "<nil>" ]; then
+  if [ "$droplet_status" = "active" ] && [ -n "$bot_host" ]; then
     write_output bot_host "$bot_host"
     write_output droplet_id "$droplet_id"
     echo "Droplet ready: ${DO_DROPLET_NAME} (${bot_host})"

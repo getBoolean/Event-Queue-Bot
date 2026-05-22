@@ -43,6 +43,17 @@ write_files:
 
       docker compose up -d --build
 
+  - path: /etc/ssh/ssh_host_ed25519_key
+    owner: root:root
+    permissions: "0600"
+    encoding: b64
+    content: {{SSH_HOST_PRIVATE_KEY_B64}}
+
+  - path: /etc/ssh/ssh_host_ed25519_key.pub
+    owner: root:root
+    permissions: "0644"
+    content: {{SSH_HOST_PUBLIC_KEY}}
+
 runcmd:
   - apt-get update
   - apt-get install -y ca-certificates curl git gnupg rsync
@@ -55,3 +66,4 @@ runcmd:
   - systemctl enable --now docker
   - mkdir -p {{APP_PATH_SHELL}}/data {{APP_PATH_SHELL}}/logs
   - chown -R deploy:deploy {{APP_PATH_SHELL}}
+  - systemctl restart ssh

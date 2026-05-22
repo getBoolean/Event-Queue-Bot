@@ -29,16 +29,36 @@ ssh-keygen -t ed25519 -C "event-queue-bot-deploy" -f event-queue-bot-deploy
 Save the private key as:
 
 ```text
-BOT_SSH_PRIVATE_KEY
+BOT_SSH_DEPLOY_PRIVATE_KEY
 ```
 
 Save the public key as:
 
 ```text
-BOT_SSH_PUBLIC_KEY
+BOT_SSH_DEPLOY_PUBLIC_KEY
 ```
 
-## 3. Add Bot Secrets
+## 3. Create SSH Host Key
+
+Create a key pair for the server's SSH host identity (prevents MITM during deploy):
+
+```bash
+ssh-keygen -t ed25519 -C "event-queue-bot-host" -f event-queue-bot-host
+```
+
+Save the private key as:
+
+```text
+BOT_SSH_HOST_PRIVATE_KEY
+```
+
+Save the public key as:
+
+```text
+BOT_SSH_HOST_PUBLIC_KEY
+```
+
+## 4. Add Bot Secrets
 
 Save these required GitHub repository secrets:
 
@@ -65,7 +85,7 @@ Optional bot secrets:
 
 The workflow generates the server `.env` file from these secrets during deploy.
 
-## 4. Optional GitHub Variables
+## 5. Optional GitHub Variables
 
 Defaults:
 
@@ -81,7 +101,7 @@ APP_PATH=/opt/event-queue-bot
 Set `DO_ENABLE_BACKUPS=true` before the first deploy if you want DigitalOcean
 Droplet backups.
 
-## 5. Run Deploy
+## 6. Run Deploy
 
 In GitHub:
 

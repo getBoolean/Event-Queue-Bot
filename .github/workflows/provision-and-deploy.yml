@@ -34,14 +34,18 @@ jobs:
       - name: Validate required secrets
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          BOT_SSH_PRIVATE_KEY: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
-          BOT_SSH_PUBLIC_KEY: ${{ secrets.BOT_SSH_PUBLIC_KEY }}
+          BOT_SSH_DEPLOY_PRIVATE_KEY: ${{ secrets.BOT_SSH_DEPLOY_PRIVATE_KEY }}
+          BOT_SSH_DEPLOY_PUBLIC_KEY: ${{ secrets.BOT_SSH_DEPLOY_PUBLIC_KEY }}
+          BOT_SSH_HOST_PRIVATE_KEY: ${{ secrets.BOT_SSH_HOST_PRIVATE_KEY }}
+          BOT_SSH_HOST_PUBLIC_KEY: ${{ secrets.BOT_SSH_HOST_PUBLIC_KEY }}
           BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
           test -n "${DIGITALOCEAN_TOKEN}" || (echo "DIGITALOCEAN_TOKEN secret is required" >&2; exit 1)
-          test -n "${BOT_SSH_PRIVATE_KEY}" || (echo "BOT_SSH_PRIVATE_KEY secret is required" >&2; exit 1)
-          test -n "${BOT_SSH_PUBLIC_KEY}" || (echo "BOT_SSH_PUBLIC_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_DEPLOY_PRIVATE_KEY}" || (echo "BOT_SSH_DEPLOY_PRIVATE_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_DEPLOY_PUBLIC_KEY}" || (echo "BOT_SSH_DEPLOY_PUBLIC_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_HOST_PRIVATE_KEY}" || (echo "BOT_SSH_HOST_PRIVATE_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_HOST_PUBLIC_KEY}" || (echo "BOT_SSH_HOST_PUBLIC_KEY secret is required" >&2; exit 1)
           test -n "${BOT_APP_ID}" || (echo "BOT_APP_ID secret is required" >&2; exit 1)
           test -n "${BOT_TOKEN}" || (echo "BOT_TOKEN secret is required" >&2; exit 1)
 
@@ -61,29 +65,34 @@ jobs:
       - name: Provision DigitalOcean VPS
         id: provision
         env:
-          BOT_SSH_PUBLIC_KEY: ${{ secrets.BOT_SSH_PUBLIC_KEY }}
+          BOT_SSH_DEPLOY_PUBLIC_KEY: ${{ secrets.BOT_SSH_DEPLOY_PUBLIC_KEY }}
+          BOT_SSH_HOST_PRIVATE_KEY: ${{ secrets.BOT_SSH_HOST_PRIVATE_KEY }}
+          BOT_SSH_HOST_PUBLIC_KEY: ${{ secrets.BOT_SSH_HOST_PUBLIC_KEY }}
         run: bash scripts/provision-digitalocean.sh
 
       - name: Configure SSH
         env:
           BOT_HOST: ${{ steps.provision.outputs.bot_host }}
-          BOT_SSH_PRIVATE_KEY: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
+          BOT_SSH_DEPLOY_PRIVATE_KEY: ${{ secrets.BOT_SSH_DEPLOY_PRIVATE_KEY }}
+          BOT_SSH_HOST_PUBLIC_KEY: ${{ secrets.BOT_SSH_HOST_PUBLIC_KEY }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${BOT_SSH_PRIVATE_KEY}" > ~/.ssh/bot_deploy_key
+          printf '%s\n' "${BOT_SSH_DEPLOY_PRIVATE_KEY}" > ~/.ssh/bot_deploy_key
           chmod 600 ~/.ssh/bot_deploy_key
 
+          printf '%s %s\n' "${BOT_HOST}" "${BOT_SSH_HOST_PUBLIC_KEY}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
           for attempt in {1..30}; do
-            if ssh-keyscan -H "${BOT_HOST}" >> ~/.ssh/known_hosts 2>/dev/null; then
+            if ssh -i ~/.ssh/bot_deploy_key -o BatchMode=yes -o ConnectTimeout=5 deploy@"${BOT_HOST}" true 2>/dev/null; then
               exit 0
             fi
-
-            echo "Waiting for SSH host key..."
+            echo "Waiting for SSH to become reachable..."
             sleep 10
           done
 
-          echo "Timed out waiting for SSH host key" >&2
+          echo "Timed out waiting for SSH connectivity" >&2
           exit 1
 
       - name: Wait for cloud-init
