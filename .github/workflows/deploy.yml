@@ -1,0 +1,66 @@
+name: Deploy Bot
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: false
+        default: master
+
+concurrency:
+  group: deploy-bot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_BRANCH: ${{ github.event.inputs.branch || github.ref_name }}
+      APP_DIR: /opt/event-queue-bot
+
+    steps:
+      - name: Validate required secrets
+        env:
+          BOT_HOST: ${{ secrets.BOT_HOST }}
+          BOT_SSH_PRIVATE_KEY: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
+          BOT_ENV_SECRET: ${{ secrets.BOT_ENV }}
+        run: |
+          test -n "${BOT_HOST}" || (echo "BOT_HOST secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_PRIVATE_KEY}" || (echo "BOT_SSH_PRIVATE_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_ENV_SECRET}" || (echo "BOT_ENV secret is required" >&2; exit 1)
+
+      - name: Configure SSH
+        env:
+          BOT_HOST: ${{ secrets.BOT_HOST }}
+          BOT_SSH_PRIVATE_KEY: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${BOT_SSH_PRIVATE_KEY}" > ~/.ssh/bot_deploy_key
+          chmod 600 ~/.ssh/bot_deploy_key
+          ssh-keyscan -H "${BOT_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        env:
+          BOT_HOST: ${{ secrets.BOT_HOST }}
+          BOT_ENV_SECRET: ${{ secrets.BOT_ENV }}
+        run: |
+          printf '%s\n' "${BOT_ENV_SECRET}" | ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "umask 077 && cat > ${APP_DIR}/.env.tmp && mv ${APP_DIR}/.env.tmp ${APP_DIR}/.env"
+
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "sudo /usr/local/bin/deploy-event-queue-bot '${DEPLOY_BRANCH}'"
+
+      - name: Prune unused Docker images
+        env:
+          BOT_HOST: ${{ secrets.BOT_HOST }}
+        run: |
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "docker image prune -f"
+
+      - name: Show recent bot logs
+        env:
+          BOT_HOST: ${{ secrets.BOT_HOST }}
+        run: |
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "docker logs --tail 100 queue-bot"

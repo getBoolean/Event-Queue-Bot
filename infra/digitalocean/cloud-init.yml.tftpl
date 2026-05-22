@@ -1,0 +1,64 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+groups:
+  - docker
+
+users:
+  - default
+  - name: deploy
+    gecos: Queue Bot Deploy User
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  - path: /usr/local/bin/deploy-event-queue-bot
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      APP_DIR="${app_path}"
+      REPO_URL="${repo_url}"
+      BRANCH="$${1:-${branch}}"
+
+      mkdir -p "$${APP_DIR}/data" "$${APP_DIR}/logs"
+      chown -R deploy:deploy "$${APP_DIR}"
+
+      if [ ! -d "$${APP_DIR}/.git" ]; then
+        tmp_dir="$$(mktemp -d)"
+        git clone --branch "$${BRANCH}" --single-branch "$${REPO_URL}" "$${tmp_dir}"
+        rsync -a --exclude data --exclude logs --exclude .env "$${tmp_dir}/" "$${APP_DIR}/"
+        rm -rf "$${tmp_dir}"
+      fi
+
+      cd "$${APP_DIR}"
+      git config --global --add safe.directory "$${APP_DIR}"
+      sudo -u deploy git fetch origin "$${BRANCH}"
+      sudo -u deploy git checkout -B "$${BRANCH}" "origin/$${BRANCH}"
+      sudo -u deploy git reset --hard "origin/$${BRANCH}"
+
+      if [ ! -s .env ]; then
+        echo "Missing $${APP_DIR}/.env; refusing to start the bot." >&2
+        exit 1
+      fi
+
+      docker compose up -d --build
+
+runcmd:
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - sh -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y ca-certificates curl git gnupg rsync docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  - mkdir -p ${app_path}/data ${app_path}/logs
+  - chown -R deploy:deploy ${app_path}
+  - /usr/local/bin/deploy-event-queue-bot || true
