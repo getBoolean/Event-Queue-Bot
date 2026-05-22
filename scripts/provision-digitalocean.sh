@@ -18,12 +18,12 @@ yaml_quote() {
   printf "%s" "$1" | sed "s/'/''/g; s/^/'/; s/$/'/"
 }
 
-require_env BOT_SSH_DEPLOY_PUBLIC_KEY
-require_env BOT_SSH_HOST_PRIVATE_KEY
-require_env BOT_SSH_HOST_PUBLIC_KEY
+require_env SSH_DEPLOY_PUBLIC_KEY
+require_env SSH_HOST_PRIVATE_KEY
+require_env SSH_HOST_PUBLIC_KEY
 
-if [[ ! "$BOT_SSH_HOST_PUBLIC_KEY" =~ ^ssh-ed25519[[:space:]] ]]; then
-  echo "BOT_SSH_HOST_PUBLIC_KEY must be an ed25519 public key (ssh-ed25519 ...)" >&2
+if [[ ! "$SSH_HOST_PUBLIC_KEY" =~ ^ssh-ed25519[[:space:]] ]]; then
+  echo "SSH_HOST_PUBLIC_KEY must be an ed25519 public key (ssh-ed25519 ...)" >&2
   exit 1
 fi
 
@@ -64,17 +64,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-printf '%s\n' "$BOT_SSH_DEPLOY_PUBLIC_KEY" > "$public_key_file"
+printf '%s\n' "$SSH_DEPLOY_PUBLIC_KEY" > "$public_key_file"
 
 ssh_key_fingerprint="$(ssh-keygen -E md5 -lf "$public_key_file" | awk '{print $2}' | sed 's/^MD5://')"
-ssh_public_key_yaml="$(yaml_quote "$BOT_SSH_DEPLOY_PUBLIC_KEY")"
+ssh_public_key_yaml="$(yaml_quote "$SSH_DEPLOY_PUBLIC_KEY")"
 app_path_shell="'$APP_PATH'"
-ssh_host_private_key_b64="$(printf '%s' "$BOT_SSH_HOST_PRIVATE_KEY" | base64 -w0)"
+ssh_host_private_key_b64="$(printf '%s' "$SSH_HOST_PRIVATE_KEY" | base64 -w0)"
 
 SSH_PUBLIC_KEY_YAML="$ssh_public_key_yaml" \
 APP_PATH_SHELL="$app_path_shell" \
 SSH_HOST_PRIVATE_KEY_B64="$ssh_host_private_key_b64" \
-SSH_HOST_PUBLIC_KEY="$BOT_SSH_HOST_PUBLIC_KEY" \
+SSH_HOST_PUBLIC_KEY="$SSH_HOST_PUBLIC_KEY" \
 perl -0pe '
   s/\{\{SSH_PUBLIC_KEY_YAML\}\}/$ENV{SSH_PUBLIC_KEY_YAML}/g;
   s/\{\{APP_PATH_SHELL\}\}/$ENV{APP_PATH_SHELL}/g;

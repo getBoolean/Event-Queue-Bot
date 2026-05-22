@@ -37,13 +37,13 @@ ssh-keygen -t ed25519 -C "event-queue-bot-deploy" -f event-queue-bot-deploy
 Save the private key as this GitHub repository secret:
 
 ```text
-BOT_SSH_DEPLOY_PRIVATE_KEY
+SSH_DEPLOY_PRIVATE_KEY
 ```
 
 Save the public key as this GitHub repository secret:
 
 ```text
-BOT_SSH_DEPLOY_PUBLIC_KEY
+SSH_DEPLOY_PUBLIC_KEY
 ```
 
 ## 3. Create SSH Host Key
@@ -57,13 +57,13 @@ ssh-keygen -t ed25519 -C "event-queue-bot-host" -f event-queue-bot-host
 Save the private key as this GitHub repository secret:
 
 ```text
-BOT_SSH_HOST_PRIVATE_KEY
+SSH_HOST_PRIVATE_KEY
 ```
 
 Save the public key as this GitHub repository secret:
 
 ```text
-BOT_SSH_HOST_PUBLIC_KEY
+SSH_HOST_PUBLIC_KEY
 ```
 
 **Note:** both private key secrets must end with a trailing newline after
