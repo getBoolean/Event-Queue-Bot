@@ -70,6 +70,10 @@ SSH_HOST_PUBLIC_KEY
 `-----END OPENSSH PRIVATE KEY-----`. Without it, `sshd` fails to load the host
 key and deploys fail host-key verification.
 
+**Store both keypairs in a password manager.** GitHub secrets are write-only —
+lost local copies are unrecoverable. See [Connect to the Droplet](#connect-to-the-droplet)
+for the rotation path.
+
 ## 4. Add Bot Secrets
 
 Save these required GitHub repository secrets:
@@ -121,6 +125,23 @@ The workflow creates or reuses the VPS, writes `.env`, syncs the repo, and runs
 Docker Compose.
 
 Future pushes to `master` deploy automatically.
+
+## Connect to the Droplet
+
+Get the droplet IPv4 from the latest workflow's `discover` job, `doctl compute
+droplet list`, or the DO console, then connect with the deploy private key from
+Section 2:
+
+```bash
+ssh -i path/to/event-queue-bot-deploy deploy@<droplet-ip>
+```
+
+Accept the host-key prompt on first connection.
+
+**Lost the deploy key:** regenerate per Section 2, replace the
+`SSH_DEPLOY_PRIVATE_KEY` / `SSH_DEPLOY_PUBLIC_KEY` secrets, back up the database
+(see [Backup Before Deleting](#backup-before-deleting)), delete the droplet, and
+re-run the workflow.
 
 ## Backup Before Deleting
 
