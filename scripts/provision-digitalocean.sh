@@ -162,7 +162,30 @@ else
     create_args+=(--enable-backups)
   fi
 
-  droplet_id="$(doctl "${create_args[@]}" | awk 'NR == 1 { print $1 }')"
+  create_stdout="$(mktemp)"
+  create_stderr="$(mktemp)"
+  set +e
+  doctl "${create_args[@]}" >"$create_stdout" 2>"$create_stderr"
+  create_rc=$?
+  set -e
+  echo "doctl droplet create exit=${create_rc}"
+  echo "--- doctl stdout ---"
+  cat "$create_stdout"
+  echo "--- doctl stderr ---"
+  cat "$create_stderr"
+  echo "--------------------"
+  droplet_id="$(awk 'NR == 1 { print $1 }' "$create_stdout")"
+  rm -f "$create_stdout" "$create_stderr"
+  if [ "$create_rc" -ne 0 ] || [ -z "$droplet_id" ]; then
+    echo "Falling back to looking up Droplet ${DO_DROPLET_NAME} by name after create call" >&2
+    droplets_json="$(doctl compute droplet list --output json)"
+    droplet_id="$(jq -r --arg name "$DO_DROPLET_NAME" '[.[] | select(.name == $name)] | (.[0].id // empty)' <<< "$droplets_json")"
+    if [ -z "$droplet_id" ]; then
+      echo "Droplet ${DO_DROPLET_NAME} was not created" >&2
+      exit 1
+    fi
+    echo "Recovered droplet_id=${droplet_id} from list lookup"
+  fi
 fi
 
 if [ -n "$DO_PROJECT_NAME" ]; then
