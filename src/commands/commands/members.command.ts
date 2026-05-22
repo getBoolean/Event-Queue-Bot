@@ -78,7 +78,7 @@ export class MembersCommand extends AdminCommand {
 		user3: new UserOption({ id: "user_3", description: "User to add" }),
 		user4: new UserOption({ id: "user_4", description: "User to add" }),
 		user5: new UserOption({ id: "user_5", description: "User to add" }),
-		dmMember: new DmMemberOption({ description: "Whether to directly message the member(s)" }),
+		dmMember: new DmMemberOption({ description: "DM affected members" }),
 	};
 
 	static async members_add(inter: SlashInteraction) {
@@ -108,7 +108,7 @@ export class MembersCommand extends AdminCommand {
 	static readonly SET_OPTIONS = {
 		queues: new QueuesOption({ required: true, description: "Queue(s) of members to update" }),
 		members: new MembersOption({ required: true, description: "Members to update" }),
-		message: new MessageOption({ description: "New message of the member" }),
+		message: new MessageOption({ description: "New member message" }),
 	};
 
 	static async members_set(inter: SlashInteraction) {
@@ -128,7 +128,7 @@ export class MembersCommand extends AdminCommand {
 	static readonly DELETE_OPTIONS = {
 		queues: new QueuesOption({ required: true, description: "Queue(s) to kick members from" }),
 		members: new MembersOption({ required: true, description: "Members to kick" }),
-		dmMember: new DmMemberOption({ description: "Whether to directly message the member(s)" }),
+		dmMember: new DmMemberOption({ description: "DM affected members" }),
 	};
 
 	static async members_delete(inter: SlashInteraction) {

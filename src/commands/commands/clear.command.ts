@@ -15,12 +15,12 @@ export class ClearCommand extends AdminCommand {
 
 	static readonly CLEAR_OPTIONS = {
 		queues: new QueuesOption({ required: true, description: "Queue(s) to clear" }),
-		dmMember: new DmMemberOption({ description: "Whether to directly message the member(s)" }),
+		dmMember: new DmMemberOption({ description: "DM affected members" }),
 	};
 
 	data = new SlashCommandBuilder()
 		.setName(ClearCommand.ID)
-		.setDescription("Remove all members from queue(s). (same as /members delete ALL)")
+		.setDescription("Remove all members from queue(s) (same as /members delete ALL)")
 		.addStringOption(ClearCommand.CLEAR_OPTIONS.queues.build)
 		.addBooleanOption(ClearCommand.CLEAR_OPTIONS.dmMember.build);
 

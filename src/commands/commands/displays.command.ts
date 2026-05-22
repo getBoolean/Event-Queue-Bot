@@ -23,7 +23,7 @@ export class DisplaysCommand extends AdminCommand {
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("get")
-				.setDescription("Get a list of all queue displays");
+				.setDescription("List queue displays");
 			Object.values(DisplaysCommand.GET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
@@ -47,7 +47,7 @@ export class DisplaysCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly GET_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Get displays of specific queue(s)" }),
+		queues: new QueuesOption({ required: true, description: "Specific queue(s)" }),
 	};
 
 	static async displays_get(inter: SlashInteraction, queues?: Collection<bigint, DbQueue>) {

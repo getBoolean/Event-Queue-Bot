@@ -80,7 +80,7 @@ export class ScheduleCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly GET_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Get schedules of specific queue(s)" }),
+		queues: new QueuesOption({ required: true, description: "Specific queue(s)" }),
 	};
 
 	static async schedule_get(inter: SlashInteraction, queues?: Collection<bigint, DbQueue>) {
@@ -108,7 +108,7 @@ export class ScheduleCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly ADD_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Queue(s) to create scheduled command for" }),
+		queues: new QueuesOption({ required: true, description: "Target queue(s)" }),
 		command: new CommandOption({ required: true, description: "Command to schedule" }),
 		cron: new CronOption({ required: true, description: "Cron schedule" }),
 		customCron: new CustomCronOption({ description: "Custom cron schedule" }),

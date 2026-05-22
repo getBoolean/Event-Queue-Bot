@@ -14,14 +14,14 @@ export class MoveCommand extends AdminCommand {
 	move = MoveCommand.move;
 
 	static readonly MOVE_OPTIONS = {
-		queue: new QueueOption({ required: true, description: "Queue to move member in" }),
+		queue: new QueueOption({ required: true, description: "Target queue" }),
 		member: new MemberOption({ required: true, description: "Member to move" }),
-		position: new PositionOption({ required: true, description: "New position of the queue member" }),
+		position: new PositionOption({ required: true, description: "New position" }),
 	};
 
 	data = new SlashCommandBuilder()
 		.setName(MoveCommand.ID)
-		.setDescription("Change the position of a queue member")
+		.setDescription("Move a member's position")
 		.addStringOption(MoveCommand.MOVE_OPTIONS.queue.build)
 		.addStringOption(MoveCommand.MOVE_OPTIONS.member.build)
 		.addIntegerOption(MoveCommand.MOVE_OPTIONS.position.build);

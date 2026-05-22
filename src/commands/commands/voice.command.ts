@@ -63,14 +63,14 @@ export class VoiceCommand extends AdminCommand {
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set_destination")
-				.setDescription("Set voice destination channel (also possible with /queues set)");
+				.setDescription("Set voice destination (or /queues set)");
 			Object.values(VoiceCommand.SET_DESTINATION_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset_destination")
-				.setDescription("Reset voice destination channel (also possible with /queues reset)");
+				.setDescription("Reset voice destination (or /queues reset)");
 			Object.values(VoiceCommand.RESET_DESTINATION_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
@@ -86,7 +86,7 @@ export class VoiceCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly GET_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Get voice integrations of specific queue(s)" }),
+		queues: new QueuesOption({ required: true, description: "Specific queue(s)" }),
 	};
 
 	static async voice_get(inter: SlashInteraction, queues?: Collection<bigint, DbQueue>) {
@@ -123,13 +123,13 @@ export class VoiceCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly ADD_SOURCE_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Queue(s) to set source voice channel" }),
+		queues: new QueuesOption({ required: true, description: "Target queue(s)" }),
 		sourceVoiceChannel: new VoiceSourceChannelOption({
 			required: true,
-			description: "Voice channel to pull members from",
+			description: "Source voice channel",
 		}),
-		joinSync: new JoinSyncToggleOption({ description: "Toggle whether members are enqueued on voice join" }),
-		leaveSync: new LeaveSyncToggleOption({ description: "Toggle whether members are dequeued on voice leave" }),
+		joinSync: new JoinSyncToggleOption({ description: "Enqueue on voice join" }),
+		leaveSync: new LeaveSyncToggleOption({ description: "Dequeue on voice leave" }),
 	};
 
 	static async voice_add_source(inter: SlashInteraction) {
@@ -181,9 +181,9 @@ export class VoiceCommand extends AdminCommand {
 
 	static readonly SET_SOURCE_OPTIONS = {
 		voices: new VoicesOption({ required: true, description: "Voice integrations to update" }),
-		voiceSourceChannel: new VoiceSourceChannelOption({ description: "Voice channel to pull members from" }),
-		joinSync: new JoinSyncToggleOption({ description: "Toggle whether members are enqueued on voice join" }),
-		leaveSync: new LeaveSyncToggleOption({ description: "Toggle whether members are dequeued on voice leave" }),
+		voiceSourceChannel: new VoiceSourceChannelOption({ description: "Source voice channel" }),
+		joinSync: new JoinSyncToggleOption({ description: "Enqueue on voice join" }),
+		leaveSync: new LeaveSyncToggleOption({ description: "Dequeue on voice leave" }),
 	};
 
 	static async voice_set_source(inter: SlashInteraction) {
@@ -233,10 +233,10 @@ export class VoiceCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly SET_DESTINATION_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Queue(s) to set destination voice channel" }),
+		queues: new QueuesOption({ required: true, description: "Target queue(s)" }),
 		voiceDestinationChannel: new VoiceDestinationChannelOption({
 			required: true,
-			description: "Voice channel to push members to",
+			description: "Destination voice channel",
 		}),
 	};
 
@@ -254,7 +254,7 @@ export class VoiceCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly RESET_DESTINATION_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Queue(s) to reset destination voice channel" }),
+		queues: new QueuesOption({ required: true, description: "Target queue(s)" }),
 	};
 
 	static async voice_reset_destination(inter: SlashInteraction) {

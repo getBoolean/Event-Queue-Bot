@@ -103,105 +103,105 @@ export class EventsCommand extends AdminCommand {
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("get")
-				.setDescription("Get event details");
+				.setDescription("Show event details");
 			Object.values(EventsCommand.GET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("add")
-				.setDescription("Create an event template with room and sub queues");
+				.setDescription("Create event with room + sub queues");
 			Object.values(EventsCommand.ADD_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set")
-				.setDescription("Update event template properties");
+				.setDescription("Update event properties");
 			Object.values(EventsCommand.SET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set-room-defaults")
-				.setDescription("Set default queue properties for room queues");
+				.setDescription("Set room queue defaults");
 			Object.values(EventsCommand.SET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set-sub-defaults")
-				.setDescription("Set default queue properties for sub queues");
+				.setDescription("Set sub queue defaults");
 			Object.values(EventsCommand.SET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("add-room-channel")
-				.setDescription("Add an extra per-room channel template (e.g. room-code-{N})");
+				.setDescription("Add per-room channel template (e.g. room-code-{N})");
 			Object.values(EventsCommand.ADD_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("remove-room-channel")
-				.setDescription("Remove a per-room channel template and its channels");
+				.setDescription("Remove per-room channel template");
 			Object.values(EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("sync-room-channels")
-				.setDescription("Recreate any missing room channels, re-apply permissions, and restore channel order");
+				.setDescription("Recreate missing room channels, fix perms + order");
 			Object.values(EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset")
-				.setDescription("Reset event template properties");
+				.setDescription("Reset event properties");
 			Object.values(EventsCommand.RESET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset-room-defaults")
-				.setDescription("Reset default queue properties for room queues");
+				.setDescription("Reset room queue defaults");
 			Object.values(EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset-sub-defaults")
-				.setDescription("Reset default queue properties for sub queues");
+				.setDescription("Reset sub queue defaults");
 			Object.values(EventsCommand.RESET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("schedule")
-				.setDescription("Schedule an event occurrence");
+				.setDescription("Schedule an occurrence");
 			Object.values(EventsCommand.SCHEDULE_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("cancel")
-				.setDescription("Cancel a pending event occurrence");
+				.setDescription("Cancel a pending occurrence");
 			Object.values(EventsCommand.CANCEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("delete")
-				.setDescription("Delete an event and all its queues");
+				.setDescription("Delete event + its queues");
 			Object.values(EventsCommand.DELETE_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("help")
-				.setDescription("Info about creating and managing events");
+				.setDescription("Event command help");
 			return subcommand;
 		});
 
@@ -210,7 +210,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly GET_OPTIONS = {
-		events: new EventsOption({ description: "Get specific event(s)" }),
+		events: new EventsOption({ description: "Specific event(s)" }),
 	};
 
 	static async events_get(inter: SlashInteraction, events?: Collection<bigint, DbEvent>) {
@@ -268,29 +268,29 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly ADD_OPTIONS = {
-		name: new NameOption({ required: true, description: "Name of the event" }),
+		name: new NameOption({ required: true, description: "Event name" }),
 		roomCount: new RoomCountOption({ required: true, description: "Number of rooms" }),
-		roomQueuesChannel: new RoomQueuesChannelOption({ required: true, description: "Top-level channel containing all the room queues for the event" }),
-		subQueuesChannel: new SubQueuesChannelOption({ required: true, description: "Top-level channel containing all the sub queues for the event" }),
-		roomCategory: new RoomCategoryOption({ required: true, description: "Category for auto-created per-room channels" }),
-		roomScheduling: new RoomSchedulingOption({ description: "How rooms are timed (parallel or sequential)" }),
-		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Length of each room in minutes (required for sequential)" }),
-		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open queues" }),
-		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock rooms (negative = before)" }),
-		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after start to clear and lock queues" }),
-		announcementChannel: new AnnouncementChannelOption({ description: "Channel for event announcements" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template ({event_name}, {start_time}, etc.)" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template ({room_role}, {room_name}, etc.)" }),
-		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Cap on rooms a user can join (0 = unlimited)" }),
-		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Cap on sub-rooms a user can join (0 = unlimited)" }),
-		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room and matching sub queue can't both hold a user" }),
-		moderatorRole: new ModeratorRoleOption({ description: "Role with full access to all room channels" }),
-		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign the auto-created room role to users in the room queue" }),
-		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign the auto-created room role to users pulled from the room queue" }),
-		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign the auto-created room role to users in the sub queue" }),
-		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign the auto-created room role to users pulled from the sub queue" }),
-		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create a native Discord scheduled event for each occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Override the auto-generated Discord event description (template)" }),
+		roomQueuesChannel: new RoomQueuesChannelOption({ required: true, description: "Parent channel for room queues" }),
+		subQueuesChannel: new SubQueuesChannelOption({ required: true, description: "Parent channel for sub queues" }),
+		roomCategory: new RoomCategoryOption({ required: true, description: "Category for per-room channels" }),
+		roomScheduling: new RoomSchedulingOption({ description: "Room timing (parallel/sequential)" }),
+		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Room length in minutes (sequential req)" }),
+		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open" }),
+		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock (neg=before)" }),
+		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after start to cleanup" }),
+		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
+		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template" }),
+		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template" }),
+		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
+		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
+		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
+		moderatorRole: new ModeratorRoleOption({ description: "Moderator role for room channels" }),
+		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign room role while in room queue" }),
+		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
+		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
+		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
+		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description template" }),
 	};
 
 	static async events_add(inter: SlashInteraction) {
@@ -352,27 +352,27 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly SET_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to update" }),
-		roomCount: new RoomCountOption({ description: "Number of rooms (can only grow)" }),
-		roomScheduling: new RoomSchedulingOption({ description: "How rooms are timed" }),
-		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Length of each room in minutes" }),
-		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open queues" }),
-		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock rooms" }),
-		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after start to clear and lock" }),
-		announcementChannel: new AnnouncementChannelOption({ description: "Channel for announcements" }),
+		event: new EventOption({ required: true, description: "Target event" }),
+		roomCount: new RoomCountOption({ description: "Number of rooms (grow only)" }),
+		roomScheduling: new RoomSchedulingOption({ description: "Room timing (parallel/sequential)" }),
+		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Room length in minutes" }),
+		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open" }),
+		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock" }),
+		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after start to cleanup" }),
+		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
 		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template" }),
 		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template" }),
-		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Cap on rooms a user can join (0 = unlimited)" }),
-		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Cap on sub-rooms a user can join (0 = unlimited)" }),
-		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room and matching sub queue can't both hold a user" }),
-		roomCategory: new RoomCategoryOption({ description: "Category for auto-created per-room channels" }),
-		moderatorRole: new ModeratorRoleOption({ description: "Role with full access to all room channels" }),
-		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign the auto-created room role to users in the room queue" }),
-		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign the auto-created room role to users pulled from the room queue" }),
-		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign the auto-created room role to users in the sub queue" }),
-		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign the auto-created room role to users pulled from the sub queue" }),
-		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create a native Discord scheduled event for each occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Override the auto-generated Discord event description (template)" }),
+		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
+		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
+		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
+		roomCategory: new RoomCategoryOption({ description: "Category for per-room channels" }),
+		moderatorRole: new ModeratorRoleOption({ description: "Moderator role for room channels" }),
+		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign room role while in room queue" }),
+		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
+		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
+		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
+		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description template" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -429,29 +429,29 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly SET_ROOM_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to configure" }),
-		autopullToggle: new AutopullToggleOption({ description: "Toggle automatic pulling" }),
-		badgeToggle: new BadgeToggleOption({ description: "Toggle badges next to queue name" }),
-		buttonsToggle: new ButtonsToggleOption({ description: "Toggle buttons beneath displays" }),
-		color: new ColorOption({ description: "Color of the queue" }),
-		displayUpdateType: new DisplayUpdateTypeOption({ description: "How to update displays" }),
-		dmOnPullToggle: new DmOnPullToggleOption({ description: "Toggle DM on pull" }),
-		header: new HeaderOption({ description: "Header of the queue display" }),
-		inlineToggle: new InlineToggleOption({ description: "Toggle inline display" }),
-		lockToggle: new LockToggleOption({ description: "Toggle queue locked status" }),
-		memberDisplayType: new MemberDisplayTypeOption({ description: "How to display members" }),
+		event: new EventOption({ required: true, description: "Target event" }),
+		autopullToggle: new AutopullToggleOption({ description: "Autopull toggle" }),
+		badgeToggle: new BadgeToggleOption({ description: "Badge toggle" }),
+		buttonsToggle: new ButtonsToggleOption({ description: "Buttons toggle" }),
+		color: new ColorOption({ description: "Queue color" }),
+		displayUpdateType: new DisplayUpdateTypeOption({ description: "Display update type" }),
+		dmOnPullToggle: new DmOnPullToggleOption({ description: "DM-on-pull toggle" }),
+		header: new HeaderOption({ description: "Display header" }),
+		inlineToggle: new InlineToggleOption({ description: "Inline toggle" }),
+		lockToggle: new LockToggleOption({ description: "Lock toggle" }),
+		memberDisplayType: new MemberDisplayTypeOption({ description: "Member display type" }),
 		pullBatchSize: new PullBatchSizeOption({ description: "Pull batch size" }),
 		pullMessage: new PullMessageOption({ description: "Pull message" }),
 		pullMessageDisplayType: new PullMessageDisplayTypeOption({ description: "Pull message display type" }),
 		pullMessageChannel: new PullMessageChannelOption({ description: "Pull message channel" }),
-		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "Rejoin cooldown in seconds" }),
-		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "Rejoin grace period in seconds" }),
+		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "Rejoin cooldown (s)" }),
+		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "Rejoin grace (s)" }),
 		requireMessageToJoin: new RequireMessageToJoinOption({ description: "Require message to join" }),
-		roleInQueue: new RoleInQueueOption({ description: "Role to assign in queue" }),
-		roleOnPull: new RoleOnPullOption({ description: "Role to assign on pull" }),
-		size: new SizeOption({ description: "Queue size limit" }),
+		roleInQueue: new RoleInQueueOption({ description: "In-queue role" }),
+		roleOnPull: new RoleOnPullOption({ description: "On-pull role" }),
+		size: new SizeOption({ description: "Size limit" }),
 		timestampType: new TimestampTypeOption({ description: "Timestamp format" }),
-		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice only toggle" }),
+		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice-only toggle" }),
 		voiceDestinationChannel: new VoiceDestinationChannelOption({ description: "Voice destination channel" }),
 	};
 
@@ -464,29 +464,29 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly SET_SUB_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to configure" }),
-		autopullToggle: new AutopullToggleOption({ description: "Toggle automatic pulling" }),
-		badgeToggle: new BadgeToggleOption({ description: "Toggle badges next to queue name" }),
-		buttonsToggle: new ButtonsToggleOption({ description: "Toggle buttons beneath displays" }),
-		color: new ColorOption({ description: "Color of the queue" }),
-		displayUpdateType: new DisplayUpdateTypeOption({ description: "How to update displays" }),
-		dmOnPullToggle: new DmOnPullToggleOption({ description: "Toggle DM on pull" }),
-		header: new HeaderOption({ description: "Header of the queue display" }),
-		inlineToggle: new InlineToggleOption({ description: "Toggle inline display" }),
-		lockToggle: new LockToggleOption({ description: "Toggle queue locked status" }),
-		memberDisplayType: new MemberDisplayTypeOption({ description: "How to display members" }),
+		event: new EventOption({ required: true, description: "Target event" }),
+		autopullToggle: new AutopullToggleOption({ description: "Autopull toggle" }),
+		badgeToggle: new BadgeToggleOption({ description: "Badge toggle" }),
+		buttonsToggle: new ButtonsToggleOption({ description: "Buttons toggle" }),
+		color: new ColorOption({ description: "Queue color" }),
+		displayUpdateType: new DisplayUpdateTypeOption({ description: "Display update type" }),
+		dmOnPullToggle: new DmOnPullToggleOption({ description: "DM-on-pull toggle" }),
+		header: new HeaderOption({ description: "Display header" }),
+		inlineToggle: new InlineToggleOption({ description: "Inline toggle" }),
+		lockToggle: new LockToggleOption({ description: "Lock toggle" }),
+		memberDisplayType: new MemberDisplayTypeOption({ description: "Member display type" }),
 		pullBatchSize: new PullBatchSizeOption({ description: "Pull batch size" }),
 		pullMessage: new PullMessageOption({ description: "Pull message" }),
 		pullMessageDisplayType: new PullMessageDisplayTypeOption({ description: "Pull message display type" }),
 		pullMessageChannel: new PullMessageChannelOption({ description: "Pull message channel" }),
-		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "Rejoin cooldown in seconds" }),
-		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "Rejoin grace period in seconds" }),
+		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "Rejoin cooldown (s)" }),
+		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "Rejoin grace (s)" }),
 		requireMessageToJoin: new RequireMessageToJoinOption({ description: "Require message to join" }),
-		roleInQueue: new RoleInQueueOption({ description: "Role to assign in queue" }),
-		roleOnPull: new RoleOnPullOption({ description: "Role to assign on pull" }),
-		size: new SizeOption({ description: "Queue size limit" }),
+		roleInQueue: new RoleInQueueOption({ description: "In-queue role" }),
+		roleOnPull: new RoleOnPullOption({ description: "On-pull role" }),
+		size: new SizeOption({ description: "Size limit" }),
 		timestampType: new TimestampTypeOption({ description: "Timestamp format" }),
-		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice only toggle" }),
+		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice-only toggle" }),
 		voiceDestinationChannel: new VoiceDestinationChannelOption({ description: "Voice destination channel" }),
 	};
 
@@ -535,9 +535,9 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly ADD_ROOM_CHANNEL_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to add a per-room channel template to" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 		suffix: new ChannelSuffixOption({ required: true, description: "Suffix (e.g. \"code\" → room-code-{N})" }),
-		slowmode: new SlowmodeOption({ description: "Slowmode value (0 = none)" }),
+		slowmode: new SlowmodeOption({ description: "Slowmode value (0=none)" }),
 		slowmodeTime: new SlowmodeTimeOption({ description: "Slowmode unit" }),
 	};
 
@@ -577,8 +577,8 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly REMOVE_ROOM_CHANNEL_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to remove a per-room channel template from" }),
-		suffix: new ChannelSuffixOption({ required: true, description: "Suffix to remove (autocompletes from existing)" }),
+		event: new EventOption({ required: true, description: "Target event" }),
+		suffix: new ChannelSuffixOption({ required: true, description: "Suffix to remove (autocompletes)" }),
 	};
 
 	static async events_remove_room_channel(inter: SlashInteraction) {
@@ -609,7 +609,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly SYNC_ROOM_CHANNELS_OPTIONS = {
-		event: new EventOption({ description: "Event to sync (omit to sync all)" }),
+		event: new EventOption({ description: "Event to sync (omit = all)" }),
 	};
 
 	static async events_sync_room_channels(inter: SlashInteraction) {
@@ -646,7 +646,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly RESET_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to reset" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 	};
 
 	static async events_reset(inter: SlashInteraction) {
@@ -707,7 +707,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly RESET_ROOM_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to reset" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 	};
 
 	static async events_reset_room_defaults(inter: SlashInteraction) {
@@ -719,7 +719,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly RESET_SUB_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to reset" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 	};
 
 	static async events_reset_sub_defaults(inter: SlashInteraction) {
@@ -784,7 +784,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly SCHEDULE_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to schedule" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 	};
 
 	static async events_schedule(inter: SlashInteraction) {
@@ -798,7 +798,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly CANCEL_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to cancel an occurrence of" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 	};
 
 	static async events_cancel(inter: SlashInteraction) {
@@ -841,7 +841,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly DELETE_OPTIONS = {
-		event: new EventOption({ required: true, description: "Event to delete" }),
+		event: new EventOption({ required: true, description: "Target event" }),
 	};
 
 	static async events_delete(inter: SlashInteraction) {

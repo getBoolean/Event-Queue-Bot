@@ -65,7 +65,7 @@ export class PrioritizeCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly GET_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Get prioritized entries of specific queue(s)" }),
+		queues: new QueuesOption({ required: true, description: "Specific queue(s)" }),
 	};
 
 	static async prioritize_get(inter: SlashInteraction, queues?: Collection<bigint, DbQueue>) {
@@ -94,14 +94,14 @@ export class PrioritizeCommand extends AdminCommand {
 		mentionable1: new MentionableOption({
 			required: true,
 			id: "mentionable_1",
-			description: "User or role to prioritize",
+			description: "User/role to prioritize",
 		}),
-		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User or role to prioritize" }),
-		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User or role to prioritize" }),
-		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User or role to prioritize" }),
-		mentionable5: new MentionableOption({ id: "mentionable_5", description: "User or role to prioritize" }),
+		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User/role to prioritize" }),
+		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User/role to prioritize" }),
+		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User/role to prioritize" }),
+		mentionable5: new MentionableOption({ id: "mentionable_5", description: "User/role to prioritize" }),
 		reason: new ReasonOption({ description: "Reason for the priority" }),
-		priorityOrder: new PriorityOrderOption({ description: "Lower priority orders go first" }),
+		priorityOrder: new PriorityOrderOption({ description: "Priority order (lower = first)" }),
 	};
 
 	static async prioritize_add(inter: SlashInteraction) {
@@ -140,8 +140,8 @@ export class PrioritizeCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly UPDATE_OPTIONS = {
-		prioritizeds: new PrioritizedsOption({ required: true, description: "Prioritized users and roles to update" }),
-		priorityOrder: new PriorityOrderOption({ description: "Lower priority orders go first" }),
+		prioritizeds: new PrioritizedsOption({ required: true, description: "Entries to update" }),
+		priorityOrder: new PriorityOrderOption({ description: "Priority order (lower = first)" }),
 		reason: new ReasonOption({ description: "Reason for the priority" }),
 	};
 
@@ -179,7 +179,7 @@ export class PrioritizeCommand extends AdminCommand {
 	static readonly DELETE_OPTIONS = {
 		prioritizeds: new PrioritizedsOption({
 			required: true,
-			description: "Prioritized users and roles to un-prioritize",
+			description: "Entries to un-prioritize",
 		}),
 	};
 

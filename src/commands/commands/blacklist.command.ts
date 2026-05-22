@@ -56,7 +56,7 @@ export class BlacklistCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly GET_OPTIONS = {
-		queues: new QueuesOption({ required: true, description: "Get blacklisted entries of specific queue(s)" }),
+		queues: new QueuesOption({ required: true, description: "Specific queue(s)" }),
 	};
 
 	static async blacklist_get(inter: SlashInteraction, queues?: Collection<bigint, DbQueue>) {
@@ -82,11 +82,11 @@ export class BlacklistCommand extends AdminCommand {
 
 	static readonly ADD_OPTIONS = {
 		queues: new QueuesOption({ required: true, description: "Queue(s) to blacklist from" }),
-		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User or role to blacklist" }),
-		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User or role to blacklist" }),
-		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User or role to blacklist" }),
-		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User or role to blacklist" }),
-		mentionable5: new MentionableOption({ id: "mentionable_5", description: "User or role to blacklist" }),
+		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to blacklist" }),
+		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User/role to blacklist" }),
+		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User/role to blacklist" }),
+		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User/role to blacklist" }),
+		mentionable5: new MentionableOption({ id: "mentionable_5", description: "User/role to blacklist" }),
 		reason: new ReasonOption({ description: "Reason for blacklisting" }),
 	};
 
@@ -118,7 +118,7 @@ export class BlacklistCommand extends AdminCommand {
 	static readonly DELETE_OPTIONS = {
 		blacklisteds: new BlacklistedsOption({
 			required: true,
-			description: "Blacklisted users and roles to un-blacklist",
+			description: "Entries to un-blacklist",
 		}),
 	};
 

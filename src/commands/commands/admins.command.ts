@@ -20,24 +20,24 @@ export class AdminsCommand extends AdminCommand {
 
 	data = new SlashCommandBuilder()
 		.setName(AdminsCommand.ID)
-		.setDescription("Manage admin users and roles")
+		.setDescription("Manage bot admins")
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("get")
-				.setDescription("Get admin users and roles");
+				.setDescription("List bot admins");
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("add")
-				.setDescription("Grant admin status to users and roles");
+				.setDescription("Grant admin to users/roles");
 			Object.values(AdminsCommand.ADD_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("delete")
-				.setDescription("Revoke admin status from users and roles");
+				.setDescription("Revoke admin from users/roles");
 			Object.values(AdminsCommand.DELETE_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		});
@@ -66,11 +66,11 @@ export class AdminsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly ADD_OPTIONS = {
-		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User or role to grant admin status to" }),
-		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User or role to grant admin status to" }),
-		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User or role to grant admin status to" }),
-		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User or role to grant admin status to" }),
-		mentionable5: new MentionableOption({ id: "mentionable_5", description: "User or role to grant admin status to" }),
+		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to grant admin" }),
+		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User/role to grant admin" }),
+		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User/role to grant admin" }),
+		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User/role to grant admin" }),
+		mentionable5: new MentionableOption({ id: "mentionable_5", description: "User/role to grant admin" }),
 	};
 
 	static async admins_add(inter: SlashInteraction) {
@@ -94,7 +94,7 @@ export class AdminsCommand extends AdminCommand {
 	// ====================================================================
 
 	static readonly DELETE_OPTIONS = {
-		admins: new AdminsOption({ required: true, description: "User or role to revoke admin status from" }),
+		admins: new AdminsOption({ required: true, description: "User/role to revoke admin" }),
 	};
 
 	static async admins_delete(inter: SlashInteraction) {

@@ -16,7 +16,7 @@ export class JoinCommand extends EveryoneCommand {
 
 	static readonly JOIN_OPTIONS = {
 		queue: new QueueOption({ required: true, description: "Queue to join" }),
-		message: new MessageOption({ description: "Message to display next to your name in the queue" }),
+		message: new MessageOption({ description: "Message shown next to your name" }),
 	};
 
 	data = new SlashCommandBuilder()

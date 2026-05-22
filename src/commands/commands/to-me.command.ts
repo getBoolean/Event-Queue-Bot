@@ -16,8 +16,8 @@ export class ToMeCommand extends AdminCommand {
 
 	static readonly TO_ME_OPTIONS = {
 		queues: new QueuesOption({ required: true, description: "Queue(s) to pull from" }),
-		count: new NumberOption({ description: "Number of queue members to pull", defaultValue: 1, minValue: 1 }),
-		members: new MembersOption({ description: "Pull specific members instead of the next member" }),
+		count: new NumberOption({ description: "Number to pull", defaultValue: 1, minValue: 1 }),
+		members: new MembersOption({ description: "Pull specific members (not next)" }),
 	};
 
 	data = new SlashCommandBuilder()

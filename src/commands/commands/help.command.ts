@@ -18,17 +18,17 @@ export class HelpCommand extends EveryoneCommand {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName("setup")
-				.setDescription("Get help with setting up")
+				.setDescription("Setup help")
 		)
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName("general")
-				.setDescription("Get help with general tasks like joining and leaving queues")
+				.setDescription("Help with join/leave")
 		)
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName("admin")
-				.setDescription("Get help with admin tasks like managing queues")
+				.setDescription("Help with admin tasks")
 		);
 
 	// ====================================================================
