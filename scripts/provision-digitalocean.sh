@@ -45,6 +45,10 @@ DO_SSH_KEY_NAME="${DO_SSH_KEY_NAME:-${DO_DROPLET_NAME}-deploy}"
 DO_FIREWALL_NAME="${DO_FIREWALL_NAME:-${DO_DROPLET_NAME}-ssh}"
 DO_TAG="${DO_TAG:-${DO_DROPLET_NAME}}"
 DO_ENABLE_BACKUPS="${DO_ENABLE_BACKUPS:-false}"
+DO_PROJECT_NAME="${DO_PROJECT_NAME:-Event Queue Bot}"
+DO_PROJECT_PURPOSE="${DO_PROJECT_PURPOSE:-Service or API}"
+DO_PROJECT_ENVIRONMENT="${DO_PROJECT_ENVIRONMENT:-Production}"
+DO_PROJECT_DESCRIPTION="${DO_PROJECT_DESCRIPTION:-}"
 APP_PATH="${APP_PATH:-/opt/event-queue-bot}"
 
 if [[ ! "$APP_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
@@ -159,6 +163,38 @@ else
   fi
 
   droplet_id="$(doctl "${create_args[@]}" | awk 'NR == 1 { print $1 }')"
+fi
+
+if [ -n "$DO_PROJECT_NAME" ]; then
+  projects_json="$(doctl projects list --output json)"
+  project_id="$(
+    jq -r --arg name "$DO_PROJECT_NAME" '
+      [.[] | select(.name == $name)] |
+      if length > 1 then error("multiple Projects match name")
+      elif length == 1 then .[0].id
+      else "" end
+    ' <<< "$projects_json"
+  )"
+
+  if [ -n "$project_id" ]; then
+    echo "Reusing project ${DO_PROJECT_NAME}"
+  else
+    echo "Creating project ${DO_PROJECT_NAME}"
+    create_project_args=(
+      projects create
+      --name "$DO_PROJECT_NAME"
+      --purpose "$DO_PROJECT_PURPOSE"
+      --environment "$DO_PROJECT_ENVIRONMENT"
+    )
+    if [ -n "$DO_PROJECT_DESCRIPTION" ]; then
+      create_project_args+=(--description "$DO_PROJECT_DESCRIPTION")
+    fi
+    create_project_args+=(--format ID --no-header)
+    project_id="$(doctl "${create_project_args[@]}" | awk 'NR == 1 { print $1 }')"
+  fi
+
+  echo "Assigning Droplet ${DO_DROPLET_NAME} to project ${DO_PROJECT_NAME}"
+  doctl projects resources assign "$project_id" --resource="do:droplet:${droplet_id}" >/dev/null
 fi
 
 firewalls_json="$(doctl compute firewall list --output json)"

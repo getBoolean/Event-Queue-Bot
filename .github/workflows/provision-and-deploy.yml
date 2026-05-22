@@ -26,6 +26,10 @@ jobs:
       DO_IMAGE: ${{ vars.DO_IMAGE || 'ubuntu-24-04-x64' }}
       DO_DROPLET_NAME: ${{ vars.DO_DROPLET_NAME || 'event-queue-bot' }}
       DO_ENABLE_BACKUPS: ${{ vars.DO_ENABLE_BACKUPS || 'false' }}
+      DO_PROJECT_NAME: ${{ vars.DO_PROJECT_NAME || 'Event Queue Bot' }}
+      DO_PROJECT_PURPOSE: ${{ vars.DO_PROJECT_PURPOSE || 'Service or API' }}
+      DO_PROJECT_ENVIRONMENT: ${{ vars.DO_PROJECT_ENVIRONMENT || 'Production' }}
+      DO_PROJECT_DESCRIPTION: ${{ vars.DO_PROJECT_DESCRIPTION }}
 
     steps:
       - name: Validate required secrets
