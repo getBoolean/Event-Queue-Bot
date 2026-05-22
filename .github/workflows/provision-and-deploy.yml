@@ -73,7 +73,6 @@ jobs:
     needs: discover
     if: github.ref == 'refs/heads/master' && needs.discover.outputs.droplet_exists != 'true'
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: read
 
@@ -135,7 +134,6 @@ jobs:
       && needs.discover.result == 'success'
       && (needs.provision.result == 'success' || needs.provision.result == 'skipped')
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: read
 

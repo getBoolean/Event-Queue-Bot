@@ -3,11 +3,12 @@
 GitHub Actions provisions a DigitalOcean VPS with the official `doctl` CLI and
 deploys the bot from `master`. No local Terraform or server setup is required.
 
-Create a GitHub environment named `production`, add the secrets below as
-environment secrets, and enable required reviewers if you want manual approval
-before production deploys.
+Store the secrets and variables below at the **repository** level
+(`Settings → Secrets and variables → Actions`).
 
-Do not also store these values as repository-wide secrets.
+Create a GitHub environment named `production` with required reviewers — it
+gates the `discover` job (and therefore the whole pipeline) but does **not**
+hold any secrets or variables.
 
 ## 1. Create DigitalOcean Token
 
@@ -19,7 +20,7 @@ Create a DigitalOcean API token with these custom scopes:
 - `tag:read`, `tag:create`
 - `project:read`, `project:create`, `project:update`
 
-Save it as this GitHub environment secret:
+Save it as this GitHub repository secret:
 
 ```text
 DIGITALOCEAN_TOKEN
@@ -33,13 +34,13 @@ Create a key pair:
 ssh-keygen -t ed25519 -C "event-queue-bot-deploy" -f event-queue-bot-deploy
 ```
 
-Save the private key as this GitHub environment secret:
+Save the private key as this GitHub repository secret:
 
 ```text
 BOT_SSH_DEPLOY_PRIVATE_KEY
 ```
 
-Save the public key as this GitHub environment secret:
+Save the public key as this GitHub repository secret:
 
 ```text
 BOT_SSH_DEPLOY_PUBLIC_KEY
@@ -53,13 +54,13 @@ Create a key pair for the server's SSH host identity (prevents MITM during deplo
 ssh-keygen -t ed25519 -C "event-queue-bot-host" -f event-queue-bot-host
 ```
 
-Save the private key as this GitHub environment secret:
+Save the private key as this GitHub repository secret:
 
 ```text
 BOT_SSH_HOST_PRIVATE_KEY
 ```
 
-Save the public key as this GitHub environment secret:
+Save the public key as this GitHub repository secret:
 
 ```text
 BOT_SSH_HOST_PUBLIC_KEY
@@ -71,7 +72,7 @@ key and deploys fail host-key verification.
 
 ## 4. Add Bot Secrets
 
-Save these required GitHub environment secrets:
+Save these required GitHub repository secrets:
 
 ```text
 BOT_APP_ID
@@ -87,7 +88,7 @@ The workflow generates the server `.env` file from these secrets during deploy.
 
 ## 5. Optional GitHub Variables
 
-These are environment variables (not secrets) set on the `production` environment.
+These are repository variables (not secrets).
 
 | Variable | Default |
 | --- | --- |
