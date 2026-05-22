@@ -1,5 +1,20 @@
 # Set the container name
 CONTAINER_NAME="queue-bot"
+PULL=false
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --pull)
+            PULL=true
+            ;;
+        *)
+            echo "Unknown argument: $arg" >&2
+            echo "Usage: $0 [--pull]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # Check if the container is running
 if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
@@ -21,11 +36,11 @@ else
     echo "Container ${CONTAINER_NAME} is not running. Skipping log saving."
 fi
 
-# Fetch the latest changes from the remote repository
-git fetch
-
-# Merge the fetched changes with a custom commit message
-git merge --no-ff -m "Merged changes from remote repository."
+# Opt-in: fetch and merge from origin
+if [ "$PULL" = true ]; then
+    git fetch
+    git merge --no-ff -m "Merged changes from remote repository."
+fi
 
 docker compose down
 
