@@ -65,6 +65,10 @@ Save the public key as this GitHub environment secret:
 BOT_SSH_HOST_PUBLIC_KEY
 ```
 
+**Note:** both private key secrets must end with a trailing newline after
+`-----END OPENSSH PRIVATE KEY-----`. Without it, `sshd` fails to load the host
+key and deploys fail host-key verification.
+
 ## 4. Add Bot Secrets
 
 Save these required GitHub environment secrets:
