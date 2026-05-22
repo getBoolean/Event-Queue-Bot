@@ -83,8 +83,8 @@ export namespace EventUtils {
 
 		const roomCount = Number(event.roomCount);
 		for (let i = 1; i <= roomCount; i++) {
-			await createEventQueue(store, event, EventQueueRole.Room, i, event.roomChannelId);
-			await createEventQueue(store, event, EventQueueRole.Sub, i, event.subChannelId);
+			await createEventQueue(store, event, EventQueueRole.Room, i, event.roomQueuesChannelId);
+			await createEventQueue(store, event, EventQueueRole.Sub, i, event.subQueuesChannelId);
 		}
 
 		if (event.roomCategoryId) {
@@ -115,8 +115,8 @@ export namespace EventUtils {
 			}
 			if (newCount > oldCount) {
 				for (let i = oldCount + 1; i <= newCount; i++) {
-					await createEventQueue(store, event, EventQueueRole.Room, i, event.roomChannelId);
-					await createEventQueue(store, event, EventQueueRole.Sub, i, event.subChannelId);
+					await createEventQueue(store, event, EventQueueRole.Room, i, event.roomQueuesChannelId);
+					await createEventQueue(store, event, EventQueueRole.Sub, i, event.subQueuesChannelId);
 				}
 			}
 		}
@@ -162,7 +162,7 @@ export namespace EventUtils {
 
 		const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 		for (const eq of eventQueues) {
-			store.deleteQueue({ id: eq.queueId });
+			await QueueUtils.deleteQueue(store, eq.queueId);
 		}
 
 		const occurrences = Queries.selectManyOccurrences({ guildId: store.guild.id, eventId: event.id });
@@ -503,7 +503,7 @@ export namespace EventUtils {
 		if (!guild) return;
 		const store = new Store(guild);
 
-		const pingChannelId = eventQueue.pingChannelId ?? event.roomChannelId;
+		const pingChannelId = eventQueue.pingChannelId ?? event.roomQueuesChannelId;
 
 		try {
 			const channel = await store.jsChannel(pingChannelId) as GuildTextBasedChannel;
@@ -563,8 +563,8 @@ export namespace EventUtils {
 			event_name: event.name,
 			start_time: time(startDate, TimestampStyles.LongDateTime),
 			start_time_relative: time(startDate, TimestampStyles.RelativeTime),
-			room_channel: channelMention(event.roomChannelId),
-			sub_channel: channelMention(event.subChannelId),
+			room_queues_channel: channelMention(event.roomQueuesChannelId),
+			sub_queues_channel: channelMention(event.subQueuesChannelId),
 		};
 	}
 
@@ -576,13 +576,13 @@ export namespace EventUtils {
 	): Record<string, string> {
 		const startDate = new Date(Number(occurrence.startTime));
 		const roleStr = queue.roleInQueueId ? `<@&${queue.roleInQueueId}>` : "";
-		const pingChId = eventQueue.pingChannelId ?? event.roomChannelId;
+		const pingChId = eventQueue.pingChannelId ?? event.roomQueuesChannelId;
 		return {
 			event_name: event.name,
 			room_name: queue.name,
 			room_role: roleStr,
 			room_index: String(eventQueue.queueIndex),
-			room_channel: channelMention(event.roomChannelId),
+			room_queues_channel: channelMention(event.roomQueuesChannelId),
 			ping_channel: channelMention(pingChId),
 			start_time: time(startDate, TimestampStyles.LongDateTime),
 			start_time_relative: time(startDate, TimestampStyles.RelativeTime),
@@ -599,8 +599,8 @@ export namespace EventUtils {
 	const DISCORD_UNKNOWN_GUILD_SCHEDULED_EVENT = 10070;
 
 	function resolveRoomChannelName(store: Store, event: DbEvent): string {
-		const cached = store.guild.channels.cache.get(event.roomChannelId);
-		return cached?.name ?? event.roomChannelId;
+		const cached = store.guild.channels.cache.get(event.roomQueuesChannelId);
+		return cached?.name ?? event.roomQueuesChannelId;
 	}
 
 	function renderDiscordEventDescription(event: DbEvent, occurrence: DbEventOccurrence): string {
@@ -611,8 +611,8 @@ export namespace EventUtils {
 			? "sequential"
 			: "parallel";
 		return [
-			`Room channel: ${channelMention(event.roomChannelId)}`,
-			`Sub channel: ${channelMention(event.subChannelId)}`,
+			`Room queues channel: ${channelMention(event.roomQueuesChannelId)}`,
+			`Sub queues channel: ${channelMention(event.subQueuesChannelId)}`,
 			`Rooms: ${event.roomCount} (${scheduling})`,
 		].join("\n");
 	}

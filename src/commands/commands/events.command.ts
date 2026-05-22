@@ -44,15 +44,15 @@ import { RoleOnPullOption } from "../../options/options/role-on-pull.option.ts";
 import { RoleOnRoomPullOption } from "../../options/options/role-on-room-pull.option.ts";
 import { RoleOnSubPullOption } from "../../options/options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "../../options/options/room-category.option.ts";
-import { RoomChannelOption } from "../../options/options/room-channel.option.ts";
 import { RoomCountOption } from "../../options/options/room-count.option.ts";
 import { RoomLengthMinutesOption } from "../../options/options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "../../options/options/room-ping-message.option.ts";
+import { RoomQueuesChannelOption } from "../../options/options/room-queues-channel.option.ts";
 import { RoomSchedulingOption } from "../../options/options/room-scheduling.option.ts";
 import { SizeOption } from "../../options/options/size.option.ts";
 import { SlowmodeOption } from "../../options/options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "../../options/options/slowmode-time.option.ts";
-import { SubChannelOption } from "../../options/options/sub-channel.option.ts";
+import { SubQueuesChannelOption } from "../../options/options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "../../options/options/timestamp-type.option.ts";
 import { VoiceDestinationChannelOption } from "../../options/options/voice-destination-channel.option.ts";
 import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.option.ts";
@@ -241,8 +241,8 @@ export class EventsCommand extends AdminCommand {
 				roomLengthMs: event.roomLengthMs ? `${Number(event.roomLengthMs) / 60_000}min` : null,
 				nextOccurrence: nextOcc ? time(new Date(Number(nextOcc.startTime)), TimestampStyles.LongDateTime) : "None",
 				nextOccurrenceDiscordEventId: nextOcc?.discordEventId ?? null,
-				roomChannelId: channelMention(event.roomChannelId),
-				subChannelId: channelMention(event.subChannelId),
+				roomQueuesChannelId: channelMention(event.roomQueuesChannelId),
+				subQueuesChannelId: channelMention(event.subQueuesChannelId),
 				announcementChannelId: event.announcementChannelId ? channelMention(event.announcementChannelId) : null,
 				roomCategoryId: event.roomCategoryId ? channelMention(event.roomCategoryId) : null,
 				moderatorRoleId: event.moderatorRoleId ? roleMention(event.moderatorRoleId) : null,
@@ -270,8 +270,8 @@ export class EventsCommand extends AdminCommand {
 	static readonly ADD_OPTIONS = {
 		name: new NameOption({ required: true, description: "Name of the event" }),
 		roomCount: new RoomCountOption({ required: true, description: "Number of rooms" }),
-		roomChannel: new RoomChannelOption({ required: true, description: "Channel for room queues" }),
-		subChannel: new SubChannelOption({ required: true, description: "Channel for sub queues" }),
+		roomQueuesChannel: new RoomQueuesChannelOption({ required: true, description: "Top-level channel containing all the room queues for the event" }),
+		subQueuesChannel: new SubQueuesChannelOption({ required: true, description: "Top-level channel containing all the sub queues for the event" }),
 		roomCategory: new RoomCategoryOption({ required: true, description: "Category for auto-created per-room channels" }),
 		roomScheduling: new RoomSchedulingOption({ description: "How rooms are timed (parallel or sequential)" }),
 		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Length of each room in minutes (required for sequential)" }),
@@ -305,8 +305,8 @@ export class EventsCommand extends AdminCommand {
 		const newEvent = {
 			name: EventsCommand.ADD_OPTIONS.name.get(inter)?.substring(0, 240),
 			roomCount: BigInt(EventsCommand.ADD_OPTIONS.roomCount.get(inter)),
-			roomChannelId: EventsCommand.ADD_OPTIONS.roomChannel.get(inter)?.id,
-			subChannelId: EventsCommand.ADD_OPTIONS.subChannel.get(inter)?.id,
+			roomQueuesChannelId: EventsCommand.ADD_OPTIONS.roomQueuesChannel.get(inter)?.id,
+			subQueuesChannelId: EventsCommand.ADD_OPTIONS.subQueuesChannel.get(inter)?.id,
 			roomCategoryId: EventsCommand.ADD_OPTIONS.roomCategory.get(inter)?.id,
 			...omitBy({
 				roomScheduling: EventsCommand.ADD_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
@@ -897,8 +897,8 @@ export class EventsCommand extends AdminCommand {
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
 				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +
 				`- ${commandMention("events", "sync-room-channels")} recreates any channels you accidentally deleted, re-applies permissions, and restores channel order.\n\n` +
-				"**Announcement placeholders:** `{event_name}`, `{start_time}`, `{start_time_relative}`, `{room_channel}`, `{sub_channel}`\n" +
-				"**Ping placeholders:** `{room_role}`, `{room_name}`, `{room_index}`, `{room_channel}`, `{ping_channel}`, `{start_time}`, `{start_time_relative}`",
+				"**Announcement placeholders:** `{event_name}`, `{start_time}`, `{start_time_relative}`, `{room_queues_channel}`, `{sub_queues_channel}`\n" +
+				"**Ping placeholders:** `{room_role}`, `{room_name}`, `{room_index}`, `{room_queues_channel}`, `{ping_channel}`, `{start_time}`, `{start_time_relative}`",
 			)];
 
 		await inter.respond({ embeds });

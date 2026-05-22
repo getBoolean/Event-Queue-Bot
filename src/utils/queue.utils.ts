@@ -1,3 +1,4 @@
+import type { GuildTextBasedChannel } from "discord.js";
 import { compact } from "lodash-es";
 
 import { db } from "../db/db.ts";
@@ -34,6 +35,30 @@ export namespace QueueUtils {
 
 			return { updatedQueues };
 		});
+	}
+
+	export async function deleteQueue(store: Store, queueId: bigint) {
+		const displays = store.dbDisplays().filter(d => d.queueId === queueId);
+
+		for (const display of displays.values()) {
+			if (!display.lastMessageId) continue;
+
+			const channel = await store.jsChannel(display.displayChannelId) as GuildTextBasedChannel | undefined;
+			if (!channel) continue;
+
+			const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
+				console.error(`QueueUtils.deleteQueue: failed to fetch display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+				return null;
+			});
+			if (!message) continue;
+
+			await message.delete().catch(e => {
+				console.error(`QueueUtils.deleteQueue: failed to delete display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+				return null;
+			});
+		}
+
+		return store.deleteQueue({ id: queueId });
 	}
 
 	export async function setRoleInQueue(store: Store, queues: ArrayOrCollection<bigint, DbQueue>) {

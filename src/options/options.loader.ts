@@ -66,17 +66,17 @@ import { RoleOnPullOption } from "./options/role-on-pull.option.ts";
 import { RoleOnRoomPullOption } from "./options/role-on-room-pull.option.ts";
 import { RoleOnSubPullOption } from "./options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "./options/room-category.option.ts";
-import { RoomChannelOption } from "./options/room-channel.option.ts";
 import { RoomCountOption } from "./options/room-count.option.ts";
 import { RoomLengthMinutesOption } from "./options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "./options/room-ping-message.option.ts";
+import { RoomQueuesChannelOption } from "./options/room-queues-channel.option.ts";
 import { RoomSchedulingOption } from "./options/room-scheduling.option.ts";
 import { ScheduleOption } from "./options/schedule.option.ts";
 import { SchedulesOption } from "./options/schedules.option.ts";
 import { SizeOption } from "./options/size.option.ts";
 import { SlowmodeOption } from "./options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "./options/slowmode-time.option.ts";
-import { SubChannelOption } from "./options/sub-channel.option.ts";
+import { SubQueuesChannelOption } from "./options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "./options/timestamp-type.option.ts";
 import { TimezoneOption } from "./options/timezone.option.ts";
 import { VoiceOption } from "./options/voice.option.ts";
@@ -150,10 +150,10 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[RoleOnRoomPullOption.ID, new RoleOnRoomPullOption()],
 	[RoleOnSubPullOption.ID, new RoleOnSubPullOption()],
 	[RoomCategoryOption.ID, new RoomCategoryOption()],
-	[RoomChannelOption.ID, new RoomChannelOption()],
 	[RoomCountOption.ID, new RoomCountOption()],
 	[RoomLengthMinutesOption.ID, new RoomLengthMinutesOption()],
 	[RoomPingMessageOption.ID, new RoomPingMessageOption()],
+	[RoomQueuesChannelOption.ID, new RoomQueuesChannelOption()],
 	[RoomSchedulingOption.ID, new RoomSchedulingOption()],
 	[RejoinGracePeriodOption.ID, new RejoinGracePeriodOption()],
 	[RoleInQueueOption.ID, new RoleInQueueOption()],
@@ -163,7 +163,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[SizeOption.ID, new SizeOption()],
 	[SlowmodeOption.ID, new SlowmodeOption()],
 	[SlowmodeTimeOption.ID, new SlowmodeTimeOption()],
-	[SubChannelOption.ID, new SubChannelOption()],
+	[SubQueuesChannelOption.ID, new SubQueuesChannelOption()],
 	[TimestampTypeOption.ID, new TimestampTypeOption()],
 	[TimezoneOption.ID, new TimezoneOption()],
 	[UserOption.ID, new UserOption()],

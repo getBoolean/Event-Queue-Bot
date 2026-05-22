@@ -137,7 +137,7 @@ Section 2:
 ssh -i path/to/event-queue-bot-deploy deploy@<droplet-ip>
 ```
 
-Accept the host-key prompt on first connection.
+  Accept the host-key prompt on first connection.
 
 **Lost the deploy key:** regenerate per Section 2, replace the
 `SSH_DEPLOY_PRIVATE_KEY` / `SSH_DEPLOY_PUBLIC_KEY` secrets, back up the database
