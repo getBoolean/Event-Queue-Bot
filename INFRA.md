@@ -108,6 +108,7 @@ These are repository variables (not secrets).
 | `BOT_DEFAULT_SCHEDULE_TIMEZONE` | `america/chicago` |
 | `BOT_ENABLE_LEGACY_MIGRATION` | `false` |
 | `BOT_FORCE_SEND_PATCH_NOTES` | `false` |
+| `BOT_SILENT` | `false` |
 
 Set `DO_ENABLE_BACKUPS` to `true` before the first deploy if you want DigitalOcean
 Droplet backups. Backups add 20% to the droplet cost. You can also back up the

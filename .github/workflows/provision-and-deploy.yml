@@ -209,6 +209,7 @@ jobs:
           BOT_DEFAULT_SCHEDULE_TIMEZONE: ${{ vars.BOT_DEFAULT_SCHEDULE_TIMEZONE }}
           BOT_ENABLE_LEGACY_MIGRATION: ${{ vars.BOT_ENABLE_LEGACY_MIGRATION }}
           BOT_FORCE_SEND_PATCH_NOTES: ${{ vars.BOT_FORCE_SEND_PATCH_NOTES }}
+          BOT_SILENT: ${{ vars.BOT_SILENT }}
         run: |
           umask 077
           {
@@ -220,6 +221,7 @@ jobs:
             printf 'DEFAULT_SCHEDULE_TIMEZONE=%s\n' "${BOT_DEFAULT_SCHEDULE_TIMEZONE:-america/chicago}"
             printf 'ENABLE_LEGACY_MIGRATION=%s\n' "${BOT_ENABLE_LEGACY_MIGRATION:-false}"
             printf 'FORCE_SEND_PATCH_NOTES=%s\n' "${BOT_FORCE_SEND_PATCH_NOTES:-false}"
+            printf 'SILENT=%s\n' "${BOT_SILENT:-false}"
           } > "${RUNNER_TEMP}/bot.env"
 
       - name: Sync repository to VPS
