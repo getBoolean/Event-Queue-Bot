@@ -1,0 +1,138 @@
+name: Provision and Deploy Bot
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: false
+        default: master
+
+concurrency:
+  group: provision-and-deploy-bot
+  cancel-in-progress: false
+
+jobs:
+  provision-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      DEPLOY_BRANCH: ${{ inputs.branch || github.ref_name }}
+      APP_PATH: ${{ vars.APP_PATH || '/opt/event-queue-bot' }}
+      DO_REGION: ${{ vars.DO_REGION || 'nyc3' }}
+      DO_SIZE: ${{ vars.DO_SIZE || 's-1vcpu-1gb' }}
+      DO_IMAGE: ${{ vars.DO_IMAGE || 'ubuntu-24-04-x64' }}
+      DO_DROPLET_NAME: ${{ vars.DO_DROPLET_NAME || 'event-queue-bot' }}
+      DO_ENABLE_BACKUPS: ${{ vars.DO_ENABLE_BACKUPS || 'false' }}
+
+    steps:
+      - name: Validate required secrets
+        env:
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          BOT_SSH_PRIVATE_KEY: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
+          BOT_SSH_PUBLIC_KEY: ${{ secrets.BOT_SSH_PUBLIC_KEY }}
+          BOT_ENV_SECRET: ${{ secrets.BOT_ENV }}
+        run: |
+          test -n "${DIGITALOCEAN_TOKEN}" || (echo "DIGITALOCEAN_TOKEN secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_PRIVATE_KEY}" || (echo "BOT_SSH_PRIVATE_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_SSH_PUBLIC_KEY}" || (echo "BOT_SSH_PUBLIC_KEY secret is required" >&2; exit 1)
+          test -n "${BOT_ENV_SECRET}" || (echo "BOT_ENV secret is required" >&2; exit 1)
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_BRANCH }}
+
+      - name: Validate provisioning script
+        run: node --check scripts/provision-digitalocean.mjs
+
+      - name: Provision DigitalOcean VPS
+        id: provision
+        env:
+          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          BOT_SSH_PUBLIC_KEY: ${{ secrets.BOT_SSH_PUBLIC_KEY }}
+        run: node scripts/provision-digitalocean.mjs
+
+      - name: Configure SSH
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+          BOT_SSH_PRIVATE_KEY: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${BOT_SSH_PRIVATE_KEY}" > ~/.ssh/bot_deploy_key
+          chmod 600 ~/.ssh/bot_deploy_key
+
+          for attempt in {1..30}; do
+            if ssh-keyscan -H "${BOT_HOST}" >> ~/.ssh/known_hosts 2>/dev/null; then
+              exit 0
+            fi
+
+            echo "Waiting for SSH host key..."
+            sleep 10
+          done
+
+          echo "Timed out waiting for SSH host key" >&2
+          exit 1
+
+      - name: Wait for cloud-init
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+        run: |
+          for attempt in {1..30}; do
+            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" "sudo cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot"; then
+              exit 0
+            fi
+
+            echo "Waiting for cloud-init..."
+            sleep 10
+          done
+
+          echo "Timed out waiting for cloud-init" >&2
+          exit 1
+
+      - name: Sync repository to VPS
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude 'data/main.sqlite' \
+            --exclude 'data/backups' \
+            --exclude 'data/migrations/legacy-export' \
+            --exclude 'logs' \
+            --exclude '.env' \
+            -e "ssh -i ~/.ssh/bot_deploy_key" \
+            ./ deploy@"${BOT_HOST}":"${APP_PATH}/"
+
+      - name: Write bot environment
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+          BOT_ENV_SECRET: ${{ secrets.BOT_ENV }}
+        run: |
+          printf '%s\n' "${BOT_ENV_SECRET}" | ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "umask 077 && cat > '${APP_PATH}/.env.tmp' && mv '${APP_PATH}/.env.tmp' '${APP_PATH}/.env'"
+
+      - name: Deploy bot
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+        run: |
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "sudo /usr/local/bin/deploy-event-queue-bot"
+
+      - name: Prune unused Docker images
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+        run: |
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "docker image prune -f"
+
+      - name: Show recent bot logs
+        env:
+          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
+        run: |
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "docker logs --tail 100 queue-bot"

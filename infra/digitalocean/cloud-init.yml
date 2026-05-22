@@ -1,0 +1,57 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+
+groups:
+  - docker
+
+users:
+  - default
+  - name: deploy
+    gecos: Queue Bot Deploy User
+    groups: [sudo, docker]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - {{SSH_PUBLIC_KEY_JSON}}
+
+write_files:
+  - path: /usr/local/bin/deploy-event-queue-bot
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      APP_DIR={{APP_PATH_SHELL}}
+
+      mkdir -p "$APP_DIR/data" "$APP_DIR/logs"
+      chown -R deploy:deploy "$APP_DIR"
+
+      cd "$APP_DIR"
+
+      if [ ! -f docker-compose.yml ]; then
+        echo "Missing $APP_DIR/docker-compose.yml; sync the repository before deploying." >&2
+        exit 1
+      fi
+
+      if [ ! -s .env ]; then
+        echo "Missing $APP_DIR/.env; refusing to start the bot." >&2
+        exit 1
+      fi
+
+      docker compose up -d --build
+
+runcmd:
+  - apt-get update
+  - apt-get install -y ca-certificates curl git gnupg rsync
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - sh -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - systemctl enable --now docker
+  - mkdir -p {{APP_PATH}}/data {{APP_PATH}}/logs
+  - chown -R deploy:deploy {{APP_PATH}}
