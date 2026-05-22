@@ -29,8 +29,9 @@ export class EventOption extends CustomOption {
 		try {
 			event = events.get(BigInt(idString));
 		}
-		catch {
-			event = events.find(e => e.name.toLowerCase() === idString.toLowerCase());
+		catch (e) {
+			console.error(`EventOption: failed to parse "${idString}" as bigint, falling back to name lookup:`, e);
+			event = events.find(ev => ev.name.toLowerCase() === idString.toLowerCase());
 		}
 		if (event) {
 			return event;

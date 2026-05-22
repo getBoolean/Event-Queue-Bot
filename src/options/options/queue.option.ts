@@ -31,7 +31,8 @@ export class QueueOption extends CustomOption {
 		try {
 			queue = dbQueues.get(BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`QueueOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			queue = null;
 		}
 		if (queue) {

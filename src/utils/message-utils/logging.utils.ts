@@ -43,6 +43,9 @@ export namespace LoggingUtils {
 			});
 		}
 
-		return await logChannel.send({ embeds }).catch(null);
+		return await logChannel.send({ embeds }).catch(e => {
+			console.error("LoggingUtils.log: failed to send to log channel:", e);
+			return null;
+		});
 	}
 }

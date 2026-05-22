@@ -26,7 +26,10 @@ export namespace NotificationUtils {
 		Promise.all(
 			map(members, member => {
 				store.jsMember(member.userId).then(member => {
-					member?.user?.send(message).catch(() => null);
+					member?.user?.send(message).catch(e => {
+						console.error("NotificationUtils.dmToMembers: failed to DM member:", e);
+						return null;
+					});
 				});
 			})
 		);

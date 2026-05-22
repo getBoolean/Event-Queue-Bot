@@ -135,7 +135,10 @@ export namespace MemberUtils {
 		async function deleteMembersAndNotify(queue: DbQueue, userIds: Snowflake[], reason: MemberRemovalReason) {
 			const deleted: DbMember[] = compact(userIds.map(userId => store.deleteMember({ queueId: queue.id, userId }, reason)));
 
-			userIds.forEach(userId => modifyMemberRoles(store, userId, queue.roleInQueueId, "remove").catch(() => null));
+			userIds.forEach(userId => modifyMemberRoles(store, userId, queue.roleInQueueId, "remove").catch(e => {
+				console.error(`MemberUtils.deleteMembers: failed to remove roleInQueueId from user ${userId}:`, e);
+				return null;
+			}));
 
 			// Pull members to the destination channel if they are in a voice channel
 			if (reason === MemberRemovalReason.Pulled) {
@@ -144,12 +147,18 @@ export namespace MemberUtils {
 					for (const userId of userIds) {
 						const jsMember = await store.jsMember(userId);
 						if (jsMember.voice && jsMember.voice.channelId !== destinationChannelId) {
-							jsMember.voice?.setChannel(destinationChannelId).catch(() => null);
+							jsMember.voice?.setChannel(destinationChannelId).catch(e => {
+								console.error(`MemberUtils.deleteMembers: failed to move user ${jsMember.id} to voice channel ${destinationChannelId}:`, e);
+								return null;
+							});
 						}
 					}
 				}
 				if (queue.roleOnPullId) {
-					userIds.forEach(userId => modifyMemberRoles(store, userId, queue.roleOnPullId, "add").catch(() => null));
+					userIds.forEach(userId => modifyMemberRoles(store, userId, queue.roleOnPullId, "add").catch(e => {
+						console.error(`MemberUtils.deleteMembers: failed to add roleOnPullId to user ${userId}:`, e);
+						return null;
+					}));
 				}
 			}
 
@@ -162,8 +171,14 @@ export namespace MemberUtils {
 					if (effectiveChannelId) {
 						const messageChannel = await store.jsChannel(effectiveChannelId) as GuildTextBasedChannel;
 						if (messageChannel) {
-							const sentMessage = await messageChannel.send(messageToSend).catch(() => null);
-							LoggingUtils.log(store, true, sentMessage).catch(() => null);
+							const sentMessage = await messageChannel.send(messageToSend).catch(e => {
+								console.error(`MemberUtils.deleteMembers: failed to send pull/kick message in channel ${effectiveChannelId}:`, e);
+								return null;
+							});
+							LoggingUtils.log(store, true, sentMessage).catch(e => {
+								console.error("MemberUtils.deleteMembers: failed to log pull/kick message:", e);
+								return null;
+							});
 							link = sentMessage?.url;
 						}
 					}
@@ -179,7 +194,10 @@ export namespace MemberUtils {
 					}
 					else {
 						// log without responding
-						LoggingUtils.log(store, true, messageToSend).catch(() => null);
+						LoggingUtils.log(store, true, messageToSend).catch(e => {
+							console.error("MemberUtils.deleteMembers: failed to log private pull/kick message:", e);
+							return null;
+						});
 					}
 				}
 
@@ -282,8 +300,14 @@ export namespace MemberUtils {
 			if (messageChannelId) {
 				const messageChannel = await store.jsChannel(messageChannelId) as GuildTextBasedChannel;
 				if (messageChannel) {
-					const message = await messageChannel?.send(`Shuffled the ${queueMention(queue)} queue.`).catch(() => null);
-					LoggingUtils.log(store, true, message).catch(() => null);
+					const message = await messageChannel?.send(`Shuffled the ${queueMention(queue)} queue.`).catch(e => {
+						console.error(`MemberUtils.shuffleMembers: failed to send shuffle message in channel ${messageChannelId}:`, e);
+						return null;
+					});
+					LoggingUtils.log(store, true, message).catch(e => {
+						console.error("MemberUtils.shuffleMembers: failed to log shuffle message:", e);
+						return null;
+					});
 				}
 			}
 

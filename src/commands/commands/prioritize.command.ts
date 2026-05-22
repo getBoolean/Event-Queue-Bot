@@ -120,7 +120,8 @@ export class PrioritizeCommand extends AdminCommand {
 		try {
 			priorityOrder = BigInt(_priorityOrder);
 		}
-		catch {
+		catch (e) {
+			console.error(`PrioritizeCommand.prioritize_add: failed to parse priorityOrder "${_priorityOrder}" as bigint, defaulting to undefined:`, e);
 			priorityOrder = undefined;
 		}
 
@@ -153,7 +154,8 @@ export class PrioritizeCommand extends AdminCommand {
 		try {
 			priorityOrder = BigInt(_priorityOrder);
 		}
-		catch {
+		catch (e) {
+			console.error(`PrioritizeCommand.prioritize_update: failed to parse priorityOrder "${_priorityOrder}" as bigint, defaulting to undefined:`, e);
 			priorityOrder = undefined;
 		}
 

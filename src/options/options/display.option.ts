@@ -32,7 +32,8 @@ export class DisplayOption extends CustomOption {
 		try {
 			display = displays.get(BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`DisplayOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			display = null;
 		}
 		if (display) {

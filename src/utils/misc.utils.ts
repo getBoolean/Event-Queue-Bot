@@ -36,7 +36,8 @@ export function BigIntSafe(value: any) {
 	try {
 		return BigInt(value);
 	}
-	catch {
+	catch (e) {
+		console.error(`BigIntSafe: failed to parse "${value}" as bigint, returning null:`, e);
 		return null;
 	}
 }

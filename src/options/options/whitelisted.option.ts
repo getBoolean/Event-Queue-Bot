@@ -32,7 +32,8 @@ export class WhitelistedOption extends CustomOption {
 		try {
 			whitelisted = whitelisteds.find(entry => entry.id === BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`WhitelistedOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			whitelisted = null;
 		}
 		if (whitelisted) {

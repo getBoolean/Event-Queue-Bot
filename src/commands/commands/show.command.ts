@@ -30,6 +30,9 @@ export class ShowCommand extends EveryoneCommand {
 
 		await DisplayUtils.insertDisplays(inter.store, queues, inter.channel.id);
 
-		await inter.deleteReply().catch(() => null);
+		await inter.deleteReply().catch(e => {
+			console.error("ShowCommand.show: failed to delete reply:", e);
+			return null;
+		});
 	}
 }

@@ -194,13 +194,19 @@ export namespace DisplayUtils {
 			}
 			catch (e) {
 				store.deleteDisplay(display);
-				await store.inter?.member.send({ embeds: (e as CustomError).embeds }).catch(() => null);
+				await store.inter?.member.send({ embeds: (e as CustomError).embeds }).catch(err => {
+					console.error("DisplayUtils.processDisplay: failed to DM permission-error embed to interaction member:", err);
+					return null;
+				});
 				return;
 			}
 
 			let lastMessage: Message | null = null;
 			if (display.lastMessageId) {
-				lastMessage = await channel.messages.fetch(display.lastMessageId).catch(() => null);
+				lastMessage = await channel.messages.fetch(display.lastMessageId).catch(e => {
+					console.error(`DisplayUtils.processDisplay: failed to fetch last display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+					return null;
+				});
 			}
 
 			const updateType = updateTypeOverride ?? queue.displayUpdateType;
@@ -233,7 +239,8 @@ export namespace DisplayUtils {
 					try {
 						await lastMessage.edit(message);
 					}
-					catch {
+					catch (e) {
+						console.error(`DisplayUtils.updateDisplayMessage: failed to edit last display message ${lastMessage.id}, falling back to sendNewDisplay:`, e);
 						await sendNewDisplay(channel, store, display, message);
 					}
 				}
@@ -242,7 +249,10 @@ export namespace DisplayUtils {
 				}
 				break;
 			case DisplayUpdateType.Replace:
-				await lastMessage?.delete().catch(() => null);
+				await lastMessage?.delete().catch(e => {
+					console.error(`DisplayUtils.updateDisplayMessage: failed to delete last display message ${lastMessage?.id} during Replace:`, e);
+					return null;
+				});
 				await sendNewDisplay(channel, store, display, message);
 				break;
 		}

@@ -126,10 +126,11 @@ export class Store {
 		catch (e) {
 			const { status } = e as DiscordAPIError;
 			if (status == 404) {
+				console.error(`Store.jsChannel: channel ${channelId} not found (404), cleaning up references:`, e);
 				await this.cleanupMissingChannel(channelId);
 			}
 			else {
-				console.error(e);
+				console.error(`Store.jsChannel: failed to fetch channel ${channelId}:`, e);
 			}
 		}
 	}
@@ -147,10 +148,11 @@ export class Store {
 		catch (e) {
 			const { status } = e as DiscordAPIError;
 			if (status == 404) {
+				console.error(`Store.jsMember: member ${userId} not found (404), removing from queues:`, e);
 				this.deleteManyMembers({ userId }, MemberRemovalReason.NotFound);
 			}
 			else {
-				console.error(e);
+				console.error(`Store.jsMember: failed to fetch member ${userId}:`, e);
 			}
 		}
 	}
@@ -168,13 +170,14 @@ export class Store {
 		catch (e) {
 			const { status } = e as DiscordAPIError;
 			if (status == 404) {
+				console.error(`Store.jsRole: role ${roleId} not found (404), cleaning up references:`, e);
 				this.deleteManyWhitelisted({ subjectId: roleId });
 				this.deleteManyBlacklisted({ subjectId: roleId });
 				this.deleteManyPrioritized({ subjectId: roleId });
 				this.deleteAdmin({ subjectId: roleId });
 			}
 			else {
-				console.error(e);
+				console.error(`Store.jsRole: failed to fetch role ${roleId}:`, e);
 			}
 		}
 	}
@@ -216,6 +219,10 @@ export class Store {
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new QueueAlreadyExistsError();
+			}
+			else {
+				console.error("Store.insertQueue: unexpected failure:", e);
+				throw e;
 			}
 		}
 	}
@@ -275,6 +282,10 @@ export class Store {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new ScheduleAlreadyExistsError();
 			}
+			else {
+				console.error("Store.insertSchedule: unexpected failure:", e);
+				throw e;
+			}
 		}
 	}
 
@@ -290,6 +301,10 @@ export class Store {
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new WhitelistedAlreadyExistsError();
+			}
+			else {
+				console.error("Store.insertWhitelisted: unexpected failure:", e);
+				throw e;
 			}
 		}
 	}
@@ -307,6 +322,10 @@ export class Store {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new BlacklistedAlreadyExistsError();
 			}
+			else {
+				console.error("Store.insertBlacklisted: unexpected failure:", e);
+				throw e;
+			}
 		}
 	}
 
@@ -323,6 +342,10 @@ export class Store {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new PrioritizedAlreadyExistsError();
 			}
+			else {
+				console.error("Store.insertPrioritized: unexpected failure:", e);
+				throw e;
+			}
 		}
 	}
 
@@ -338,6 +361,10 @@ export class Store {
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new AdminAlreadyExistsError();
+			}
+			else {
+				console.error("Store.insertAdmin: unexpected failure:", e);
+				throw e;
 			}
 		}
 	}
@@ -368,6 +395,7 @@ export class Store {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new EventAlreadyExistsError();
 			}
+			console.error("Store.insertEvent: unexpected failure:", e);
 			throw e;
 		}
 	}
@@ -384,6 +412,7 @@ export class Store {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
 				throw new OccurrenceAlreadyExistsError();
 			}
+			console.error("Store.insertOccurrence: unexpected failure:", e);
 			throw e;
 		}
 	}

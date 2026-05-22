@@ -32,7 +32,8 @@ export class PrioritizedOption extends CustomOption {
 		try {
 			prioritized = prioritizeds.find(entry => entry.id === BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`PrioritizedOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			prioritized = null;
 		}
 		if (prioritized) {

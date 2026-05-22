@@ -32,7 +32,8 @@ export class VoiceOption extends CustomOption {
 		try {
 			voice = voices.find(entry => entry.id === BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`VoiceOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			voice = null;
 		}
 		if (voice) {

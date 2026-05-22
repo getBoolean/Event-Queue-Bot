@@ -32,7 +32,8 @@ export class MemberOption extends CustomOption {
 		try {
 			member = members.get(BigInt(idString)) ?? members.find(member => member.userId === idString);
 		}
-		catch {
+		catch (e) {
+			console.error(`MemberOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			member = null;
 		}
 		if (member) {

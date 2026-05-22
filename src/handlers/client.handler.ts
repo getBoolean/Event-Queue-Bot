@@ -27,8 +27,8 @@ export namespace ClientHandler {
 		try {
 			Queries.deleteGuild({ guildId: guild.id });
 		}
-		catch {
-			// ignore
+		catch (e) {
+			console.error(`ClientHandler.handleGuildDelete: failed to delete guild ${guild.id}:`, e);
 		}
 	}
 
@@ -37,7 +37,10 @@ export namespace ClientHandler {
 			await new InteractionHandler(inter).handle();
 		}
 		else if ("reply" in inter) {
-			await inter.reply("This command can only be used in servers").catch(() => null);
+			await inter.reply("This command can only be used in servers").catch(e => {
+				console.error("ClientHandler.handleInteraction: failed to reply to non-guild interaction:", e);
+				return null;
+			});
 		}
 	}
 
@@ -97,7 +100,10 @@ export namespace ClientHandler {
 				store,
 				queue,
 				jsMember: newState.member,
-			}).catch(() => null);
+			}).catch(e => {
+				console.error(`ClientHandler.handleVoiceStateUpdate: failed to insert member into queue ${queue.id}:`, e);
+				return null;
+			});
 		}
 
 		const queuesLeft = store.dbVoices()
@@ -109,7 +115,10 @@ export namespace ClientHandler {
 				queues: [queue],
 				reason: MemberRemovalReason.Left,
 				by: { userId: newState.member!.id },
-			}).catch(() => null);
+			}).catch(e => {
+				console.error(`ClientHandler.handleVoiceStateUpdate: failed to delete member from queue ${queue.id} on leave:`, e);
+				return null;
+			});
 		}
 
 		// Queue spots opened up
@@ -131,7 +140,10 @@ export namespace ClientHandler {
 						queues: [queue],
 						reason: MemberRemovalReason.Pulled,
 						by: { count: 1 },
-					}).catch(() => null);
+					}).catch(e => {
+						console.error(`ClientHandler.handleVoiceStateUpdate: autopull failed for queue ${queue.id}:`, e);
+						return null;
+					});
 				}
 			}
 		}

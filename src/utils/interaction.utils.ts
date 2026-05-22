@@ -46,8 +46,8 @@ export namespace InteractionUtils {
 
 			return response;
 		}
-		catch {
-			// nothing
+		catch (e) {
+			console.error("InteractionUtils.respond: failed to respond to interaction:", e);
 		}
 	}
 
@@ -74,13 +74,19 @@ export namespace InteractionUtils {
 			confirmation = await response.awaitMessageComponent<ComponentType.Button>({
 				filter: i => i.user.id === inter.user.id,
 				time: 60_000,
-			}).catch(() => null);
+			}).catch(e => {
+				console.error("InteractionUtils.promptConfirmOrCancel: awaitMessageComponent failed (likely timeout):", e);
+				return null;
+			});
 		}
-		catch {
-			// nothing
+		catch (e) {
+			console.error("InteractionUtils.promptConfirmOrCancel: unexpected error while awaiting confirmation:", e);
 		}
 		finally {
-			await inter.editReply({ components: [] }).catch(() => null);
+			await inter.editReply({ components: [] }).catch(e => {
+				console.error("InteractionUtils.promptConfirmOrCancel: failed to clear components on editReply:", e);
+				return null;
+			});
 		}
 
 		return confirmation?.customId === "confirm";

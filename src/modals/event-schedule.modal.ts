@@ -71,7 +71,8 @@ export namespace EventScheduleModal {
 		try {
 			timezoneStr = inter.fields.getTextInputValue(TIMEZONE_FIELD_ID);
 		}
-		catch {
+		catch (e) {
+			console.error(`EventScheduleModal.handle: timezone field missing, defaulting to "":`, e);
 			timezoneStr = "";
 		}
 

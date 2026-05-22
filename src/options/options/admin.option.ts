@@ -29,7 +29,8 @@ export class AdminOption extends CustomOption {
 		try {
 			admin = admins.get(BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`AdminOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			admin = null;
 		}
 		if (admin) {

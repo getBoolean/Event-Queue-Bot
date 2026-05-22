@@ -32,7 +32,8 @@ export class BlacklistedOption extends CustomOption {
 		try {
 			blacklisted = blacklisteds.find(entry => entry.id === BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`BlacklistedOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			blacklisted = null;
 		}
 		if (blacklisted) {

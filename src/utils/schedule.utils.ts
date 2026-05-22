@@ -121,10 +121,10 @@ export namespace ScheduleUtils {
 					await executeScheduledCommand(schedule.guildId, schedule.id);
 				}
 				catch (e) {
-					// const { message, stack } = e as Error;
-					// console.error("Failed to execute scheduled command:");
-					// console.error(`Error: ${message}`);
-					// console.error(`Stack Trace: ${stack}`);
+					const { message, stack } = e as Error;
+					console.error(`ScheduleUtils: failed to execute scheduled command for schedule ${schedule.id} (guild ${schedule.guildId}):`);
+					console.error(`Error: ${message}`);
+					console.error(`Stack Trace: ${stack}`);
 				}
 			}, { timezone: schedule.timezone ?? process.env.DEFAULT_SCHEDULE_TIMEZONE })
 		);

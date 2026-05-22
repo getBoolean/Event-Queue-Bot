@@ -35,10 +35,11 @@ export namespace ClientUtils {
 				.put(commandsPutRoute, { body: commandsJSON });
 
 			LIVE_COMMANDS = await CLIENT.application.commands.fetch();
+			console.log(`LIVE_COMMANDS.size = ${LIVE_COMMANDS.size}`);
 			console.timeEnd(`Registered ${COMMANDS.size} commands with server`);
 		}
 		catch (e) {
-			console.error(e);
+			console.error("⚠️ registerCommands failed — Discord-side slash commands may be stale:", e);
 		}
 	}
 

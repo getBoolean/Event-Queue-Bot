@@ -34,7 +34,8 @@ export class ScheduleOption extends CustomOption {
 		try {
 			schedule = schedules.get(BigInt(idString));
 		}
-		catch {
+		catch (e) {
+			console.error(`ScheduleOption: failed to parse "${idString}" as bigint, treating as not found:`, e);
 			schedule = null;
 		}
 		if (schedule) {
