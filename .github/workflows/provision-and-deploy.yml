@@ -5,11 +5,6 @@ on:
     branches:
       - master
   workflow_dispatch:
-    inputs:
-      branch:
-        description: Branch to deploy
-        required: false
-        default: master
 
 concurrency:
   group: provision-and-deploy-bot
@@ -17,12 +12,14 @@ concurrency:
 
 jobs:
   provision-and-deploy:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
 
     env:
-      DEPLOY_BRANCH: ${{ inputs.branch || github.ref_name }}
+      DEPLOY_BRANCH: master
       APP_PATH: ${{ vars.APP_PATH || '/opt/event-queue-bot' }}
       DO_REGION: ${{ vars.DO_REGION || 'nyc3' }}
       DO_SIZE: ${{ vars.DO_SIZE || 's-1vcpu-1gb' }}
@@ -50,12 +47,12 @@ jobs:
           test -n "${BOT_TOKEN}" || (echo "BOT_TOKEN secret is required" >&2; exit 1)
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.2
         with:
           ref: ${{ env.DEPLOY_BRANCH }}
 
       - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+        uses: digitalocean/action-doctl@v2.5.2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
@@ -100,7 +97,7 @@ jobs:
           BOT_HOST: ${{ steps.provision.outputs.bot_host }}
         run: |
           for attempt in {1..30}; do
-            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" "sudo cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot"; then
+            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" "cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot"; then
               exit 0
             fi
 
@@ -161,15 +158,3 @@ jobs:
           BOT_HOST: ${{ steps.provision.outputs.bot_host }}
         run: |
           ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "sudo /usr/local/bin/deploy-event-queue-bot"
-
-      - name: Prune unused Docker images
-        env:
-          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
-        run: |
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "docker image prune -f"
-
-      - name: Show recent bot logs
-        env:
-          BOT_HOST: ${{ steps.provision.outputs.bot_host }}
-        run: |
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "docker logs --tail 100 queue-bot"

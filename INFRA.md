@@ -1,7 +1,13 @@
 # Infrastructure Setup
 
 GitHub Actions provisions a DigitalOcean VPS with the official `doctl` CLI and
-deploys the bot. No local Terraform or server setup is required.
+deploys the bot from `master`. No local Terraform or server setup is required.
+
+Create a GitHub environment named `production`, add the secrets below as
+environment secrets, and enable required reviewers if you want manual approval
+before production deploys.
+
+Do not also store these values as repository-wide secrets.
 
 ## 1. Create DigitalOcean Token
 
@@ -12,7 +18,7 @@ Create a DigitalOcean API token with access to manage:
 - Firewalls
 - Tags
 
-Save it as this GitHub repository secret:
+Save it as this GitHub environment secret:
 
 ```text
 DIGITALOCEAN_TOKEN
@@ -26,13 +32,13 @@ Create a key pair:
 ssh-keygen -t ed25519 -C "event-queue-bot-deploy" -f event-queue-bot-deploy
 ```
 
-Save the private key as:
+Save the private key as this GitHub environment secret:
 
 ```text
 BOT_SSH_DEPLOY_PRIVATE_KEY
 ```
 
-Save the public key as:
+Save the public key as this GitHub environment secret:
 
 ```text
 BOT_SSH_DEPLOY_PUBLIC_KEY
@@ -46,13 +52,13 @@ Create a key pair for the server's SSH host identity (prevents MITM during deplo
 ssh-keygen -t ed25519 -C "event-queue-bot-host" -f event-queue-bot-host
 ```
 
-Save the private key as:
+Save the private key as this GitHub environment secret:
 
 ```text
 BOT_SSH_HOST_PRIVATE_KEY
 ```
 
-Save the public key as:
+Save the public key as this GitHub environment secret:
 
 ```text
 BOT_SSH_HOST_PUBLIC_KEY
@@ -60,7 +66,7 @@ BOT_SSH_HOST_PUBLIC_KEY
 
 ## 4. Add Bot Secrets
 
-Save these required GitHub repository secrets:
+Save these required GitHub environment secrets:
 
 ```text
 BOT_APP_ID
