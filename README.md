@@ -6,14 +6,14 @@
 Built with [Discord.js](https://discord.js.org/).
 
 <p align="center">
-  <a href="https://discord.gg/RbmfnP3">⛑️ Support server</a> | 
-  <a href="https://github.com/ArrowM/Queue-Bot">🗃️ GitHub</a> | 
+  <a href="https://discord.gg/RbmfnP3">⛑️ Support server</a> |
+  <a href="https://github.com/ArrowM/Queue-Bot">🗃️ GitHub</a> |
   <a href="https://www.buymeacoffee.com/Arroww">💖 Donate</a>
 </p>
 
 ## Getting started
 
-1. [Invite the bot to your server](https://discord.com/oauth2/authorize?client_id=679018301543677959).
+1. [Invite the bot to your server](https://discord.com/oauth2/authorize?client_id=1507267375689629696).
 2. **Create a Queue.** Create a queue with `/queues add`. You can create as many queues as you want.
 3. **Add Members.** Members can join by clicking the 'Join' button beneath queue displays, `/join`, or by entering an integrated voice channel. Admins may enqueue users with `/members add`.
 4. **Pull Members.** Members can be pulled by admins by clicking the 'Pull' button under beneath queue displays or via `/pull`.
