@@ -22,6 +22,14 @@ export class InteractionHandler implements Handler {
 
 	async handle() {
 		try {
+			const kind = this.inter.isChatInputCommand() ? "command"
+				: this.inter.isAutocomplete() ? "autocomplete"
+					: this.inter.isButton() ? "button"
+						: this.inter.isModalSubmit() ? "modal"
+							: "other";
+			const name = (this.inter as any).commandName ?? (this.inter as any).customId ?? "?";
+			console.log(`InteractionHandler: received ${kind} (${name}) guildId=${this.inter.guildId}`);
+
 			if (this.inter.isChatInputCommand()) {
 				await new CommandHandler(this.inter).handle();
 			}
