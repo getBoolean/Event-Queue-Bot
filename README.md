@@ -42,7 +42,7 @@ Restricted to users with the **Administrator** permission and users added via `/
 `/whitelist` - manage whitelisted users and roles  
 `/clear` - remove all members from queue(s)  
 `/displays` - manage display channels  
-`/events` - manage recurring events with auto-managed queues  
+`/events` - manage recurring events with auto-managed queues (and optional auto-created per-room channels)  
 `/logging` - manage logging channels  
 `/members` - manage queue members  
 `/move` - change the position of a queue member  

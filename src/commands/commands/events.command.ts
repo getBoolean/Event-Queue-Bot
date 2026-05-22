@@ -9,6 +9,7 @@ import { AnnouncementChannelOption } from "../../options/options/announcement-ch
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
 import { AutopullToggleOption } from "../../options/options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "../../options/options/badge-toggle.option.ts";
+import { ChannelSuffixOption } from "../../options/options/channel-suffix.option.ts";
 import { CleanupOffsetHoursOption } from "../../options/options/cleanup-offset-hours.option.ts";
 import { ColorOption } from "../../options/options/color.option.ts";
 import { CreateOffsetHoursOption } from "../../options/options/create-offset-hours.option.ts";
@@ -24,6 +25,7 @@ import { LockToggleOption } from "../../options/options/lock-toggle.option.ts";
 import { MaxRoomsPerUserOption } from "../../options/options/max-rooms-per-user.option.ts";
 import { MaxSubsPerUserOption } from "../../options/options/max-subs-per-user.option.ts";
 import { MemberDisplayTypeOption } from "../../options/options/member-display-type.option.ts";
+import { ModeratorRoleOption } from "../../options/options/moderator-role.option.ts";
 import { NameOption } from "../../options/options/name.option.ts";
 import { ParentSubMutuallyExclusiveOption } from "../../options/options/parent-sub-mutually-exclusive.option.ts";
 import { PingChannelOption } from "../../options/options/ping-channel.option.ts";
@@ -36,6 +38,7 @@ import { RejoinGracePeriodOption } from "../../options/options/rejoin-grace-peri
 import { RequireMessageToJoinOption } from "../../options/options/require-message-to-join.option.ts";
 import { RoleInQueueOption } from "../../options/options/role-in-queue.option.ts";
 import { RoleOnPullOption } from "../../options/options/role-on-pull.option.ts";
+import { RoomCategoryOption } from "../../options/options/room-category.option.ts";
 import { RoomChannelOption } from "../../options/options/room-channel.option.ts";
 import { RoomCountOption } from "../../options/options/room-count.option.ts";
 import { RoomIndexOption } from "../../options/options/room-index.option.ts";
@@ -46,6 +49,8 @@ import { RoomRoleInQueueOption } from "../../options/options/room-role-in-queue.
 import { RoomRoleOnPullOption } from "../../options/options/room-role-on-pull.option.ts";
 import { RoomSchedulingOption } from "../../options/options/room-scheduling.option.ts";
 import { SizeOption } from "../../options/options/size.option.ts";
+import { SlowmodeOption } from "../../options/options/slowmode.option.ts";
+import { SlowmodeTimeOption } from "../../options/options/slowmode-time.option.ts";
 import { SubChannelOption } from "../../options/options/sub-channel.option.ts";
 import { SubRoleInQueueOption } from "../../options/options/sub-role-in-queue.option.ts";
 import { SubRoleOnPullOption } from "../../options/options/sub-role-on-pull.option.ts";
@@ -55,8 +60,9 @@ import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.o
 import { AdminCommand } from "../../types/command.types.ts";
 import { Color, EventQueueRole, type RoomScheduling } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
-import { CustomError, RoomIndexNotFoundError } from "../../utils/error.utils.ts";
+import { CustomError, EventNotFoundError, RoomIndexNotFoundError } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
+import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
 import { QueueUtils } from "../../utils/queue.utils.ts";
@@ -83,6 +89,9 @@ export class EventsCommand extends AdminCommand {
 	events_set_room_defaults = EventsCommand.events_set_room_defaults;
 	events_set_sub_defaults = EventsCommand.events_set_sub_defaults;
 	events_set_room = EventsCommand.events_set_room;
+	events_add_room_channel = EventsCommand.events_add_room_channel;
+	events_remove_room_channel = EventsCommand.events_remove_room_channel;
+	events_sync_room_channels = EventsCommand.events_sync_room_channels;
 	events_reset = EventsCommand.events_reset;
 	events_reset_room = EventsCommand.events_reset_room;
 	events_reset_room_defaults = EventsCommand.events_reset_room_defaults;
@@ -135,6 +144,27 @@ export class EventsCommand extends AdminCommand {
 				.setName("set-room")
 				.setDescription("Set per-room overrides (e.g. ping channel)");
 			Object.values(EventsCommand.SET_ROOM_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("add-room-channel")
+				.setDescription("Add an extra per-room channel template (e.g. room-code-{N})");
+			Object.values(EventsCommand.ADD_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("remove-room-channel")
+				.setDescription("Remove a per-room channel template and its channels");
+			Object.values(EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("sync-room-channels")
+				.setDescription("Recreate any missing room channels and re-apply permissions");
+			Object.values(EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
@@ -217,6 +247,10 @@ export class EventsCommand extends AdminCommand {
 		const entries = events.map(event => {
 			const occurrences = Queries.selectManyOccurrences({ guildId: inter.guildId, eventId: event.id });
 			const nextOcc = occurrences.sort((a, b) => Number(a.startTime) - Number(b.startTime))[0];
+			const templates = Queries.selectManyRoomChannelTemplates({ guildId: inter.guildId, eventId: event.id });
+			const templateSummary = templates.length
+				? templates.map(t => `${t.suffix}${t.slowmodeSeconds ? ` (slowmode: ${t.slowmodeSeconds}s)` : ""}`).join(", ")
+				: null;
 			return {
 				...event,
 				createOffsetMs: `${Number(event.createOffsetMs) / 3_600_000}h`,
@@ -227,6 +261,9 @@ export class EventsCommand extends AdminCommand {
 				roomChannelId: channelMention(event.roomChannelId),
 				subChannelId: channelMention(event.subChannelId),
 				announcementChannelId: event.announcementChannelId ? channelMention(event.announcementChannelId) : null,
+				roomCategoryId: event.roomCategoryId ? channelMention(event.roomCategoryId) : null,
+				moderatorRoleId: event.moderatorRoleId ? roleMention(event.moderatorRoleId) : null,
+				roomChannelTemplates: templateSummary,
 			};
 		});
 
@@ -263,6 +300,8 @@ export class EventsCommand extends AdminCommand {
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Cap on rooms a user can join (0 = unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Cap on sub-rooms a user can join (0 = unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room and matching sub queue can't both hold a user" }),
+		roomCategory: new RoomCategoryOption({ description: "Category for auto-created per-room channels" }),
+		moderatorRole: new ModeratorRoleOption({ description: "Role with full access to all room channels" }),
 	};
 
 	static async events_add(inter: SlashInteraction) {
@@ -291,6 +330,8 @@ export class EventsCommand extends AdminCommand {
 				maxRoomsPerUser: EventsCommand.ADD_OPTIONS.maxRoomsPerUser.get(inter),
 				maxSubsPerUser: EventsCommand.ADD_OPTIONS.maxSubsPerUser.get(inter),
 				parentSubMutuallyExclusive: EventsCommand.ADD_OPTIONS.parentSubMutuallyExclusive.get(inter),
+				roomCategoryId: EventsCommand.ADD_OPTIONS.roomCategory.get(inter)?.id,
+				moderatorRoleId: EventsCommand.ADD_OPTIONS.moderatorRole.get(inter)?.id,
 			}, isNil),
 		};
 
@@ -329,6 +370,8 @@ export class EventsCommand extends AdminCommand {
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Cap on rooms a user can join (0 = unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Cap on sub-rooms a user can join (0 = unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room and matching sub queue can't both hold a user" }),
+		roomCategory: new RoomCategoryOption({ description: "Category for auto-created per-room channels" }),
+		moderatorRole: new ModeratorRoleOption({ description: "Role with full access to all room channels" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -354,6 +397,8 @@ export class EventsCommand extends AdminCommand {
 			maxRoomsPerUser: EventsCommand.SET_OPTIONS.maxRoomsPerUser.get(inter),
 			maxSubsPerUser: EventsCommand.SET_OPTIONS.maxSubsPerUser.get(inter),
 			parentSubMutuallyExclusive: EventsCommand.SET_OPTIONS.parentSubMutuallyExclusive.get(inter),
+			roomCategoryId: EventsCommand.SET_OPTIONS.roomCategory.get(inter)?.id,
+			moderatorRoleId: EventsCommand.SET_OPTIONS.moderatorRole.get(inter)?.id,
 		}, isNil);
 
 		const effectiveMessage = announcementMessage ?? event.announcementMessage;
@@ -598,6 +643,116 @@ export class EventsCommand extends AdminCommand {
 	}
 
 	// ====================================================================
+	//                     /events add-room-channel
+	// ====================================================================
+
+	static readonly ADD_ROOM_CHANNEL_OPTIONS = {
+		event: new EventOption({ required: true, description: "Event to add a per-room channel template to" }),
+		suffix: new ChannelSuffixOption({ required: true, description: "Suffix (e.g. \"code\" → room-code-{N})" }),
+		slowmode: new SlowmodeOption({ description: "Slowmode value (0 = none)" }),
+		slowmodeTime: new SlowmodeTimeOption({ description: "Slowmode unit" }),
+	};
+
+	static async events_add_room_channel(inter: SlashInteraction) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.event.get(inter);
+		if (!event.roomCategoryId) {
+			throw new CustomError({
+				message: `Set a ${inlineCode("room_category")} on the event first via ${commandMention("events", "set")}.`,
+			});
+		}
+		const suffix = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
+		const slowmode = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.slowmode.get(inter);
+		const slowmodeTime = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.slowmodeTime.get(inter);
+		const slowmodeSeconds = EventChannelUtils.toSlowmodeSeconds(slowmode, slowmodeTime);
+
+		const cleanSuffix = suffix.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+		if (!cleanSuffix) {
+			throw new CustomError({
+				message: "Suffix must contain at least one alphanumeric character.",
+			});
+		}
+
+		inter.store.insertRoomChannelTemplate({
+			guildId: inter.guildId,
+			eventId: event.id,
+			suffix: cleanSuffix,
+			slowmodeSeconds: slowmodeSeconds > 0 ? BigInt(slowmodeSeconds) : null,
+		});
+
+		await EventChannelUtils.reconcileRoomChannels(inter.store, event);
+
+		await inter.respond(
+			`Added ${inlineCode(`room-${cleanSuffix}-{N}`)} channel template to ${eventMention(event)}${slowmodeSeconds > 0 ? ` (slowmode: ${slowmodeSeconds}s)` : ""}.`,
+			true,
+		);
+	}
+
+	// ====================================================================
+	//                   /events remove-room-channel
+	// ====================================================================
+
+	static readonly REMOVE_ROOM_CHANNEL_OPTIONS = {
+		event: new EventOption({ required: true, description: "Event to remove a per-room channel template from" }),
+		suffix: new ChannelSuffixOption({ required: true, description: "Suffix to remove (autocompletes from existing)" }),
+	};
+
+	static async events_remove_room_channel(inter: SlashInteraction) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.event.get(inter);
+		const suffix = EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
+
+		const templates = Queries.selectManyRoomChannelTemplates({ guildId: inter.guildId, eventId: event.id });
+		const tmpl = templates.find(t => t.suffix === suffix);
+		if (!tmpl) {
+			throw new CustomError({
+				message: `No channel template with suffix ${inlineCode(suffix)} found for ${eventMention(event)}.`,
+			});
+		}
+
+		await EventChannelUtils.deleteChannelsForSuffix(inter.store, event, suffix);
+		inter.store.deleteRoomChannelTemplate({ eventId: event.id, suffix });
+
+		await inter.respond(
+			`Removed ${inlineCode(`room-${suffix}-{N}`)} channel template from ${eventMention(event)} and deleted associated channels.`,
+			true,
+		);
+	}
+
+	// ====================================================================
+	//                   /events sync-room-channels
+	// ====================================================================
+
+	static readonly SYNC_ROOM_CHANNELS_OPTIONS = {
+		event: new EventOption({ description: "Event to sync (omit to sync all)" }),
+	};
+
+	static async events_sync_room_channels(inter: SlashInteraction) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS.event.get(inter).catch((e: unknown) => {
+			if (e instanceof EventNotFoundError) return undefined;
+			throw e;
+		});
+
+		const events = event ? [event] : [...inter.store.dbEvents().values()];
+		const targeted = events.filter(e => !!e.roomCategoryId);
+
+		if (targeted.length === 0) {
+			await inter.respond(`No events have a ${inlineCode("room_category")} configured. Set one with ${commandMention("events", "set")}.`);
+			return;
+		}
+
+		for (const ev of targeted) {
+			await EventChannelUtils.reconcileRoomChannels(inter.store, ev);
+		}
+
+		await inter.respond(
+			`Synced room channels for ${targeted.length} event(s).`,
+			true,
+		);
+	}
+
+	// ====================================================================
 	//                           /events reset
 	// ====================================================================
 
@@ -618,6 +773,8 @@ export class EventsCommand extends AdminCommand {
 			{ name: RoomLengthMinutesOption.ID, value: EVENT_TABLE.roomLengthMs.name },
 			{ name: `${AnnouncementChannelOption.ID} + ${AnnouncementMessageOption.ID}`, value: ANNOUNCEMENT_PAIR_VALUE },
 			{ name: RoomPingMessageOption.ID, value: EVENT_TABLE.roomPingMessage.name },
+			{ name: RoomCategoryOption.ID, value: EVENT_TABLE.roomCategoryId.name },
+			{ name: ModeratorRoleOption.ID, value: EVENT_TABLE.moderatorRoleId.name },
 		];
 		const selectMenuTransactor = new SelectMenuTransactor(inter);
 		const propertiesToReset = await selectMenuTransactor.sendAndReceive("Event properties to reset", selectMenuOptions) ?? [];
@@ -923,6 +1080,11 @@ export class EventsCommand extends AdminCommand {
 				"- `max_rooms_per_user` — cap on room queues a single user may sit in at once (`0` = unlimited)\n" +
 				"- `max_subs_per_user` — cap on sub-room queues (`0` = unlimited)\n" +
 				"- `parent_sub_mutually_exclusive` — when `true` (default), a user can't sit in both a room and its matching sub. Joining the room silently removes them from the sub; joining the sub while already in the room is blocked.\n\n" +
+				"**Auto-created per-room channels** (optional):\n" +
+				`- Set ${inlineCode("room_category")} on the event (and optionally ${inlineCode("moderator_role")}) to auto-create one private \`room-{N}\` channel per room. The bot also auto-creates a role per room (named \`{event} Room {N}\`) and wires it as the in-queue role + ping target.\n` +
+				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
+				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +
+				`- ${commandMention("events", "sync-room-channels")} recreates any channels you accidentally deleted and re-applies permissions.\n\n` +
 				"**Announcement placeholders:** `{event_name}`, `{start_time}`, `{start_time_relative}`, `{room_channel}`, `{sub_channel}`\n" +
 				"**Ping placeholders:** `{room_role}`, `{room_name}`, `{room_index}`, `{room_channel}`, `{ping_channel}`, `{start_time}`, `{start_time_relative}`",
 			)];

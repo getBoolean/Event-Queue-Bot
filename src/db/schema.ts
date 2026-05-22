@@ -179,6 +179,8 @@ export const EVENT_TABLE = sqliteTable("event", ({
 	maxRoomsPerUser: integer("max_rooms_per_user").notNull().default(0),
 	maxSubsPerUser: integer("max_subs_per_user").notNull().default(0),
 	parentSubMutuallyExclusive: integer("parent_sub_mutually_exclusive", { mode: "boolean" }).notNull().default(true),
+	roomCategoryId: text("room_category_id").$type<Snowflake>(),
+	moderatorRoleId: text("moderator_role_id").$type<Snowflake>(),
 }),
 (table) => ({
 	unq: unique().on(table.name, table.guildId),
@@ -234,6 +236,7 @@ export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
 	queueRole: text("queue_role").$type<EventQueueRole>().notNull(),
 	queueIndex: integer("queue_index").$type<bigint>().notNull(),
 	pingChannelId: text("ping_channel_id").$type<Snowflake>(),
+	autoCreatedRoleId: text("auto_created_role_id").$type<Snowflake>(),
 }),
 (table) => ({
 	unqRoleIndex: unique().on(table.eventId, table.queueRole, table.queueIndex),
@@ -285,6 +288,43 @@ export const EVENT_DEFAULT_TABLE = sqliteTable("event_default", ({
 
 export type NewEventDefault = typeof EVENT_DEFAULT_TABLE.$inferInsert;
 export type DbEventDefault = typeof EVENT_DEFAULT_TABLE.$inferSelect;
+
+
+export const EVENT_ROOM_CHANNEL_TEMPLATE_TABLE = sqliteTable("event_room_channel_template", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	suffix: text("suffix").notNull(),
+	slowmodeSeconds: integer("slowmode_seconds").$type<bigint>(),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.suffix),
+	guildIdIndex: index("event_room_channel_template_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_room_channel_template_event_id_index").on(table.eventId),
+}));
+
+export type NewEventRoomChannelTemplate = typeof EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.$inferInsert;
+export type DbEventRoomChannelTemplate = typeof EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.$inferSelect;
+
+
+export const EVENT_ROOM_CHANNEL_TABLE = sqliteTable("event_room_channel", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	roomIndex: integer("room_index").$type<bigint>().notNull(),
+	suffix: text("suffix"),
+	channelId: text("channel_id").$type<Snowflake>().notNull(),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.roomIndex, table.suffix),
+	guildIdIndex: index("event_room_channel_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_room_channel_event_id_index").on(table.eventId),
+}));
+
+export type NewEventRoomChannel = typeof EVENT_ROOM_CHANNEL_TABLE.$inferInsert;
+export type DbEventRoomChannel = typeof EVENT_ROOM_CHANNEL_TABLE.$inferSelect;
 
 
 export const BLACKLISTED_TABLE = sqliteTable("blacklisted", ({

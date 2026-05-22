@@ -14,6 +14,10 @@ export const VOICE_CHANNEL_TYPE = [
 	ChannelType.GuildStageVoice,
 ] as const;
 
+export const CATEGORY_CHANNEL_TYPE = [
+	ChannelType.GuildCategory,
+] as const;
+
 // /  Other
 
 export const TIMEZONES = Intl.supportedValuesOf("timeZone");

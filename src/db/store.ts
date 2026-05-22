@@ -30,6 +30,8 @@ import {
 	type DbEventOccurrence,
 	type DbEventOccurrenceRoomPing,
 	type DbEventQueue,
+	type DbEventRoomChannel,
+	type DbEventRoomChannelTemplate,
 	type DbMember,
 	type DbPrioritized,
 	type DbQueue,
@@ -41,6 +43,8 @@ import {
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_QUEUE_TABLE,
+	EVENT_ROOM_CHANNEL_TABLE,
+	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
 	GUILD_TABLE,
 	MEMBER_TABLE,
@@ -53,6 +57,8 @@ import {
 	type NewEventOccurrence,
 	type NewEventOccurrenceRoomPing,
 	type NewEventQueue,
+	type NewEventRoomChannel,
+	type NewEventRoomChannelTemplate,
 	type NewGuild,
 	type NewMember,
 	type NewPrioritized,
@@ -104,6 +110,8 @@ export class Store {
 	dbOccurrences = (eventId?: bigint) => toCollection<bigint, DbEventOccurrence>("id", Queries.selectManyOccurrences({ guildId: this.guild.id, eventId }));
 	dbEventQueues = (eventId: bigint) => toCollection<bigint, DbEventQueue>("id", Queries.selectManyEventQueues({ guildId: this.guild.id, eventId }));
 	dbEventDefault = (eventId: bigint, queueRole: EventQueueRole) => Queries.selectEventDefault({ guildId: this.guild.id, eventId, queueRole });
+	dbRoomChannelTemplates = (eventId: bigint) => Queries.selectManyRoomChannelTemplates({ guildId: this.guild.id, eventId });
+	dbEventRoomChannels = (eventId: bigint) => Queries.selectManyEventRoomChannels({ guildId: this.guild.id, eventId });
 
 	// ====================================================================
 	//                           Discord.js
@@ -449,6 +457,26 @@ export class Store {
 			.returning().get();
 	}
 
+	// upsert on conflict
+	insertRoomChannelTemplate(row: NewEventRoomChannelTemplate): DbEventRoomChannelTemplate {
+		const values = omitBy(row, isNil) as NewEventRoomChannelTemplate;
+		return db
+			.insert(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE)
+			.values(values)
+			.onConflictDoUpdate({
+				target: [EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.eventId, EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.suffix],
+				set: values,
+			})
+			.returning().get();
+	}
+
+	insertEventRoomChannel(row: NewEventRoomChannel): DbEventRoomChannel {
+		return db
+			.insert(EVENT_ROOM_CHANNEL_TABLE)
+			.values(omitBy(row, isNil) as NewEventRoomChannel)
+			.returning().get();
+	}
+
 	// ====================================================================
 	//                      Condition helper
 	// ====================================================================
@@ -581,6 +609,35 @@ export class Store {
 			.where(and(
 				eq(EVENT_QUEUE_TABLE.id, eventQueue.id),
 				eq(EVENT_QUEUE_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateRoomChannelTemplate(
+		by: { eventId: bigint, suffix: string },
+		update: Partial<NewEventRoomChannelTemplate>,
+	) {
+		return db
+			.update(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE)
+			.set(update)
+			.where(and(
+				eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.guildId, this.guild.id),
+				eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.eventId, by.eventId),
+				eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.suffix, by.suffix)
+			))
+			.returning().get();
+	}
+
+	updateEventRoomChannel(
+		by: { id: bigint },
+		update: Partial<DbEventRoomChannel>,
+	) {
+		return db
+			.update(EVENT_ROOM_CHANNEL_TABLE)
+			.set(update)
+			.where(and(
+				eq(EVENT_ROOM_CHANNEL_TABLE.id, by.id),
+				eq(EVENT_ROOM_CHANNEL_TABLE.guildId, this.guild.id)
 			))
 			.returning().get();
 	}
@@ -803,5 +860,40 @@ export class Store {
 	deleteOccurrence(by: { id: bigint }) {
 		const cond = this.createCondition(EVENT_OCCURRENCE_TABLE, by);
 		return db.delete(EVENT_OCCURRENCE_TABLE).where(cond).returning().get();
+	}
+
+	deleteRoomChannelTemplate(by: { eventId: bigint, suffix: string }) {
+		return db
+			.delete(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE)
+			.where(and(
+				eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.guildId, this.guild.id),
+				eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.eventId, by.eventId),
+				eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.suffix, by.suffix)
+			))
+			.returning().get();
+	}
+
+	deleteEventRoomChannel(by: { id: bigint }) {
+		return db
+			.delete(EVENT_ROOM_CHANNEL_TABLE)
+			.where(and(
+				eq(EVENT_ROOM_CHANNEL_TABLE.id, by.id),
+				eq(EVENT_ROOM_CHANNEL_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	deleteManyEventRoomChannels(by: { eventId: bigint, suffix?: string }) {
+		const conds = [
+			eq(EVENT_ROOM_CHANNEL_TABLE.guildId, this.guild.id),
+			eq(EVENT_ROOM_CHANNEL_TABLE.eventId, by.eventId),
+		];
+		if (by.suffix !== undefined) {
+			conds.push(eq(EVENT_ROOM_CHANNEL_TABLE.suffix, by.suffix));
+		}
+		return db
+			.delete(EVENT_ROOM_CHANNEL_TABLE)
+			.where(and(...conds))
+			.returning().all();
 	}
 }

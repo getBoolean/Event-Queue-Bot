@@ -11,6 +11,8 @@ import {
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_QUEUE_TABLE,
+	EVENT_ROOM_CHANNEL_TABLE,
+	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
 	GUILD_TABLE,
 	MEMBER_TABLE,
@@ -395,6 +397,39 @@ export namespace Queries {
 
 	export function selectEventDefault(by: { guildId: Snowflake, eventId: bigint, queueRole: string }) {
 		return selectEventDefaultByEventIdAndRole.get(by);
+	}
+
+	// Event Room Channel Templates
+
+	export function selectManyRoomChannelTemplates(by: { guildId: Snowflake, eventId: bigint }) {
+		return selectManyRoomChannelTemplatesByGuildIdAndEventId.all(by);
+	}
+
+	// Event Room Channels
+
+	export function selectManyEventRoomChannels(by: { guildId: Snowflake, eventId: bigint }) {
+		return selectManyEventRoomChannelsByGuildIdAndEventId.all(by);
+	}
+
+	export function selectEventRoomChannel(by: {
+		guildId: Snowflake,
+		eventId: bigint,
+		roomIndex: bigint,
+		suffix: string | null,
+	}) {
+		const suffixCondition = by.suffix === null
+			? sql`${EVENT_ROOM_CHANNEL_TABLE.suffix} IS NULL`
+			: eq(EVENT_ROOM_CHANNEL_TABLE.suffix, by.suffix);
+		return db
+			.select()
+			.from(EVENT_ROOM_CHANNEL_TABLE)
+			.where(and(
+				eq(EVENT_ROOM_CHANNEL_TABLE.guildId, by.guildId),
+				eq(EVENT_ROOM_CHANNEL_TABLE.eventId, by.eventId),
+				eq(EVENT_ROOM_CHANNEL_TABLE.roomIndex, by.roomIndex),
+				suffixCondition
+			))
+			.get();
 	}
 
 	// Patch Notes
@@ -958,6 +993,28 @@ export namespace Queries {
 			eq(EVENT_DEFAULT_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_DEFAULT_TABLE.eventId, sql.placeholder("eventId")),
 			eq(EVENT_DEFAULT_TABLE.queueRole, sql.placeholder("queueRole"))
+		))
+		.prepare();
+
+	// Event Room Channel Templates
+
+	const selectManyRoomChannelTemplatesByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE)
+		.where(and(
+			eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_ROOM_CHANNEL_TEMPLATE_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	// Event Room Channels
+
+	const selectManyEventRoomChannelsByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_ROOM_CHANNEL_TABLE)
+		.where(and(
+			eq(EVENT_ROOM_CHANNEL_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_ROOM_CHANNEL_TABLE.eventId, sql.placeholder("eventId"))
 		))
 		.prepare();
 }

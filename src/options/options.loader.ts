@@ -9,6 +9,7 @@ import { AutopullToggleOption } from "./options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "./options/badge-toggle.option.ts";
 import { BlacklistedOption } from "./options/blacklisted.option.ts";
 import { BlacklistedsOption } from "./options/blacklisteds.option.ts";
+import { ChannelSuffixOption } from "./options/channel-suffix.option.ts";
 import { CleanupOffsetHoursOption } from "./options/cleanup-offset-hours.option.ts";
 import { ColorOption } from "./options/color.option.ts";
 import { CommandOption } from "./options/command.option.ts";
@@ -39,6 +40,7 @@ import { MembersOption } from "./options/members.option.ts";
 import { MentionableOption } from "./options/mentionable.option.ts";
 import { MessageOption } from "./options/message.option.ts";
 import { MessageChannelOption } from "./options/message-channel.option.ts";
+import { ModeratorRoleOption } from "./options/moderator-role.option.ts";
 import { NameOption } from "./options/name.option.ts";
 import { NumberOption } from "./options/number.option.ts";
 import { ParentSubMutuallyExclusiveOption } from "./options/parent-sub-mutually-exclusive.option.ts";
@@ -58,6 +60,7 @@ import { RejoinCooldownPeriodOption } from "./options/rejoin-cooldown-period.opt
 import { RejoinGracePeriodOption } from "./options/rejoin-grace-period.option.ts";
 import { RoleInQueueOption } from "./options/role-in-queue.option.ts";
 import { RoleOnPullOption } from "./options/role-on-pull.option.ts";
+import { RoomCategoryOption } from "./options/room-category.option.ts";
 import { RoomChannelOption } from "./options/room-channel.option.ts";
 import { RoomCountOption } from "./options/room-count.option.ts";
 import { RoomIndexOption } from "./options/room-index.option.ts";
@@ -70,6 +73,8 @@ import { RoomSchedulingOption } from "./options/room-scheduling.option.ts";
 import { ScheduleOption } from "./options/schedule.option.ts";
 import { SchedulesOption } from "./options/schedules.option.ts";
 import { SizeOption } from "./options/size.option.ts";
+import { SlowmodeOption } from "./options/slowmode.option.ts";
+import { SlowmodeTimeOption } from "./options/slowmode-time.option.ts";
 import { SubChannelOption } from "./options/sub-channel.option.ts";
 import { SubRoleInQueueOption } from "./options/sub-role-in-queue.option.ts";
 import { SubRoleOnPullOption } from "./options/sub-role-on-pull.option.ts";
@@ -93,6 +98,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[BlacklistedOption.ID, new BlacklistedOption()],
 	[BlacklistedsOption.ID, new BlacklistedsOption()],
 	[ButtonsToggleOption.ID, new ButtonsToggleOption()],
+	[ChannelSuffixOption.ID, new ChannelSuffixOption()],
 	[CleanupOffsetHoursOption.ID, new CleanupOffsetHoursOption()],
 	[ColorOption.ID, new ColorOption()],
 	[CommandOption.ID, new CommandOption()],
@@ -122,6 +128,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[MentionableOption.ID, new MentionableOption()],
 	[MessageChannelOption.ID, new MessageChannelOption()],
 	[MessageOption.ID, new MessageOption()],
+	[ModeratorRoleOption.ID, new ModeratorRoleOption()],
 	[NameOption.ID, new NameOption()],
 	[NumberOption.ID, new NumberOption()],
 	[ParentSubMutuallyExclusiveOption.ID, new ParentSubMutuallyExclusiveOption()],
@@ -138,6 +145,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[QueuesOption.ID, new QueuesOption()],
 	[ReasonOption.ID, new ReasonOption()],
 	[RejoinCooldownPeriodOption.ID, new RejoinCooldownPeriodOption()],
+	[RoomCategoryOption.ID, new RoomCategoryOption()],
 	[RoomChannelOption.ID, new RoomChannelOption()],
 	[RoomCountOption.ID, new RoomCountOption()],
 	[RoomIndexOption.ID, new RoomIndexOption()],
@@ -153,6 +161,8 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[ScheduleOption.ID, new ScheduleOption()],
 	[SchedulesOption.ID, new SchedulesOption()],
 	[SizeOption.ID, new SizeOption()],
+	[SlowmodeOption.ID, new SlowmodeOption()],
+	[SlowmodeTimeOption.ID, new SlowmodeTimeOption()],
 	[SubChannelOption.ID, new SubChannelOption()],
 	[SubRoleInQueueOption.ID, new SubRoleInQueueOption()],
 	[SubRoleOnPullOption.ID, new SubRoleOnPullOption()],

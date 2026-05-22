@@ -25,6 +25,7 @@ import {
 	QueueAlreadyExistsError,
 	SequentialEventRequiresRoomLengthError,
 } from "./error.utils.ts";
+import { EventChannelUtils } from "./event-channel.utils.ts";
 import { MemberUtils } from "./member.utils.ts";
 import { QueueUtils } from "./queue.utils.ts";
 
@@ -67,6 +68,10 @@ export namespace EventUtils {
 			await createEventQueue(store, event, EventQueueRole.Sub, i, event.subChannelId);
 		}
 
+		if (event.roomCategoryId) {
+			await EventChannelUtils.reconcileRoomChannels(store, event);
+		}
+
 		return event;
 	}
 
@@ -97,6 +102,7 @@ export namespace EventUtils {
 			}
 		}
 
+		const oldModeratorRoleId = event.moderatorRoleId;
 		const updatedEvent = store.updateEvent({ id: event.id, ...update });
 
 		// Re-arm pending occurrences if timing-related fields changed
@@ -111,10 +117,22 @@ export namespace EventUtils {
 			await rearmAllOccurrences(store, updatedEvent);
 		}
 
+		const channelsChanged = update.roomCategoryId !== undefined
+			|| update.moderatorRoleId !== undefined
+			|| update.roomCount !== undefined
+			|| (update.moderatorRoleId === undefined && oldModeratorRoleId !== updatedEvent.moderatorRoleId);
+
+		if (channelsChanged && updatedEvent.roomCategoryId) {
+			await EventChannelUtils.reconcileRoomChannels(store, updatedEvent);
+		}
+
 		return updatedEvent;
 	}
 
 	export async function deleteEvent(store: Store, event: DbEvent) {
+		await EventChannelUtils.deleteAllEventChannels(store, event);
+		await EventChannelUtils.deleteAutoCreatedRoles(store, event);
+
 		const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 		for (const eq of eventQueues) {
 			store.deleteQueue({ id: eq.queueId });
