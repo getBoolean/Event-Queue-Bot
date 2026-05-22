@@ -1,17 +1,19 @@
 <!-- TOC -->
-  * [Running Locally](#running-locally)
-    * [Option 1: Install and run with Docker (recommended)](#option-1-install-and-run-with-docker-recommended)
-      * [Other useful docker commands](#other-useful-docker-commands)
-    * [Option 2: Manually install and run](#option-2-manually-install-and-run)
-  * [Data storage and access](#data-storage-and-access)
-  * [How to create and edit commands](#how-to-create-and-edit-commands)
-    * [Adding commands](#adding-commands)
-    * [Adding command options](#adding-command-options)
-    * [Adding buttons](#adding-buttons)
-    * [Util files](#util-files)
-    * [Database changes](#database-changes)
-  * [Misc](#misc)
-  * [Migrating from the legacy project (pre June 2024)](#migrating-from-the-legacy-project-pre-june-2024)
+* [Running Locally](#running-locally)
+  * [Option 1: Install and run with Docker (recommended)](#option-1-install-and-run-with-docker-recommended)
+    * [Other useful docker commands](#other-useful-docker-commands)
+  * [Option 2: Manually install and run](#option-2-manually-install-and-run)
+* [Deploying via GitHub Actions](#deploying-via-github-actions)
+* [Data storage and access](#data-storage-and-access)
+* [How to create and edit commands](#how-to-create-and-edit-commands)
+  * [Adding commands](#adding-commands)
+  * [Adding command options](#adding-command-options)
+  * [Adding buttons](#adding-buttons)
+  * [Adding modals](#adding-modals)
+  * [Util files](#util-files)
+  * [Database changes](#database-changes)
+* [Misc](#misc)
+* [Migrating from the legacy project (pre June 2024)](#migrating-from-the-legacy-project-pre-june-2024)
 <!-- TOC -->
 
 ## Running Locally
@@ -19,14 +21,14 @@
 Clone the repository:
 
 ```bash
-git clone https://github.com/ArrowM/Queue-Bot
-cd Queue-Bot
+git clone https://github.com/getBoolean/Event-Queue-Bot
+cd Event-Queue-Bot
 ```
 
 Create a Discord bot application and invite it to your server.
 See [Discord.js guide](https://discordjs.guide/preparations/setting-up-a-bot-application.html).
 
-Update the `.env` file with your bot's `TOKEN` and `CLIENT_ID`.
+Set `TOKEN` and `CLIENT_ID` in `.env`. All other variables ship with working defaults — change them only if you want different behavior. `DEFAULT_COLOR` must remain a key from the `Color` enum in `src/types/db.types.ts` if you change it.
 
 ### Option 1: Install and run with Docker (recommended)
 
@@ -41,12 +43,15 @@ sudo reboot
 ```
 
 Run `./launch-docker.sh` or `launch-docker.bat` to:
-- dump logs to `./logs` and close the previous container (if applicable)
-- build the image & container
-- start the bot in a detached state
-- attach to the container (which can safely be exited with the `Ctrl+p Ctrl+q` key sequence. Using `CTRL-c` while attached will stop the container)
 
-*Note if the database schema is outdated, the bot will fail to start and print an error message. To update the schema, run `npx drizzle-kit push`*.
+* dump logs to `./logs` and close the previous container (if applicable)
+* build the image & container
+* start the bot in a detached state
+* attach to the container (which can safely be exited with the `Ctrl+p Ctrl+q` key sequence. Using `CTRL-c` while attached will stop the container)
+
+Pass `--pull` to also run `git fetch` + `git merge --no-ff` before rebuilding (e.g. `./launch-docker.sh --pull`). Without the flag, the working tree is left untouched.
+
+*The bot auto-applies pending Drizzle migrations on startup (`src/db/db.ts`); run drizzle commands only when authoring a new migration.*
 
 #### Other useful docker commands
 
@@ -70,7 +75,7 @@ docker compose down
 
 ### Option 2: Manually install and run
 
-This method is not recommended, because it lacks the logging, auto-restart, and rebuild speed of Docker. 
+This method is not recommended, because it lacks the logging, auto-restart, and rebuild speed of Docker.
 
 [Install Node.js](https://nodejs.org/en/download/package-manager).
 
@@ -85,6 +90,16 @@ Start the bot:
 ```bash
 npm start
 ```
+
+## Deploying via GitHub Actions
+
+Pushes to `master` trigger `.github/workflows/provision-and-deploy.yml`, which runs three jobs:
+
+1. **`discover`** — looks up the DigitalOcean droplet by `DO_DROPLET_NAME`.
+2. **`provision`** — creates the droplet via cloud-init only if none exists.
+3. **`deploy`** — rsyncs the repo, writes `.env`, and runs `docker compose up -d --build` on the droplet. Pending Drizzle migrations apply automatically on container start.
+
+Secrets, variables, and SSH key setup live in [`INFRA.md`](INFRA.md). For SSH access to the droplet, see [`INFRA.md` → "Connect to the Droplet"](INFRA.md#connect-to-the-droplet).
 
 ## Data storage and access
 
@@ -102,33 +117,36 @@ to the files that will need to be added/updated.
 
 ### Adding commands
 
-1. Add a new `.command.ts` file to the `src/commands/commands` directory. Commands should extend `EveryoneCommand` or `AdminCommand`.
-2. Add the new command class to the `src/commands.command.loader.ts` file.
-3. Update the `README.md` file and the help commands in the `src/commands/help.command.ts` file.
+1. Add a new `.command.ts` file under `src/commands/commands`, extending `EveryoneCommand` or `AdminCommand`. Subcommands are methods named `<commandName>_<subcommand>` (e.g. `queues_add` for `/queues add`). Set `deferResponse = false` if the command opens a modal.
+2. Register it in `src/commands/commands.loader.ts`.
+3. Update `README.md` and the help text in `src/commands/commands/help.command.ts`.
 
 ### Adding command options
 
-1. Add a new `.option.ts` file to the `src/options/options` directory. Options should extend one of the base options at the bottom of
-   the `src/options/base-options.ts` file.
-2. Update the `src/options/options.loader.ts` file.
+1. Add a new `.option.ts` file under `src/options/options`, extending a base from `src/options/base-option.ts`. Options expose `.build` (for `SlashCommandBuilder`) and `.get(inter)` (parsed value, cached on the interaction).
+2. Register it in `src/options/options.loader.ts`.
 
 ### Adding buttons
 
 1. Create a new `.button.ts` file in the `src/buttons/buttons` directory. Buttons should extend `EveryoneButton` or `AdminButton`.
-2. update the `src/buttons/buttons.loader.ts` file.
+2. Update the `src/buttons/buttons.loader.ts` file.
+
+### Adding modals
+
+1. Create a new `.modal.ts` file in `src/modals` (see `join.modal.ts`).
+2. The command opening the modal must set `deferResponse = false` — Discord rejects modals on deferred interactions.
 
 ### Util files
 
-If the code for your new command is complex or re-usable, consider placing your logic a utility file in the `src/utils` directory.
+Non-trivial command/button logic should live in a `*.utils.ts` namespace under `src/utils`, keeping the command/button file thin.
 
 ### Database changes
 
 If you need to add or modify database tables or columns:
 
-1. Update the `src/db/schema.ts` file.
-2. If you add a new table, or need new querying methods, update the `src/db/store.ts` file and the `src/db/queries.ts` file.
-3. Run `drizzle-kit generate` in the terminal. The drizzle command will generate the necessary SQL migration files for you, which will then
-   be applied with `drizzle-kit push`.
+1. Update `src/db/schema.ts`. Use plain numeric defaults (`.default(0)`) — `.default(0n)` trips a `drizzle-kit` BigInt-serialization bug. `$type<bigint>()` still types the column as `bigint`.
+2. For new tables or query patterns, update `src/db/store.ts` and `src/db/queries.ts`.
+3. Run `npx drizzle-kit generate`. Commit the new `data/migrations/*.sql` and `data/migrations/meta/*` files — the runtime migrator applies them on next startup.
 
 ## Misc
 
@@ -148,19 +166,17 @@ Export the old database tables to csv files.
 The following command will perform the export for Postgres:
 
 ```bash
-psql -d queue -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public'" | xargs -I{} psql -d queue -c "\copy {} to 'legacy_export/{}.csv' csv header"
+psql -d queue -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public'" | xargs -I{} psql -d queue -c "\copy {} to 'legacy-export/{}.csv' csv header"
 ```
 
 *If you have a different database name, replace `queue` with your database name.*
 
-Then in the `.env` file, update `CHECK_FOR_LEGACY_MIGRATION` to be true:
+Then in the `.env` file, set `ENABLE_LEGACY_MIGRATION` to true:
 
 ```dotenv
-CHECK_FOR_LEGACY_MIGRATION=true
+ENABLE_LEGACY_MIGRATION=true
 ```
 
-When the `CHECK_FOR_LEGACY_MIGRATION` is set to true, will check the `legacy-export` directory.
-If it finds the csv files, it will prompt you to confirm via console input that you want to import the data.
-If confirmed, it will create a dated backup of the database (main.sqlite), then merge the legacy data into the database.
+When `ENABLE_LEGACY_MIGRATION` is true, the bot checks the `data/migrations/legacy-export` directory on startup. If it finds the csv files, it will prompt you via console input to confirm the import. If confirmed, it creates a dated backup of `data/main.sqlite`, then merges the legacy data into the database.
 
-Once the data is imported, `CHECK_FOR_LEGACY_MIGRATION` should be set back to false.
+Once the data is imported, set `ENABLE_LEGACY_MIGRATION` back to false.
