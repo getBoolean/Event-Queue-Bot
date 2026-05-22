@@ -48,15 +48,19 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_BRANCH }}
 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+
       - name: Validate provisioning script
-        run: node --check scripts/provision-digitalocean.mjs
+        run: bash -n scripts/provision-digitalocean.sh
 
       - name: Provision DigitalOcean VPS
         id: provision
         env:
-          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
           BOT_SSH_PUBLIC_KEY: ${{ secrets.BOT_SSH_PUBLIC_KEY }}
-        run: node scripts/provision-digitalocean.mjs
+        run: bash scripts/provision-digitalocean.sh
 
       - name: Configure SSH
         env:

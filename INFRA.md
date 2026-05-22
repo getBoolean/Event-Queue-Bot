@@ -1,7 +1,7 @@
 # Infrastructure Setup
 
-GitHub Actions can provision a DigitalOcean VPS and deploy the bot. No local
-Terraform or server setup is required.
+GitHub Actions provisions a DigitalOcean VPS with the official `doctl` CLI and
+deploys the bot. No local Terraform or server setup is required.
 
 ## 1. Create DigitalOcean Token
 

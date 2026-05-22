@@ -14,7 +14,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     lock_passwd: true
     ssh_authorized_keys:
-      - {{SSH_PUBLIC_KEY_JSON}}
+      - {{SSH_PUBLIC_KEY_YAML}}
 
 write_files:
   - path: /usr/local/bin/deploy-event-queue-bot
@@ -53,5 +53,5 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now docker
-  - mkdir -p {{APP_PATH}}/data {{APP_PATH}}/logs
-  - chown -R deploy:deploy {{APP_PATH}}
+  - mkdir -p {{APP_PATH_SHELL}}/data {{APP_PATH_SHELL}}/logs
+  - chown -R deploy:deploy {{APP_PATH_SHELL}}
