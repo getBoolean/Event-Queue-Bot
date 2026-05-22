@@ -5,9 +5,11 @@ import { get } from "lodash-es";
 import {
 	Color,
 	DisplayUpdateType,
+	EventQueueRole,
 	MemberDisplayType,
 	MemberRemovalReason,
 	PullMessageDisplayType,
+	RoomScheduling,
 	ScheduleCommand,
 	Scope,
 	TimestampType,
@@ -155,6 +157,112 @@ export const SCHEDULE_TABLE = sqliteTable("schedule", ({
 
 export type NewSchedule = typeof SCHEDULE_TABLE.$inferInsert;
 export type DbSchedule = typeof SCHEDULE_TABLE.$inferSelect;
+
+
+export const EVENT_TABLE = sqliteTable("event", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	name: text("name").notNull(),
+	roomCount: integer("room_count").$type<bigint>().notNull(),
+	roomChannelId: text("room_channel_id").$type<Snowflake>().notNull(),
+	subChannelId: text("sub_channel_id").$type<Snowflake>().notNull(),
+	roomLengthMs: integer("room_length_ms").$type<bigint>(),
+	roomScheduling: text("room_scheduling").$type<RoomScheduling>().notNull().default(RoomScheduling.Parallel),
+	createOffsetMs: integer("create_offset_ms").$type<bigint>().notNull().default(86_400_000 as any),
+	lockOffsetMs: integer("lock_offset_ms").$type<bigint>().notNull().default(0 as any),
+	cleanupOffsetMs: integer("cleanup_offset_ms").$type<bigint>().notNull().default(86_400_000 as any),
+	announcementChannelId: text("announcement_channel_id").$type<Snowflake>(),
+	announcementMessage: text("announcement_message"),
+	roomPingMessage: text("room_ping_message"),
+}),
+(table) => ({
+	unq: unique().on(table.name, table.guildId),
+	guildIdIndex: index("event_guild_id_index").on(table.guildId),
+}));
+
+export type NewEvent = typeof EVENT_TABLE.$inferInsert;
+export type DbEvent = typeof EVENT_TABLE.$inferSelect;
+
+
+export const EVENT_OCCURRENCE_TABLE = sqliteTable("event_occurrence", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	startTime: integer("start_time").$type<bigint>().notNull(),
+	timezone: text("timezone"),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.startTime),
+	guildIdIndex: index("event_occurrence_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_occurrence_event_id_index").on(table.eventId),
+}));
+
+export type NewEventOccurrence = typeof EVENT_OCCURRENCE_TABLE.$inferInsert;
+export type DbEventOccurrence = typeof EVENT_OCCURRENCE_TABLE.$inferSelect;
+
+
+export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	queueId: integer("queue_id").$type<bigint>().notNull().references(() => QUEUE_TABLE.id, { onDelete: "cascade" }),
+	queueRole: text("queue_role").$type<EventQueueRole>().notNull(),
+	queueIndex: integer("queue_index").$type<bigint>().notNull(),
+	pingChannelId: text("ping_channel_id").$type<Snowflake>(),
+}),
+(table) => ({
+	unqRoleIndex: unique().on(table.eventId, table.queueRole, table.queueIndex),
+	unqQueue: unique().on(table.queueId),
+	guildIdIndex: index("event_queue_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_queue_event_id_index").on(table.eventId),
+}));
+
+export type NewEventQueue = typeof EVENT_QUEUE_TABLE.$inferInsert;
+export type DbEventQueue = typeof EVENT_QUEUE_TABLE.$inferSelect;
+
+
+export const EVENT_DEFAULT_TABLE = sqliteTable("event_default", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	queueRole: text("queue_role").$type<EventQueueRole>().notNull(),
+
+	// Mirrored QUEUE_TABLE config columns (all nullable for defaults)
+	autopullToggle: integer("autopull_toggle", { mode: "boolean" }),
+	badgeToggle: integer("badge_toggle", { mode: "boolean" }),
+	color: text("color").$type<ColorResolvable>(),
+	displayUpdateType: text("display_update_type").$type<DisplayUpdateType>(),
+	dmOnPullToggle: integer("dm_on_pull_toggle", { mode: "boolean" }),
+	buttonsToggle: text("buttons_toggles").$type<Scope>(),
+	header: text("header"),
+	inlineToggle: integer("inline_toggle", { mode: "boolean" }),
+	lockToggle: integer("lock_toggle", { mode: "boolean" }),
+	memberDisplayType: text("member_display_type").$type<MemberDisplayType>(),
+	pullBatchSize: integer("pull_batch_size").$type<bigint>(),
+	pullMessage: text("pull_message"),
+	pullMessageDisplayType: text("pull_message_display_type").$type<PullMessageDisplayType>(),
+	pullMessageChannelId: text("pull_message_channel_id").$type<Snowflake>(),
+	rejoinCooldownPeriod: integer("rejoin_cooldown_period").$type<bigint>(),
+	rejoinGracePeriod: integer("rejoin_grace_period").$type<bigint>(),
+	requireMessageToJoin: integer("require_message_to_join", { mode: "boolean" }),
+	roleInQueueId: text("role_in_queue_id").$type<Snowflake>(),
+	roleOnPullId: text("role_on_pull_id").$type<Snowflake>(),
+	size: integer("size").$type<bigint>(),
+	timestampType: text("time_display_type").$type<TimestampType>(),
+	voiceDestinationChannelId: text("voice_destination_channel_id").$type<Snowflake>(),
+	voiceOnlyToggle: integer("voice_only_toggle", { mode: "boolean" }),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.queueRole),
+	guildIdIndex: index("event_default_guild_id_index").on(table.guildId),
+}));
+
+export type NewEventDefault = typeof EVENT_DEFAULT_TABLE.$inferInsert;
+export type DbEventDefault = typeof EVENT_DEFAULT_TABLE.$inferSelect;
 
 
 export const BLACKLISTED_TABLE = sqliteTable("blacklisted", ({

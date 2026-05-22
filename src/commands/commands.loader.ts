@@ -5,6 +5,7 @@ import { AdminsCommand } from "./commands/admins.command.ts";
 import { BlacklistCommand } from "./commands/blacklist.command.ts";
 import { ClearCommand } from "./commands/clear.command.ts";
 import { DisplaysCommand } from "./commands/displays.command.ts";
+import { EventsCommand } from "./commands/events.command.ts";
 import { HelpCommand } from "./commands/help.command.ts";
 import { JoinCommand } from "./commands/join.command.ts";
 import { LeaveCommand } from "./commands/leave.command.ts";
@@ -27,6 +28,7 @@ export const COMMANDS = new Collection<string, Command>([
 	[BlacklistCommand.ID, new BlacklistCommand()],
 	[ClearCommand.ID, new ClearCommand()],
 	[DisplaysCommand.ID, new DisplaysCommand()],
+	[EventsCommand.ID, new EventsCommand()],
 	[HelpCommand.ID, new HelpCommand()],
 	[JoinCommand.ID, new JoinCommand()],
 	[LeaveCommand.ID, new LeaveCommand()],

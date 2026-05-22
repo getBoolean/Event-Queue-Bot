@@ -141,6 +141,10 @@ export class HelpCommand extends EveryoneCommand {
 						value: "Manage display channels",
 					},
 					{
+						name: commandMention("events", "help"),
+						value: "Manage recurring events with auto-managed queues",
+					},
+					{
 						name: commandMention("logging", "get"),
 						value: "Manage logging settings",
 					},

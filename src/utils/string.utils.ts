@@ -15,7 +15,7 @@ import {
 import { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { compact, concat, groupBy, isEmpty, isNil } from "lodash-es";
 
-import { type DbMember, type DbQueue, type DbSchedule } from "../db/schema.ts";
+import { type DbEvent, type DbEventOccurrence, type DbMember, type DbQueue, type DbSchedule } from "../db/schema.ts";
 import type { Store } from "../db/store.ts";
 import { Color, MemberDisplayType, TimestampType } from "../types/db.types.ts";
 import type { ArrayOrCollection } from "../types/misc.types.ts";
@@ -104,6 +104,14 @@ export function scheduleMention(schedule: DbSchedule) {
 	const timezone = schedule.timezone ? `(${schedule.timezone})` : "";
 	const reason = schedule.reason ? ` - ${schedule.reason}` : "";
 	return `${command}s ${humanReadableSchedule} ${timezone}${reason}`.trimEnd() + ".";
+}
+
+export function eventMention(event: DbEvent): string {
+	return bold(escapeMarkdown(event.name));
+}
+
+export function occurrenceMention(occurrence: DbEventOccurrence): string {
+	return time(new Date(Number(occurrence.startTime)), "F");
 }
 
 export function timeMention(seconds: bigint) {

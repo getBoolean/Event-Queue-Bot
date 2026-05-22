@@ -1,5 +1,6 @@
 import type { InteractionReplyOptions } from "discord.js";
 
+import { EventScheduleModal } from "../modals/event-schedule.modal.ts";
 import { JoinModal } from "../modals/join.modal.ts";
 import type { Handler } from "../types/handler.types.ts";
 import type { BaseInteraction, ModalInteraction } from "../types/interaction.types.ts";
@@ -15,7 +16,10 @@ export class ModalHandler implements Handler {
 	async handle() {
 		this.inter.respond = (message: InteractionReplyOptions | string, log = false) => InteractionUtils.respond(this.inter, false, message, log);
 
-		if (this.inter.customId.startsWith(JoinModal.ID)) {
+		if (this.inter.customId.startsWith(EventScheduleModal.ID)) {
+			await EventScheduleModal.handle(this.inter);
+		}
+		else if (this.inter.customId.startsWith(JoinModal.ID)) {
 			await JoinModal.handle(this.inter);
 		}
 	}

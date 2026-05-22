@@ -3,12 +3,16 @@ import { Collection } from "discord.js";
 import { type BaseOption, UserOption } from "./base-option.ts";
 import { AdminOption } from "./options/admin.option.ts";
 import { AdminsOption } from "./options/admins.option.ts";
+import { AnnouncementChannelOption } from "./options/announcement-channel.option.ts";
+import { AnnouncementMessageOption } from "./options/announcement-message.option.ts";
 import { AutopullToggleOption } from "./options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "./options/badge-toggle.option.ts";
 import { BlacklistedOption } from "./options/blacklisted.option.ts";
 import { BlacklistedsOption } from "./options/blacklisteds.option.ts";
+import { CleanupOffsetHoursOption } from "./options/cleanup-offset-hours.option.ts";
 import { ColorOption } from "./options/color.option.ts";
 import { CommandOption } from "./options/command.option.ts";
+import { CreateOffsetHoursOption } from "./options/create-offset-hours.option.ts";
 import { CronOption } from "./options/cron.option.ts";
 import { CustomCronOption } from "./options/custom-cron.option.ts";
 import { DisplayOption } from "./options/display.option.ts";
@@ -17,10 +21,13 @@ import { DisplayUpdateTypeOption } from "./options/display-update-type.option.ts
 import { DisplaysOption } from "./options/displays.option.ts";
 import { DmMemberOption } from "./options/dm-member.option.ts";
 import { DmOnPullToggleOption } from "./options/dm-on-pull-toggle.option.ts";
+import { EventOption } from "./options/event.option.ts";
+import { EventsOption } from "./options/events.option.ts";
 import { HeaderOption } from "./options/header.option.ts";
 import { InlineToggleOption } from "./options/inline-toggle.option.ts";
 import { JoinSyncToggleOption } from "./options/join-sync-toggle.option.ts";
 import { LeaveSyncToggleOption } from "./options/leave-sync-toggle.option.ts";
+import { LockOffsetMinutesOption } from "./options/lock-offset-minutes.option.ts";
 import { LockToggleOption } from "./options/lock-toggle.option.ts";
 import { LogChannelOption } from "./options/log-channel.option.ts";
 import { LogScopeOption } from "./options/log-scope.option.ts";
@@ -32,6 +39,7 @@ import { MessageOption } from "./options/message.option.ts";
 import { MessageChannelOption } from "./options/message-channel.option.ts";
 import { NameOption } from "./options/name.option.ts";
 import { NumberOption } from "./options/number.option.ts";
+import { PingChannelOption } from "./options/ping-channel.option.ts";
 import { PositionOption } from "./options/position.option.ts";
 import { PrioritizedOption } from "./options/prioritized.option.ts";
 import { PrioritizedsOption } from "./options/prioritizeds.option.ts";
@@ -47,9 +55,16 @@ import { RejoinCooldownPeriodOption } from "./options/rejoin-cooldown-period.opt
 import { RejoinGracePeriodOption } from "./options/rejoin-grace-period.option.ts";
 import { RoleInQueueOption } from "./options/role-in-queue.option.ts";
 import { RoleOnPullOption } from "./options/role-on-pull.option.ts";
+import { RoomChannelOption } from "./options/room-channel.option.ts";
+import { RoomCountOption } from "./options/room-count.option.ts";
+import { RoomIndexOption } from "./options/room-index.option.ts";
+import { RoomLengthMinutesOption } from "./options/room-length-minutes.option.ts";
+import { RoomPingMessageOption } from "./options/room-ping-message.option.ts";
+import { RoomSchedulingOption } from "./options/room-scheduling.option.ts";
 import { ScheduleOption } from "./options/schedule.option.ts";
 import { SchedulesOption } from "./options/schedules.option.ts";
 import { SizeOption } from "./options/size.option.ts";
+import { SubChannelOption } from "./options/sub-channel.option.ts";
 import { TimestampTypeOption } from "./options/timestamp-type.option.ts";
 import { TimezoneOption } from "./options/timezone.option.ts";
 import { VoiceOption } from "./options/voice.option.ts";
@@ -63,13 +78,17 @@ import { WhitelistedsOption } from "./options/whitelisteds.option.ts";
 export const OPTIONS = new Collection<string, BaseOption>([
 	[AdminOption.ID, new AdminOption()],
 	[AdminsOption.ID, new AdminsOption()],
+	[AnnouncementChannelOption.ID, new AnnouncementChannelOption()],
+	[AnnouncementMessageOption.ID, new AnnouncementMessageOption()],
 	[AutopullToggleOption.ID, new AutopullToggleOption()],
 	[BadgeToggleOption.ID, new BadgeToggleOption()],
 	[BlacklistedOption.ID, new BlacklistedOption()],
 	[BlacklistedsOption.ID, new BlacklistedsOption()],
 	[ButtonsToggleOption.ID, new ButtonsToggleOption()],
+	[CleanupOffsetHoursOption.ID, new CleanupOffsetHoursOption()],
 	[ColorOption.ID, new ColorOption()],
 	[CommandOption.ID, new CommandOption()],
+	[CreateOffsetHoursOption.ID, new CreateOffsetHoursOption()],
 	[CronOption.ID, new CronOption()],
 	[CustomCronOption.ID, new CustomCronOption()],
 	[DisplayOption.ID, new DisplayOption()],
@@ -77,10 +96,13 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[DisplayUpdateTypeOption.ID, new DisplayUpdateTypeOption()],
 	[DmOnPullToggleOption.ID, new DmOnPullToggleOption()],
 	[DmMemberOption.ID, new DmMemberOption()],
+	[EventOption.ID, new EventOption()],
+	[EventsOption.ID, new EventsOption()],
 	[HeaderOption.ID, new HeaderOption()],
 	[InlineToggleOption.ID, new InlineToggleOption()],
 	[JoinSyncToggleOption.ID, new JoinSyncToggleOption()],
 	[LeaveSyncToggleOption.ID, new LeaveSyncToggleOption()],
+	[LockOffsetMinutesOption.ID, new LockOffsetMinutesOption()],
 	[LockToggleOption.ID, new LockToggleOption()],
 	[LogChannelOption.ID, new LogChannelOption()],
 	[LogScopeOption.ID, new LogScopeOption()],
@@ -92,6 +114,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[MessageOption.ID, new MessageOption()],
 	[NameOption.ID, new NameOption()],
 	[NumberOption.ID, new NumberOption()],
+	[PingChannelOption.ID, new PingChannelOption()],
 	[PositionOption.ID, new PositionOption()],
 	[PrioritizedOption.ID, new PrioritizedOption()],
 	[PrioritizedsOption.ID, new PrioritizedsOption()],
@@ -104,12 +127,19 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[QueuesOption.ID, new QueuesOption()],
 	[ReasonOption.ID, new ReasonOption()],
 	[RejoinCooldownPeriodOption.ID, new RejoinCooldownPeriodOption()],
+	[RoomChannelOption.ID, new RoomChannelOption()],
+	[RoomCountOption.ID, new RoomCountOption()],
+	[RoomIndexOption.ID, new RoomIndexOption()],
+	[RoomLengthMinutesOption.ID, new RoomLengthMinutesOption()],
+	[RoomPingMessageOption.ID, new RoomPingMessageOption()],
+	[RoomSchedulingOption.ID, new RoomSchedulingOption()],
 	[RejoinGracePeriodOption.ID, new RejoinGracePeriodOption()],
 	[RoleInQueueOption.ID, new RoleInQueueOption()],
 	[RoleOnPullOption.ID, new RoleOnPullOption()],
 	[ScheduleOption.ID, new ScheduleOption()],
 	[SchedulesOption.ID, new SchedulesOption()],
 	[SizeOption.ID, new SizeOption()],
+	[SubChannelOption.ID, new SubChannelOption()],
 	[TimestampTypeOption.ID, new TimestampTypeOption()],
 	[TimezoneOption.ID, new TimezoneOption()],
 	[UserOption.ID, new UserOption()],

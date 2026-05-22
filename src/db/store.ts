@@ -2,11 +2,13 @@ import { type DiscordAPIError, Guild, type GuildBasedChannel, type GuildMember, 
 import { and, eq, isNull, or } from "drizzle-orm";
 import { compact, isNil, omitBy } from "lodash-es";
 
-import { type GuildStat, MemberRemovalReason, type Scope } from "../types/db.types.ts";
+import { type EventQueueRole, type GuildStat, MemberRemovalReason, type Scope } from "../types/db.types.ts";
 import type { AnyInteraction, ButtonInteraction, SlashInteraction } from "../types/interaction.types.ts";
 import {
 	AdminAlreadyExistsError,
 	BlacklistedAlreadyExistsError,
+	EventAlreadyExistsError,
+	OccurrenceAlreadyExistsError,
 	PrioritizedAlreadyExistsError,
 	QueueAlreadyExistsError,
 	ScheduleAlreadyExistsError,
@@ -24,6 +26,9 @@ import {
 	type DbArchivedMember,
 	type DbBlacklisted,
 	type DbDisplay,
+	type DbEvent,
+	type DbEventOccurrence,
+	type DbEventQueue,
 	type DbMember,
 	type DbPrioritized,
 	type DbQueue,
@@ -31,12 +36,20 @@ import {
 	type DbVoice,
 	type DbWhitelisted,
 	DISPLAY_TABLE,
+	EVENT_DEFAULT_TABLE,
+	EVENT_OCCURRENCE_TABLE,
+	EVENT_QUEUE_TABLE,
+	EVENT_TABLE,
 	GUILD_TABLE,
 	MEMBER_TABLE,
 	type NewAdmin,
 	type NewArchivedMember,
 	type NewBlacklisted,
 	type NewDisplay,
+	type NewEvent,
+	type NewEventDefault,
+	type NewEventOccurrence,
+	type NewEventQueue,
 	type NewGuild,
 	type NewMember,
 	type NewPrioritized,
@@ -84,6 +97,10 @@ export class Store {
 	dbAdmins = () => toCollection<bigint, DbAdmin>("id", Queries.selectManyAdmins({ guildId: this.guild.id }));
 	// dbArchivedMembers is **unordered**.
 	dbArchivedMembers = () => toCollection<bigint, DbArchivedMember>("id", Queries.selectManyArchivedMembers({ guildId: this.guild.id }));
+	dbEvents = () => toCollection<bigint, DbEvent>("id", Queries.selectManyEvents({ guildId: this.guild.id }));
+	dbOccurrences = (eventId?: bigint) => toCollection<bigint, DbEventOccurrence>("id", Queries.selectManyOccurrences({ guildId: this.guild.id, eventId }));
+	dbEventQueues = (eventId: bigint) => toCollection<bigint, DbEventQueue>("id", Queries.selectManyEventQueues({ guildId: this.guild.id, eventId }));
+	dbEventDefault = (eventId: bigint, queueRole: EventQueueRole) => Queries.selectEventDefault({ guildId: this.guild.id, eventId, queueRole });
 
 	// ====================================================================
 	//                           Discord.js
@@ -338,6 +355,58 @@ export class Store {
 			.returning().get();
 	}
 
+	// throws error on conflict
+	insertEvent(newEvent: NewEvent) {
+		try {
+			return db
+				.insert(EVENT_TABLE)
+				.values(omitBy(newEvent, isNil) as NewEvent)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new EventAlreadyExistsError();
+			}
+			throw e;
+		}
+	}
+
+	// throws error on conflict
+	insertOccurrence(newOccurrence: NewEventOccurrence) {
+		try {
+			return db
+				.insert(EVENT_OCCURRENCE_TABLE)
+				.values(omitBy(newOccurrence, isNil) as NewEventOccurrence)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new OccurrenceAlreadyExistsError();
+			}
+			throw e;
+		}
+	}
+
+	insertEventQueue(newEventQueue: NewEventQueue) {
+		return db
+			.insert(EVENT_QUEUE_TABLE)
+			.values(omitBy(newEventQueue, isNil) as NewEventQueue)
+			.returning().get();
+	}
+
+	// upsert on conflict
+	insertEventDefault(newEventDefault: NewEventDefault) {
+		const values = omitBy(newEventDefault, isNil) as NewEventDefault;
+		return db
+			.insert(EVENT_DEFAULT_TABLE)
+			.values(values)
+			.onConflictDoUpdate({
+				target: [EVENT_DEFAULT_TABLE.eventId, EVENT_DEFAULT_TABLE.queueRole],
+				set: values,
+			})
+			.returning().get();
+	}
+
 	// ====================================================================
 	//                      Condition helper
 	// ====================================================================
@@ -437,6 +506,28 @@ export class Store {
 			.where(and(
 				eq(SCHEDULE_TABLE.id, schedule.id),
 				eq(SCHEDULE_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateEvent(event: { id: bigint } & Partial<DbEvent>) {
+		return db
+			.update(EVENT_TABLE)
+			.set(event)
+			.where(and(
+				eq(EVENT_TABLE.id, event.id),
+				eq(EVENT_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateEventQueue(eventQueue: { id: bigint } & Partial<DbEventQueue>) {
+		return db
+			.update(EVENT_QUEUE_TABLE)
+			.set(eventQueue)
+			.where(and(
+				eq(EVENT_QUEUE_TABLE.id, eventQueue.id),
+				eq(EVENT_QUEUE_TABLE.guildId, this.guild.id)
 			))
 			.returning().get();
 	}
@@ -634,5 +725,15 @@ export class Store {
 	deleteManyAdmins() {
 		const cond = this.createCondition(ADMIN_TABLE, {});
 		return db.delete(ADMIN_TABLE).where(cond).returning().get();
+	}
+
+	deleteEvent(by: { id: bigint }) {
+		const cond = this.createCondition(EVENT_TABLE, by);
+		return db.delete(EVENT_TABLE).where(cond).returning().get();
+	}
+
+	deleteOccurrence(by: { id: bigint }) {
+		const cond = this.createCondition(EVENT_OCCURRENCE_TABLE, by);
+		return db.delete(EVENT_OCCURRENCE_TABLE).where(cond).returning().get();
 	}
 }

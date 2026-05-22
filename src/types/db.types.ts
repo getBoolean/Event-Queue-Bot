@@ -77,4 +77,14 @@ export enum PullMessageDisplayType {
 	Public = "public",
 }
 
+export enum EventQueueRole {
+	Room = "room",
+	Sub = "sub",
+}
+
+export enum RoomScheduling {
+	Parallel = "parallel",
+	Sequential = "sequential",
+}
+
 export type GuildStat = keyof Omit<DbGuild, "guildId" | "joinTime" | "lastUpdateTime">;

@@ -132,3 +132,41 @@ export class InvalidCronError extends AbstractError {
 		new EmbedBuilder().setDescription("Please see https://crontab.guru/examples.html. Highest frequency is once a minute."),
 	];
 }
+
+export class EventNotFoundError extends AbstractError {
+	message = "Event not found";
+	embeds = [
+		new EmbedBuilder().setDescription(`Events can be created with ${commandMention("events", "add")}.`),
+	];
+}
+
+export class EventAlreadyExistsError extends AbstractError {
+	message = "An event with that name already exists in this server";
+}
+
+export class OccurrenceAlreadyExistsError extends AbstractError {
+	message = "An occurrence with that start time already exists for this event";
+}
+
+export class OccurrenceInPastError extends AbstractError {
+	message = "Cannot schedule an occurrence whose cleanup time is already in the past";
+}
+
+export class SequentialEventRequiresRoomLengthError extends AbstractError {
+	message = "Sequential room scheduling requires a room length greater than 0";
+}
+
+export class RoomIndexNotFoundError extends AbstractError {
+	constructor(maxIndex: number) {
+		super();
+		this.message = `Room index not found. Valid range is 1..${maxIndex}`;
+	}
+}
+
+export class LockBeforeOpenError extends AbstractError {
+	message = "Lock offset would cause rooms to lock before the event opens. Adjust create_offset_hours or lock_offset_minutes";
+}
+
+export class EventRoomCountShrinkError extends AbstractError {
+	message = "Cannot reduce room count. Delete surplus queues manually via /queues delete, then reduce the count";
+}

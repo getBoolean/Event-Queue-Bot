@@ -7,6 +7,10 @@ import {
 	ARCHIVED_MEMBER_TABLE,
 	BLACKLISTED_TABLE,
 	DISPLAY_TABLE,
+	EVENT_DEFAULT_TABLE,
+	EVENT_OCCURRENCE_TABLE,
+	EVENT_QUEUE_TABLE,
+	EVENT_TABLE,
 	GUILD_TABLE,
 	MEMBER_TABLE,
 	type NewPatchNote,
@@ -322,6 +326,54 @@ export namespace Queries {
 		else {
 			return selectManyArchivedMembersByGuildId.all(by);
 		}
+	}
+
+	// Events
+
+	export function selectEvent(by: { guildId: Snowflake, id: bigint }) {
+		return selectEventByGuildIdAndId.get(by);
+	}
+
+	export function selectEventByName(by: { guildId: Snowflake, name: string }) {
+		return selectEventByGuildIdAndName.get(by);
+	}
+
+	export function selectManyEvents(by: { guildId: Snowflake }) {
+		return selectManyEventsByGuildId.all(by);
+	}
+
+	// Event Occurrences
+
+	export function selectOccurrence(by: { id: bigint }) {
+		return selectOccurrenceById.get(by);
+	}
+
+	export function selectManyOccurrences(by: { guildId: Snowflake, eventId?: bigint }) {
+		if ("eventId" in by) {
+			return selectManyOccurrencesByGuildIdAndEventId.all(by);
+		}
+		else {
+			return selectManyOccurrencesByGuildId.all(by);
+		}
+	}
+
+	export function selectAllOccurrences() {
+		return db
+			.select()
+			.from(EVENT_OCCURRENCE_TABLE)
+			.all();
+	}
+
+	// Event Queues
+
+	export function selectManyEventQueues(by: { guildId: Snowflake, eventId: bigint }) {
+		return selectManyEventQueuesByGuildIdAndEventId.all(by);
+	}
+
+	// Event Defaults
+
+	export function selectEventDefault(by: { guildId: Snowflake, eventId: bigint, queueRole: string }) {
+		return selectEventDefaultByEventIdAndRole.get(by);
 	}
 
 	// Patch Notes
@@ -776,6 +828,84 @@ export namespace Queries {
 		.where(and(
 			eq(ARCHIVED_MEMBER_TABLE.guildId, sql.placeholder("guildId")),
 			eq(ARCHIVED_MEMBER_TABLE.queueId, sql.placeholder("queueId"))
+		))
+		.prepare();
+
+	// Events
+
+	const selectEventByGuildIdAndId = db
+		.select()
+		.from(EVENT_TABLE)
+		.where(and(
+			eq(EVENT_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_TABLE.id, sql.placeholder("id"))
+		))
+		.prepare();
+
+	const selectEventByGuildIdAndName = db
+		.select()
+		.from(EVENT_TABLE)
+		.where(and(
+			eq(EVENT_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_TABLE.name, sql.placeholder("name"))
+		))
+		.prepare();
+
+	const selectManyEventsByGuildId = db
+		.select()
+		.from(EVENT_TABLE)
+		.where(
+			eq(EVENT_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	// Event Occurrences
+
+	const selectOccurrenceById = db
+		.select()
+		.from(EVENT_OCCURRENCE_TABLE)
+		.where(
+			eq(EVENT_OCCURRENCE_TABLE.id, sql.placeholder("id"))
+		)
+		.prepare();
+
+	const selectManyOccurrencesByGuildId = db
+		.select()
+		.from(EVENT_OCCURRENCE_TABLE)
+		.where(
+			eq(EVENT_OCCURRENCE_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyOccurrencesByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_OCCURRENCE_TABLE)
+		.where(and(
+			eq(EVENT_OCCURRENCE_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_OCCURRENCE_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	// Event Queues
+
+	const selectManyEventQueuesByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_QUEUE_TABLE)
+		.where(and(
+			eq(EVENT_QUEUE_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_QUEUE_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	// Event Defaults
+
+	const selectEventDefaultByEventIdAndRole = db
+		.select()
+		.from(EVENT_DEFAULT_TABLE)
+		.where(and(
+			eq(EVENT_DEFAULT_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_DEFAULT_TABLE.eventId, sql.placeholder("eventId")),
+			eq(EVENT_DEFAULT_TABLE.queueRole, sql.placeholder("queueRole"))
 		))
 		.prepare();
 }
