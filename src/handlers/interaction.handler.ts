@@ -12,6 +12,10 @@ import { ButtonHandler } from "./button.handler.ts";
 import { CommandHandler } from "./command.handler.ts";
 import { ModalHandler } from "./modal.handler.ts";
 
+// SILENT=true (env) or `--silent` (argv) suppresses user-facing CustomError logs.
+// Errors that explicitly set `log: true` still log; Step 1's contextual catch logs are unaffected.
+const IS_SILENT = process.env.SILENT === "true" || process.argv.includes("--silent");
+
 export class InteractionHandler implements Handler {
 	private readonly inter: AnyInteraction;
 
@@ -52,8 +56,9 @@ export class InteractionHandler implements Handler {
 		const { stack, embeds, log } = error as CustomError;
 		const message = typeof error === "string" ? error : error.message;
 
-		// Only skip log if explicitly set to false
-		const doLog = log !== false;
+		// log === true → always log; log === false → never log;
+		// log === undefined → log unless IS_SILENT.
+		const doLog = log === true || (log !== false && !IS_SILENT);
 
 		if (message === "Unknown interaction") return;
 

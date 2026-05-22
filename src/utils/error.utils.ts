@@ -5,7 +5,7 @@ import { commandMention } from "./string.utils.ts";
 export abstract class AbstractError extends Error {
 	message = "Unknown Error";
 	embeds?: EmbedBuilder[];
-	log? = true;
+	log?: boolean;
 }
 
 export class CustomError extends AbstractError {
