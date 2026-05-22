@@ -31,6 +31,8 @@ import { LockOffsetMinutesOption } from "./options/lock-offset-minutes.option.ts
 import { LockToggleOption } from "./options/lock-toggle.option.ts";
 import { LogChannelOption } from "./options/log-channel.option.ts";
 import { LogScopeOption } from "./options/log-scope.option.ts";
+import { MaxRoomsPerUserOption } from "./options/max-rooms-per-user.option.ts";
+import { MaxSubsPerUserOption } from "./options/max-subs-per-user.option.ts";
 import { MemberOption } from "./options/member.option.ts";
 import { MemberDisplayTypeOption } from "./options/member-display-type.option.ts";
 import { MembersOption } from "./options/members.option.ts";
@@ -39,6 +41,7 @@ import { MessageOption } from "./options/message.option.ts";
 import { MessageChannelOption } from "./options/message-channel.option.ts";
 import { NameOption } from "./options/name.option.ts";
 import { NumberOption } from "./options/number.option.ts";
+import { ParentSubMutuallyExclusiveOption } from "./options/parent-sub-mutually-exclusive.option.ts";
 import { PingChannelOption } from "./options/ping-channel.option.ts";
 import { PositionOption } from "./options/position.option.ts";
 import { PrioritizedOption } from "./options/prioritized.option.ts";
@@ -111,6 +114,8 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[LockToggleOption.ID, new LockToggleOption()],
 	[LogChannelOption.ID, new LogChannelOption()],
 	[LogScopeOption.ID, new LogScopeOption()],
+	[MaxRoomsPerUserOption.ID, new MaxRoomsPerUserOption()],
+	[MaxSubsPerUserOption.ID, new MaxSubsPerUserOption()],
 	[MemberOption.ID, new MemberOption()],
 	[MemberDisplayTypeOption.ID, new MemberDisplayTypeOption()],
 	[MembersOption.ID, new MembersOption()],
@@ -119,6 +124,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[MessageOption.ID, new MessageOption()],
 	[NameOption.ID, new NameOption()],
 	[NumberOption.ID, new NumberOption()],
+	[ParentSubMutuallyExclusiveOption.ID, new ParentSubMutuallyExclusiveOption()],
 	[PingChannelOption.ID, new PingChannelOption()],
 	[PositionOption.ID, new PositionOption()],
 	[PrioritizedOption.ID, new PrioritizedOption()],

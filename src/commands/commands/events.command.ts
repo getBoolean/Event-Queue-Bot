@@ -21,8 +21,11 @@ import { HeaderOption } from "../../options/options/header.option.ts";
 import { InlineToggleOption } from "../../options/options/inline-toggle.option.ts";
 import { LockOffsetMinutesOption } from "../../options/options/lock-offset-minutes.option.ts";
 import { LockToggleOption } from "../../options/options/lock-toggle.option.ts";
+import { MaxRoomsPerUserOption } from "../../options/options/max-rooms-per-user.option.ts";
+import { MaxSubsPerUserOption } from "../../options/options/max-subs-per-user.option.ts";
 import { MemberDisplayTypeOption } from "../../options/options/member-display-type.option.ts";
 import { NameOption } from "../../options/options/name.option.ts";
+import { ParentSubMutuallyExclusiveOption } from "../../options/options/parent-sub-mutually-exclusive.option.ts";
 import { PingChannelOption } from "../../options/options/ping-channel.option.ts";
 import { PullBatchSizeOption } from "../../options/options/pull-batch-size.option.ts";
 import { PullMessageOption } from "../../options/options/pull-message.option.ts";
@@ -257,6 +260,9 @@ export class EventsCommand extends AdminCommand {
 		announcementChannel: new AnnouncementChannelOption({ description: "Channel for event announcements" }),
 		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template ({event_name}, {start_time}, etc.)" }),
 		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template ({room_role}, {room_name}, etc.)" }),
+		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Cap on rooms a user can join (0 = unlimited)" }),
+		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Cap on sub-rooms a user can join (0 = unlimited)" }),
+		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room and matching sub queue can't both hold a user" }),
 	};
 
 	static async events_add(inter: SlashInteraction) {
@@ -282,6 +288,9 @@ export class EventsCommand extends AdminCommand {
 				announcementChannelId,
 				announcementMessage,
 				roomPingMessage: EventsCommand.ADD_OPTIONS.roomPingMessage.get(inter),
+				maxRoomsPerUser: EventsCommand.ADD_OPTIONS.maxRoomsPerUser.get(inter),
+				maxSubsPerUser: EventsCommand.ADD_OPTIONS.maxSubsPerUser.get(inter),
+				parentSubMutuallyExclusive: EventsCommand.ADD_OPTIONS.parentSubMutuallyExclusive.get(inter),
 			}, isNil),
 		};
 
@@ -317,6 +326,9 @@ export class EventsCommand extends AdminCommand {
 		announcementChannel: new AnnouncementChannelOption({ description: "Channel for announcements" }),
 		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template" }),
 		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template" }),
+		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Cap on rooms a user can join (0 = unlimited)" }),
+		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Cap on sub-rooms a user can join (0 = unlimited)" }),
+		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room and matching sub queue can't both hold a user" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -339,6 +351,9 @@ export class EventsCommand extends AdminCommand {
 			announcementChannelId,
 			announcementMessage,
 			roomPingMessage: EventsCommand.SET_OPTIONS.roomPingMessage.get(inter),
+			maxRoomsPerUser: EventsCommand.SET_OPTIONS.maxRoomsPerUser.get(inter),
+			maxSubsPerUser: EventsCommand.SET_OPTIONS.maxSubsPerUser.get(inter),
+			parentSubMutuallyExclusive: EventsCommand.SET_OPTIONS.parentSubMutuallyExclusive.get(inter),
 		}, isNil);
 
 		const effectiveMessage = announcementMessage ?? event.announcementMessage;
@@ -904,6 +919,10 @@ export class EventsCommand extends AdminCommand {
 				"- **Per-room ping**: at each room's start time a ping posts in the room's channel\n" +
 				"- **T + cleanup_offset** (default 24h after): all members cleared, all queues locked\n\n" +
 				"**Missed actions** (bot was down): run automatically on next startup.\n\n" +
+				"**Signup policies** (set via `/events add` or `/events set`):\n" +
+				"- `max_rooms_per_user` — cap on room queues a single user may sit in at once (`0` = unlimited)\n" +
+				"- `max_subs_per_user` — cap on sub-room queues (`0` = unlimited)\n" +
+				"- `parent_sub_mutually_exclusive` — when `true` (default), a user can't sit in both a room and its matching sub. Joining the room silently removes them from the sub; joining the sub while already in the room is blocked.\n\n" +
 				"**Announcement placeholders:** `{event_name}`, `{start_time}`, `{start_time_relative}`, `{room_channel}`, `{sub_channel}`\n" +
 				"**Ping placeholders:** `{room_role}`, `{room_name}`, `{room_index}`, `{room_channel}`, `{ping_channel}`, `{start_time}`, `{start_time_relative}`",
 			)];

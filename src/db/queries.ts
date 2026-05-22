@@ -377,6 +377,20 @@ export namespace Queries {
 		return selectManyEventQueuesByGuildIdAndEventId.all(by);
 	}
 
+	export function selectEventQueueByQueueId(by: { guildId: Snowflake, queueId: bigint }) {
+		return selectEventQueueByGuildIdAndQueueId.get(by);
+	}
+
+	export function selectEventMembershipCount(by: {
+		guildId: Snowflake,
+		eventId: bigint,
+		userId: Snowflake,
+		queueRole: string,
+	}): number {
+		const row = selectEventMembershipCountQuery.get(by) as { count: number | bigint } | undefined;
+		return row ? Number(row.count) : 0;
+	}
+
 	// Event Defaults
 
 	export function selectEventDefault(by: { guildId: Snowflake, eventId: bigint, queueRole: string }) {
@@ -911,6 +925,27 @@ export namespace Queries {
 		.where(and(
 			eq(EVENT_QUEUE_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_QUEUE_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	const selectEventQueueByGuildIdAndQueueId = db
+		.select()
+		.from(EVENT_QUEUE_TABLE)
+		.where(and(
+			eq(EVENT_QUEUE_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_QUEUE_TABLE.queueId, sql.placeholder("queueId"))
+		))
+		.prepare();
+
+	const selectEventMembershipCountQuery = db
+		.select({ count: sql<number>`COUNT(*)`.as("count") })
+		.from(MEMBER_TABLE)
+		.innerJoin(EVENT_QUEUE_TABLE, eq(MEMBER_TABLE.queueId, EVENT_QUEUE_TABLE.queueId))
+		.where(and(
+			eq(MEMBER_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_QUEUE_TABLE.eventId, sql.placeholder("eventId")),
+			eq(MEMBER_TABLE.userId, sql.placeholder("userId")),
+			eq(EVENT_QUEUE_TABLE.queueRole, sql.placeholder("queueRole"))
 		))
 		.prepare();
 

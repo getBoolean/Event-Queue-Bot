@@ -170,3 +170,24 @@ export class LockBeforeOpenError extends AbstractError {
 export class EventRoomCountShrinkError extends AbstractError {
 	message = "Cannot reduce room count. Delete surplus queues manually via /queues delete, then reduce the count";
 }
+
+export class EventRoomLimitExceededError extends AbstractError {
+	constructor(max: number) {
+		super();
+		this.message = `You can only join up to ${max} room(s) in this event.`;
+	}
+}
+
+export class EventSubLimitExceededError extends AbstractError {
+	constructor(max: number) {
+		super();
+		this.message = `You can only join up to ${max} sub-room(s) in this event.`;
+	}
+}
+
+export class AlreadyInEventParentError extends AbstractError {
+	constructor(roomIndex: bigint | number) {
+		super();
+		this.message = `You are already in this event's room ${roomIndex} queue. Leave it before joining the sub queue.`;
+	}
+}

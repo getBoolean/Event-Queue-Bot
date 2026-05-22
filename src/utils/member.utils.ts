@@ -15,13 +15,22 @@ import { db } from "../db/db.ts";
 import { Queries } from "../db/queries.ts";
 import { type DbArchivedMember, type DbMember, type DbQueue } from "../db/schema.ts";
 import type { Store } from "../db/store.ts";
-import { MemberRemovalReason, PullMessageDisplayType } from "../types/db.types.ts";
+import { EventQueueRole, MemberRemovalReason, PullMessageDisplayType } from "../types/db.types.ts";
 import type { MemberDeleteBy } from "../types/member.types.ts";
 import type { ArrayOrCollection } from "../types/misc.types.ts";
 import { NotificationAction } from "../types/notification.types.ts";
 import { BlacklistUtils } from "./blacklist.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
-import { CustomError, NotOnQueueWhitelistError, OnQueueBlacklistError, QueueFullError, QueueLockedError } from "./error.utils.ts";
+import {
+	AlreadyInEventParentError,
+	CustomError,
+	EventRoomLimitExceededError,
+	EventSubLimitExceededError,
+	NotOnQueueWhitelistError,
+	OnQueueBlacklistError,
+	QueueFullError,
+	QueueLockedError,
+} from "./error.utils.ts";
 import { LoggingUtils } from "./message-utils/logging.utils.ts";
 import { map } from "./misc.utils.ts";
 import { NotificationUtils } from "./notification.utils.ts";
@@ -440,6 +449,8 @@ export namespace MemberUtils {
 
 		await modifyMemberRoles(store, jsMember.id, queue.roleInQueueId, "add");
 
+		await applyEventSignupSideEffects(store, queue, jsMember);
+
 		return insertedMember;
 	}
 
@@ -459,6 +470,8 @@ export namespace MemberUtils {
 		if (BlacklistUtils.isBlockedByBlacklist(store, queue.id, jsMember)) {
 			throw new OnQueueBlacklistError();
 		}
+
+		verifyEventSignupPolicy(store, queue, jsMember);
 
 		if (queue.voiceOnlyToggle) {
 			const voices = store.dbVoices().filter(voice => voice.queueId === queue.id);
@@ -501,5 +514,83 @@ export namespace MemberUtils {
 		const member = members.find(member => member.userId === userId);
 		const position = members.indexOf(member) + 1;
 		return { position, member };
+	}
+
+	function verifyEventSignupPolicy(store: Store, queue: DbQueue, jsMember: GuildMember) {
+		const eventQueue = Queries.selectEventQueueByQueueId({ guildId: store.guild.id, queueId: queue.id });
+		if (!eventQueue) return;
+
+		const event = Queries.selectEvent({ guildId: store.guild.id, id: eventQueue.eventId });
+		if (!event) return;
+
+		const role = eventQueue.queueRole;
+
+		if (role === EventQueueRole.Room && event.maxRoomsPerUser > 0) {
+			const count = Queries.selectEventMembershipCount({
+				guildId: store.guild.id,
+				eventId: event.id,
+				userId: jsMember.id,
+				queueRole: EventQueueRole.Room,
+			});
+			if (count >= event.maxRoomsPerUser) {
+				throw new EventRoomLimitExceededError(event.maxRoomsPerUser);
+			}
+		}
+		else if (role === EventQueueRole.Sub && event.maxSubsPerUser > 0) {
+			const count = Queries.selectEventMembershipCount({
+				guildId: store.guild.id,
+				eventId: event.id,
+				userId: jsMember.id,
+				queueRole: EventQueueRole.Sub,
+			});
+			if (count >= event.maxSubsPerUser) {
+				throw new EventSubLimitExceededError(event.maxSubsPerUser);
+			}
+		}
+
+		if (role === EventQueueRole.Sub && event.parentSubMutuallyExclusive) {
+			const parentRoomEq = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+				.find(eq => eq.queueRole === EventQueueRole.Room && eq.queueIndex === eventQueue.queueIndex);
+			if (parentRoomEq) {
+				const existing = Queries.selectMember({
+					guildId: store.guild.id,
+					queueId: parentRoomEq.queueId,
+					userId: jsMember.id,
+				});
+				if (existing) {
+					throw new AlreadyInEventParentError(eventQueue.queueIndex);
+				}
+			}
+		}
+	}
+
+	async function applyEventSignupSideEffects(store: Store, queue: DbQueue, jsMember: GuildMember) {
+		const eventQueue = Queries.selectEventQueueByQueueId({ guildId: store.guild.id, queueId: queue.id });
+		if (!eventQueue || eventQueue.queueRole !== EventQueueRole.Room) return;
+
+		const event = Queries.selectEvent({ guildId: store.guild.id, id: eventQueue.eventId });
+		if (!event || !event.parentSubMutuallyExclusive) return;
+
+		const matchingSubEq = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+			.find(eq => eq.queueRole === EventQueueRole.Sub && eq.queueIndex === eventQueue.queueIndex);
+		if (!matchingSubEq) return;
+
+		const subQueue = Queries.selectQueue({ guildId: store.guild.id, id: matchingSubEq.queueId });
+		if (!subQueue) return;
+
+		const existingSubMember = Queries.selectMember({
+			guildId: store.guild.id,
+			queueId: subQueue.id,
+			userId: jsMember.id,
+		});
+		if (!existingSubMember) return;
+
+		await deleteMembers({
+			store,
+			queues: [subQueue],
+			reason: MemberRemovalReason.Kicked,
+			by: { userId: jsMember.id },
+			force: true,
+		});
 	}
 }
