@@ -60,11 +60,16 @@ import { RoomCountOption } from "./options/room-count.option.ts";
 import { RoomIndexOption } from "./options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "./options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "./options/room-ping-message.option.ts";
+import { RoomRoleOption } from "./options/room-role.option.ts";
+import { RoomRoleInQueueOption } from "./options/room-role-in-queue.option.ts";
+import { RoomRoleOnPullOption } from "./options/room-role-on-pull.option.ts";
 import { RoomSchedulingOption } from "./options/room-scheduling.option.ts";
 import { ScheduleOption } from "./options/schedule.option.ts";
 import { SchedulesOption } from "./options/schedules.option.ts";
 import { SizeOption } from "./options/size.option.ts";
 import { SubChannelOption } from "./options/sub-channel.option.ts";
+import { SubRoleInQueueOption } from "./options/sub-role-in-queue.option.ts";
+import { SubRoleOnPullOption } from "./options/sub-role-on-pull.option.ts";
 import { TimestampTypeOption } from "./options/timestamp-type.option.ts";
 import { TimezoneOption } from "./options/timezone.option.ts";
 import { VoiceOption } from "./options/voice.option.ts";
@@ -132,6 +137,9 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[RoomIndexOption.ID, new RoomIndexOption()],
 	[RoomLengthMinutesOption.ID, new RoomLengthMinutesOption()],
 	[RoomPingMessageOption.ID, new RoomPingMessageOption()],
+	[RoomRoleOption.ID, new RoomRoleOption()],
+	[RoomRoleInQueueOption.ID, new RoomRoleInQueueOption()],
+	[RoomRoleOnPullOption.ID, new RoomRoleOnPullOption()],
 	[RoomSchedulingOption.ID, new RoomSchedulingOption()],
 	[RejoinGracePeriodOption.ID, new RejoinGracePeriodOption()],
 	[RoleInQueueOption.ID, new RoleInQueueOption()],
@@ -140,6 +148,8 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[SchedulesOption.ID, new SchedulesOption()],
 	[SizeOption.ID, new SizeOption()],
 	[SubChannelOption.ID, new SubChannelOption()],
+	[SubRoleInQueueOption.ID, new SubRoleInQueueOption()],
+	[SubRoleOnPullOption.ID, new SubRoleOnPullOption()],
 	[TimestampTypeOption.ID, new TimestampTypeOption()],
 	[TimezoneOption.ID, new TimezoneOption()],
 	[UserOption.ID, new UserOption()],

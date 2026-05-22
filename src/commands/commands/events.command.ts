@@ -1,9 +1,9 @@
-import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
+import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, roleMention, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
 import { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { findKey, isNil, omitBy } from "lodash-es";
 
 import { Queries } from "../../db/queries.ts";
-import { type DbEvent, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
+import { type DbEvent, type DbEventQueue, type DbQueue, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
 import { EventScheduleModal } from "../../modals/event-schedule.modal.ts";
 import { AnnouncementChannelOption } from "../../options/options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
@@ -38,9 +38,14 @@ import { RoomCountOption } from "../../options/options/room-count.option.ts";
 import { RoomIndexOption } from "../../options/options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "../../options/options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "../../options/options/room-ping-message.option.ts";
+import { RoomRoleOption } from "../../options/options/room-role.option.ts";
+import { RoomRoleInQueueOption } from "../../options/options/room-role-in-queue.option.ts";
+import { RoomRoleOnPullOption } from "../../options/options/room-role-on-pull.option.ts";
 import { RoomSchedulingOption } from "../../options/options/room-scheduling.option.ts";
 import { SizeOption } from "../../options/options/size.option.ts";
 import { SubChannelOption } from "../../options/options/sub-channel.option.ts";
+import { SubRoleInQueueOption } from "../../options/options/sub-role-in-queue.option.ts";
+import { SubRoleOnPullOption } from "../../options/options/sub-role-on-pull.option.ts";
 import { TimestampTypeOption } from "../../options/options/timestamp-type.option.ts";
 import { VoiceDestinationChannelOption } from "../../options/options/voice-destination-channel.option.ts";
 import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.option.ts";
@@ -51,6 +56,7 @@ import { CustomError, RoomIndexNotFoundError } from "../../utils/error.utils.ts"
 import { EventUtils } from "../../utils/event.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
+import { QueueUtils } from "../../utils/queue.utils.ts";
 import { commandMention, describeTable, eventMention, queuesMention } from "../../utils/string.utils.ts";
 
 const HOURS_TO_MS = 3_600_000n;
@@ -458,8 +464,13 @@ export class EventsCommand extends AdminCommand {
 
 	static readonly SET_ROOM_OPTIONS = {
 		event: new EventOption({ required: true, description: "Event to configure" }),
-		room: new RoomIndexOption({ required: true, description: "Room to configure (shows current ping channel)" }),
+		room: new RoomIndexOption({ required: true, description: "Room to configure" }),
 		pingChannel: new PingChannelOption({ description: "Override ping channel for this room" }),
+		role: new RoomRoleOption({ description: "Shortcut: room queue in-queue role + sub queue on-pull role" }),
+		roomRoleInQueue: new RoomRoleInQueueOption({ description: "Role assigned while in the room queue" }),
+		roomRoleOnPull: new RoomRoleOnPullOption({ description: "Role assigned when pulled from the room queue" }),
+		subRoleInQueue: new SubRoleInQueueOption({ description: "Role assigned while in the sub queue" }),
+		subRoleOnPull: new SubRoleOnPullOption({ description: "Role assigned when pulled from the sub queue" }),
 	};
 
 	static async events_set_room(inter: SlashInteraction) {
@@ -467,40 +478,108 @@ export class EventsCommand extends AdminCommand {
 		const event = await EventsCommand.SET_ROOM_OPTIONS.event.get(inter);
 		const roomIndex = EventsCommand.SET_ROOM_OPTIONS.room.get(inter);
 		const pingChannel = EventsCommand.SET_ROOM_OPTIONS.pingChannel.get(inter);
+		const role = EventsCommand.SET_ROOM_OPTIONS.role.get(inter);
+		const roomRoleInQueue = EventsCommand.SET_ROOM_OPTIONS.roomRoleInQueue.get(inter);
+		const roomRoleOnPull = EventsCommand.SET_ROOM_OPTIONS.roomRoleOnPull.get(inter);
+		const subRoleInQueue = EventsCommand.SET_ROOM_OPTIONS.subRoleInQueue.get(inter);
+		const subRoleOnPull = EventsCommand.SET_ROOM_OPTIONS.subRoleOnPull.get(inter);
 
 		const eventQueues = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id });
-		const targetEq = eventQueues.find(
+		const targetRoomEq = eventQueues.find(
 			eq => eq.queueRole === EventQueueRole.Room && Number(eq.queueIndex) === roomIndex,
 		);
+		const targetSubEq = eventQueues.find(
+			eq => eq.queueRole === EventQueueRole.Sub && Number(eq.queueIndex) === roomIndex,
+		);
 
-		if (!targetEq) {
+		if (!targetRoomEq) {
 			throw new RoomIndexNotFoundError(Number(event.roomCount));
 		}
-
-		if (pingChannel) {
-			inter.store.updateEventQueue({ id: targetEq.id, pingChannelId: pingChannel.id });
+		if (!targetSubEq) {
+			console.warn(`events_set_room: missing sub event_queue for event ${event.id} room ${roomIndex} (guild ${inter.guildId}); skipping sub-side updates.`);
 		}
 
-		const roomsAfter = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id })
-			.filter(eq => eq.queueRole === EventQueueRole.Room)
-			.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+		const roomQueue = Queries.selectQueue({ guildId: inter.guildId, id: targetRoomEq.queueId });
+		const subQueue = targetSubEq
+			? Queries.selectQueue({ guildId: inter.guildId, id: targetSubEq.queueId })
+			: undefined;
 
-		const lines = roomsAfter.map(room => {
-			const ping = room.pingChannelId
-				? channelMention(room.pingChannelId)
-				: `(default → ${channelMention(event.roomChannelId)})`;
-			return `**Room ${room.queueIndex}** — ${ping}`;
-		});
+		const roomQueueUpdate: Partial<DbQueue> = {};
+		const subQueueUpdate: Partial<DbQueue> = {};
 
-		const title = pingChannel
+		if (role) {
+			roomQueueUpdate.roleInQueueId = role.id;
+			subQueueUpdate.roleOnPullId = role.id;
+		}
+		if (roomRoleInQueue) roomQueueUpdate.roleInQueueId = roomRoleInQueue.id;
+		if (roomRoleOnPull) roomQueueUpdate.roleOnPullId = roomRoleOnPull.id;
+		if (subRoleInQueue) subQueueUpdate.roleInQueueId = subRoleInQueue.id;
+		if (subRoleOnPull) subQueueUpdate.roleOnPullId = subRoleOnPull.id;
+
+		if (pingChannel) {
+			inter.store.updateEventQueue({ id: targetRoomEq.id, pingChannelId: pingChannel.id });
+		}
+		if (roomQueue && Object.keys(roomQueueUpdate).length) {
+			await QueueUtils.updateQueues(inter.store, [roomQueue], roomQueueUpdate);
+		}
+		if (subQueue && Object.keys(subQueueUpdate).length) {
+			await QueueUtils.updateQueues(inter.store, [subQueue], subQueueUpdate);
+		}
+
+		const anyChanged = !!pingChannel
+			|| Object.keys(roomQueueUpdate).length > 0
+			|| Object.keys(subQueueUpdate).length > 0;
+		const title = anyChanged
 			? `Updated Room ${roomIndex} of ${event.name}`
 			: `Rooms for ${event.name}`;
+
 		const embed = new EmbedBuilder()
 			.setTitle(title)
 			.setColor(Color.Indigo)
-			.setDescription(lines.join("\n"));
+			.setDescription(EventsCommand.renderAllRooms(inter.guildId, event));
 
 		await inter.respond({ embeds: [embed] }, true);
+	}
+
+	private static renderAllRooms(guildId: string, event: DbEvent): string {
+		const eventQueues = Queries.selectManyEventQueues({ guildId, eventId: event.id });
+		const roomEqs = eventQueues
+			.filter(eq => eq.queueRole === EventQueueRole.Room)
+			.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+
+		return roomEqs.map(roomEq => {
+			const subEq = eventQueues.find(
+				eq => eq.queueRole === EventQueueRole.Sub && Number(eq.queueIndex) === Number(roomEq.queueIndex),
+			);
+			const roomQueue = Queries.selectQueue({ guildId, id: roomEq.queueId });
+			const subQueue = subEq ? Queries.selectQueue({ guildId, id: subEq.queueId }) : undefined;
+			return EventsCommand.renderRoomBlock(roomEq, roomQueue, subQueue, event);
+		}).join("\n\n");
+	}
+
+	private static renderRoomBlock(roomEq: DbEventQueue, roomQueue: DbQueue | undefined, subQueue: DbQueue | undefined, event: DbEvent): string {
+		const lines: string[] = [`**Room ${roomEq.queueIndex}**`];
+
+		const ping = roomEq.pingChannelId
+			? channelMention(roomEq.pingChannelId)
+			: `(default → ${channelMention(event.roomChannelId)})`;
+		lines.push(`  ping: ${ping}`);
+
+		const roomParts: string[] = [];
+		if (roomQueue?.roleInQueueId) roomParts.push(`in-queue ${roleMention(roomQueue.roleInQueueId)}`);
+		if (roomQueue?.roleOnPullId) roomParts.push(`on-pull ${roleMention(roomQueue.roleOnPullId)}`);
+		if (roomParts.length) lines.push(`  Room queue:  ${roomParts.join(", ")}`);
+
+		const subParts: string[] = [];
+		if (subQueue?.roleInQueueId) subParts.push(`in-queue ${roleMention(subQueue.roleInQueueId)}`);
+		if (subQueue?.roleOnPullId) subParts.push(`on-pull ${roleMention(subQueue.roleOnPullId)}`);
+		if (subParts.length) lines.push(`  Sub queue:   ${subParts.join(", ")}`);
+
+		if (!roomParts.length && !subParts.length) {
+			lines.push("  (no roles set)");
+		}
+
+		return lines.join("\n");
 	}
 
 	// ====================================================================
@@ -560,7 +639,6 @@ export class EventsCommand extends AdminCommand {
 	//                           /events reset-room
 	// ====================================================================
 
-	// TODO: convert to select menu if more per-room override fields are added
 	static readonly RESET_ROOM_OPTIONS = {
 		event: new EventOption({ required: true, description: "Event to reset" }),
 		room: new RoomIndexOption({ required: true, description: "Room to reset" }),
@@ -572,33 +650,80 @@ export class EventsCommand extends AdminCommand {
 		const roomIndex = EventsCommand.RESET_ROOM_OPTIONS.room.get(inter);
 
 		const eventQueues = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id });
-		const targetEq = eventQueues.find(
+		const targetRoomEq = eventQueues.find(
 			eq => eq.queueRole === EventQueueRole.Room && Number(eq.queueIndex) === roomIndex,
 		);
+		const targetSubEq = eventQueues.find(
+			eq => eq.queueRole === EventQueueRole.Sub && Number(eq.queueIndex) === roomIndex,
+		);
 
-		if (!targetEq) {
+		if (!targetRoomEq) {
 			throw new RoomIndexNotFoundError(Number(event.roomCount));
 		}
+		if (!targetSubEq) {
+			console.warn(`events_reset_room: missing sub event_queue for event ${event.id} room ${roomIndex} (guild ${inter.guildId}); skipping sub-side resets.`);
+		}
 
-		inter.store.updateEventQueue({ id: targetEq.id, pingChannelId: null });
+		const selectMenuOptions = [
+			{ name: PingChannelOption.ID, value: "ping_channel" },
+			{ name: RoomRoleOption.ID, value: "role" },
+			{ name: RoomRoleInQueueOption.ID, value: "room_role_in_queue" },
+			{ name: RoomRoleOnPullOption.ID, value: "room_role_on_pull" },
+			{ name: SubRoleInQueueOption.ID, value: "sub_role_in_queue" },
+			{ name: SubRoleOnPullOption.ID, value: "sub_role_on_pull" },
+		];
+		const selectMenuTransactor = new SelectMenuTransactor(inter);
+		const toReset = await selectMenuTransactor.sendAndReceive(
+			`Overrides to reset for Room ${roomIndex}`,
+			selectMenuOptions,
+		) ?? [];
+		if (toReset.length === 0) return;
 
-		const roomsAfter = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id })
-			.filter(eq => eq.queueRole === EventQueueRole.Room)
-			.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+		const roomQueueUpdate: Partial<DbQueue> = {};
+		const subQueueUpdate: Partial<DbQueue> = {};
+		let resetPingChannel = false;
 
-		const lines = roomsAfter.map(room => {
-			const ping = room.pingChannelId
-				? channelMention(room.pingChannelId)
-				: `(default → ${channelMention(event.roomChannelId)})`;
-			return `**Room ${room.queueIndex}** — ${ping}`;
-		});
+		for (const entry of toReset) {
+			if (entry === "ping_channel") {
+				resetPingChannel = true;
+			}
+			else if (entry === "role") {
+				roomQueueUpdate.roleInQueueId = null;
+				subQueueUpdate.roleOnPullId = null;
+			}
+			else if (entry === "room_role_in_queue") {
+				roomQueueUpdate.roleInQueueId = null;
+			}
+			else if (entry === "room_role_on_pull") {
+				roomQueueUpdate.roleOnPullId = null;
+			}
+			else if (entry === "sub_role_in_queue") {
+				subQueueUpdate.roleInQueueId = null;
+			}
+			else if (entry === "sub_role_on_pull") {
+				subQueueUpdate.roleOnPullId = null;
+			}
+		}
 
-		const embed = new EmbedBuilder()
-			.setTitle(`Reset Room ${roomIndex} of ${event.name}`)
-			.setColor(Color.Indigo)
-			.setDescription(lines.join("\n"));
+		const roomQueue = Queries.selectQueue({ guildId: inter.guildId, id: targetRoomEq.queueId });
+		const subQueue = targetSubEq
+			? Queries.selectQueue({ guildId: inter.guildId, id: targetSubEq.queueId })
+			: undefined;
 
-		await inter.respond({ embeds: [embed] }, true);
+		if (resetPingChannel) {
+			inter.store.updateEventQueue({ id: targetRoomEq.id, pingChannelId: null });
+		}
+		if (roomQueue && Object.keys(roomQueueUpdate).length) {
+			await QueueUtils.updateQueues(inter.store, [roomQueue], roomQueueUpdate);
+		}
+		if (subQueue && Object.keys(subQueueUpdate).length) {
+			await QueueUtils.updateQueues(inter.store, [subQueue], subQueueUpdate);
+		}
+
+		await selectMenuTransactor.updateWithResult(
+			`Reset Room ${roomIndex} of ${event.name}`,
+			EventsCommand.renderAllRooms(inter.guildId, event),
+		);
 	}
 
 	// ====================================================================
@@ -771,7 +896,8 @@ export class EventsCommand extends AdminCommand {
 				"**Quick start:**\n" +
 				`1. ${commandMention("events", "add")} — create an event with N rooms\n` +
 				`2. ${commandMention("events", "set-room-defaults")} — configure room queue defaults (size, role, etc.)\n` +
-				`3. ${commandMention("events", "schedule")} — schedule an occurrence (opens a date/time modal)\n\n` +
+				`3. ${commandMention("events", "set-room")} — per-room overrides: ping channel + 4 role slots (or use the \`role\` shortcut)\n` +
+				`4. ${commandMention("events", "schedule")} — schedule an occurrence (opens a date/time modal)\n\n` +
 				"**Lifecycle per occurrence:**\n" +
 				"- **T − create_offset** (default 24h before): queues unlock, displays refresh, announcement posts\n" +
 				"- **T + lock_offset** (default 0): room queues lock (sub queues stay open)\n" +
