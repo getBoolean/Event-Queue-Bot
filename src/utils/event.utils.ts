@@ -1,5 +1,6 @@
 import { channelMention, type GuildTextBasedChannel, type Snowflake, time, TimestampStyles } from "discord.js";
-import { compact, isNil, omitBy } from "lodash-es";
+import { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import { compact, findKey, isNil, omitBy } from "lodash-es";
 import nodeSchedule, { type Job } from "node-schedule";
 
 import { Queries } from "../db/queries.ts";
@@ -8,8 +9,10 @@ import {
 	type DbEventOccurrence,
 	type DbEventQueue,
 	type DbQueue,
+	EVENT_DEFAULT_TABLE,
 	type NewEvent,
 	type NewEventDefault,
+	QUEUE_TABLE,
 } from "../db/schema.ts";
 import { Store } from "../db/store.ts";
 import { DisplayUpdateType, EventQueueRole, MemberRemovalReason, RoomScheduling } from "../types/db.types.ts";
@@ -144,6 +147,43 @@ export namespace EventUtils {
 
 		if (queues.length > 0) {
 			await QueueUtils.updateQueues(store, queues, updates as Partial<DbQueue>);
+		}
+	}
+
+	export async function resetRoleDefaults(
+		store: Store,
+		event: DbEvent,
+		role: EventQueueRole,
+		columnNames: string[],
+	) {
+		const eventDefaultUpdate: Record<string, unknown> = {};
+		const queueUpdate: Record<string, unknown> = {};
+		for (const columnName of columnNames) {
+			const eventDefaultKey = findKey(EVENT_DEFAULT_TABLE, (col: SQLiteColumn) => col.name === columnName);
+			if (eventDefaultKey) {
+				eventDefaultUpdate[eventDefaultKey] = null;
+			}
+			const queueKey = findKey(QUEUE_TABLE, (col: SQLiteColumn) => col.name === columnName);
+			if (queueKey) {
+				queueUpdate[queueKey] = (QUEUE_TABLE as any)[queueKey]?.default ?? null;
+			}
+		}
+
+		const existingDefault = Queries.selectEventDefault({
+			guildId: store.guild.id,
+			eventId: event.id,
+			queueRole: role,
+		});
+		if (existingDefault && Object.keys(eventDefaultUpdate).length > 0) {
+			store.updateEventDefault({ eventId: event.id, queueRole: role }, eventDefaultUpdate);
+		}
+
+		const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+			.filter(eq => eq.queueRole === role);
+		const queues = compact(eventQueues.map(eq => Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })));
+
+		if (queues.length > 0 && Object.keys(queueUpdate).length > 0) {
+			await QueueUtils.updateQueues(store, queues, queueUpdate as Partial<DbQueue>);
 		}
 	}
 

@@ -1,8 +1,9 @@
-import { channelMention, type Collection, EmbedBuilder, PermissionsBitField, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
-import { isNil, omitBy } from "lodash-es";
+import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
+import { SQLiteColumn } from "drizzle-orm/sqlite-core";
+import { findKey, isNil, omitBy } from "lodash-es";
 
 import { Queries } from "../../db/queries.ts";
-import { type DbEvent, EVENT_TABLE } from "../../db/schema.ts";
+import { type DbEvent, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
 import { EventScheduleModal } from "../../modals/event-schedule.modal.ts";
 import { AnnouncementChannelOption } from "../../options/options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
@@ -73,6 +74,10 @@ export class EventsCommand extends AdminCommand {
 	events_set_room_defaults = EventsCommand.events_set_room_defaults;
 	events_set_sub_defaults = EventsCommand.events_set_sub_defaults;
 	events_set_room = EventsCommand.events_set_room;
+	events_reset = EventsCommand.events_reset;
+	events_reset_room = EventsCommand.events_reset_room;
+	events_reset_room_defaults = EventsCommand.events_reset_room_defaults;
+	events_reset_sub_defaults = EventsCommand.events_reset_sub_defaults;
 	events_schedule = EventsCommand.events_schedule;
 	events_cancel = EventsCommand.events_cancel;
 	events_delete = EventsCommand.events_delete;
@@ -121,6 +126,34 @@ export class EventsCommand extends AdminCommand {
 				.setName("set-room")
 				.setDescription("Set per-room overrides (e.g. ping channel)");
 			Object.values(EventsCommand.SET_ROOM_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("reset")
+				.setDescription("Reset event template properties");
+			Object.values(EventsCommand.RESET_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("reset-room")
+				.setDescription("Clear per-room overrides (e.g. ping channel)");
+			Object.values(EventsCommand.RESET_ROOM_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("reset-room-defaults")
+				.setDescription("Reset default queue properties for room queues");
+			Object.values(EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("reset-sub-defaults")
+				.setDescription("Reset default queue properties for sub queues");
+			Object.values(EventsCommand.RESET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
@@ -464,6 +497,180 @@ export class EventsCommand extends AdminCommand {
 			.setDescription(lines.join("\n"));
 
 		await inter.respond({ embeds: [embed] }, true);
+	}
+
+	// ====================================================================
+	//                           /events reset
+	// ====================================================================
+
+	static readonly RESET_OPTIONS = {
+		event: new EventOption({ required: true, description: "Event to reset" }),
+	};
+
+	static async events_reset(inter: SlashInteraction) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await EventsCommand.RESET_OPTIONS.event.get(inter);
+
+		const ANNOUNCEMENT_PAIR_VALUE = "__announcement_pair__";
+		const selectMenuOptions = [
+			{ name: CreateOffsetHoursOption.ID, value: EVENT_TABLE.createOffsetMs.name },
+			{ name: LockOffsetMinutesOption.ID, value: EVENT_TABLE.lockOffsetMs.name },
+			{ name: CleanupOffsetHoursOption.ID, value: EVENT_TABLE.cleanupOffsetMs.name },
+			{ name: RoomSchedulingOption.ID, value: EVENT_TABLE.roomScheduling.name },
+			{ name: RoomLengthMinutesOption.ID, value: EVENT_TABLE.roomLengthMs.name },
+			{ name: `${AnnouncementChannelOption.ID} + ${AnnouncementMessageOption.ID}`, value: ANNOUNCEMENT_PAIR_VALUE },
+			{ name: RoomPingMessageOption.ID, value: EVENT_TABLE.roomPingMessage.name },
+		];
+		const selectMenuTransactor = new SelectMenuTransactor(inter);
+		const propertiesToReset = await selectMenuTransactor.sendAndReceive("Event properties to reset", selectMenuOptions) ?? [];
+		if (propertiesToReset.length === 0) return;
+
+		const update: Partial<DbEvent> = {};
+		const resetLabels: string[] = [];
+		for (const property of propertiesToReset) {
+			if (property === ANNOUNCEMENT_PAIR_VALUE) {
+				update.announcementChannelId = null;
+				update.announcementMessage = null;
+				resetLabels.push(AnnouncementChannelOption.ID, AnnouncementMessageOption.ID);
+				continue;
+			}
+			const columnKey = findKey(EVENT_TABLE, (column: SQLiteColumn) => column.name === property);
+			if (!columnKey) continue;
+			(update as any)[columnKey] = (EVENT_TABLE as any)[columnKey]?.default ?? null;
+			resetLabels.push(property);
+		}
+
+		await EventUtils.updateEvent(inter.store, event, update);
+
+		const propertiesStr = resetLabels.map(inlineCode).join(", ");
+		const haveWord = resetLabels.length === 1 ? "has" : "have";
+		await selectMenuTransactor.updateWithResult(
+			"Reset event properties",
+			`${propertiesStr} ${haveWord} been reset for ${eventMention(event)}.`,
+		);
+
+		await EventsCommand.events_get(inter, toCollection<bigint, DbEvent>("id", [event]));
+	}
+
+	// ====================================================================
+	//                           /events reset-room
+	// ====================================================================
+
+	// TODO: convert to select menu if more per-room override fields are added
+	static readonly RESET_ROOM_OPTIONS = {
+		event: new EventOption({ required: true, description: "Event to reset" }),
+		room: new RoomIndexOption({ required: true, description: "Room to reset" }),
+	};
+
+	static async events_reset_room(inter: SlashInteraction) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await EventsCommand.RESET_ROOM_OPTIONS.event.get(inter);
+		const roomIndex = EventsCommand.RESET_ROOM_OPTIONS.room.get(inter);
+
+		const eventQueues = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id });
+		const targetEq = eventQueues.find(
+			eq => eq.queueRole === EventQueueRole.Room && Number(eq.queueIndex) === roomIndex,
+		);
+
+		if (!targetEq) {
+			throw new RoomIndexNotFoundError(Number(event.roomCount));
+		}
+
+		inter.store.updateEventQueue({ id: targetEq.id, pingChannelId: null });
+
+		const roomsAfter = Queries.selectManyEventQueues({ guildId: inter.guildId, eventId: event.id })
+			.filter(eq => eq.queueRole === EventQueueRole.Room)
+			.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+
+		const lines = roomsAfter.map(room => {
+			const ping = room.pingChannelId
+				? channelMention(room.pingChannelId)
+				: `(default → ${channelMention(event.roomChannelId)})`;
+			return `**Room ${room.queueIndex}** — ${ping}`;
+		});
+
+		const embed = new EmbedBuilder()
+			.setTitle(`Reset Room ${roomIndex} of ${event.name}`)
+			.setColor(Color.Indigo)
+			.setDescription(lines.join("\n"));
+
+		await inter.respond({ embeds: [embed] }, true);
+	}
+
+	// ====================================================================
+	//                     /events reset-room-defaults
+	// ====================================================================
+
+	static readonly RESET_ROOM_DEFAULTS_OPTIONS = {
+		event: new EventOption({ required: true, description: "Event to reset" }),
+	};
+
+	static async events_reset_room_defaults(inter: SlashInteraction) {
+		await EventsCommand.resetDefaults(inter, EventQueueRole.Room, EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS);
+	}
+
+	// ====================================================================
+	//                     /events reset-sub-defaults
+	// ====================================================================
+
+	static readonly RESET_SUB_DEFAULTS_OPTIONS = {
+		event: new EventOption({ required: true, description: "Event to reset" }),
+	};
+
+	static async events_reset_sub_defaults(inter: SlashInteraction) {
+		await EventsCommand.resetDefaults(inter, EventQueueRole.Sub, EventsCommand.RESET_SUB_DEFAULTS_OPTIONS);
+	}
+
+	private static async resetDefaults(
+		inter: SlashInteraction,
+		role: EventQueueRole,
+		options: typeof EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS,
+	) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await options.event.get(inter);
+
+		const selectMenuOptions = [
+			{ name: AutopullToggleOption.ID, value: QUEUE_TABLE.autopullToggle.name },
+			{ name: BadgeToggleOption.ID, value: QUEUE_TABLE.badgeToggle.name },
+			{ name: ButtonsToggleOption.ID, value: QUEUE_TABLE.buttonsToggle.name },
+			{ name: ColorOption.ID, value: QUEUE_TABLE.color.name },
+			{ name: DisplayUpdateTypeOption.ID, value: QUEUE_TABLE.displayUpdateType.name },
+			{ name: DmOnPullToggleOption.ID, value: QUEUE_TABLE.dmOnPullToggle.name },
+			{ name: HeaderOption.ID, value: QUEUE_TABLE.header.name },
+			{ name: InlineToggleOption.ID, value: QUEUE_TABLE.inlineToggle.name },
+			{ name: LockToggleOption.ID, value: QUEUE_TABLE.lockToggle.name },
+			{ name: MemberDisplayTypeOption.ID, value: QUEUE_TABLE.memberDisplayType.name },
+			{ name: PullBatchSizeOption.ID, value: QUEUE_TABLE.pullBatchSize.name },
+			{ name: PullMessageOption.ID, value: QUEUE_TABLE.pullMessage.name },
+			{ name: PullMessageDisplayTypeOption.ID, value: QUEUE_TABLE.pullMessageDisplayType.name },
+			{ name: PullMessageChannelOption.ID, value: QUEUE_TABLE.pullMessageChannelId.name },
+			{ name: RejoinCooldownPeriodOption.ID, value: QUEUE_TABLE.rejoinCooldownPeriod.name },
+			{ name: RejoinGracePeriodOption.ID, value: QUEUE_TABLE.rejoinGracePeriod.name },
+			{ name: RequireMessageToJoinOption.ID, value: QUEUE_TABLE.requireMessageToJoin.name },
+			{ name: RoleInQueueOption.ID, value: QUEUE_TABLE.roleInQueueId.name },
+			{ name: RoleOnPullOption.ID, value: QUEUE_TABLE.roleOnPullId.name },
+			{ name: SizeOption.ID, value: QUEUE_TABLE.size.name },
+			{ name: TimestampTypeOption.ID, value: QUEUE_TABLE.timestampType.name },
+			{ name: VoiceOnlyToggleOption.ID, value: QUEUE_TABLE.voiceOnlyToggle.name },
+			{ name: VoiceDestinationChannelOption.ID, value: QUEUE_TABLE.voiceDestinationChannelId.name },
+		];
+		const selectMenuTransactor = new SelectMenuTransactor(inter);
+		const propertiesToReset = await selectMenuTransactor.sendAndReceive(
+			`${role} queue defaults to reset`,
+			selectMenuOptions,
+		) ?? [];
+		if (propertiesToReset.length === 0) return;
+
+		await EventUtils.resetRoleDefaults(inter.store, event, role, propertiesToReset);
+
+		const propertiesStr = propertiesToReset.map(inlineCode).join(", ");
+		const haveWord = propertiesToReset.length === 1 ? "has" : "have";
+		await selectMenuTransactor.updateWithResult(
+			`Reset ${role} queue defaults`,
+			`${propertiesStr} ${haveWord} been reset for ${role} queues of ${eventMention(event)}.`,
+		);
+
+		await EventsCommand.events_get(inter, toCollection<bigint, DbEvent>("id", [event]));
 	}
 
 	// ====================================================================

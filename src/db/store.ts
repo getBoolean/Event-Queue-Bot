@@ -562,6 +562,21 @@ export class Store {
 			.returning().get();
 	}
 
+	updateEventDefault(
+		by: { eventId: bigint, queueRole: EventQueueRole },
+		update: Partial<NewEventDefault>,
+	) {
+		return db
+			.update(EVENT_DEFAULT_TABLE)
+			.set(update)
+			.where(and(
+				eq(EVENT_DEFAULT_TABLE.guildId, this.guild.id),
+				eq(EVENT_DEFAULT_TABLE.eventId, by.eventId),
+				eq(EVENT_DEFAULT_TABLE.queueRole, by.queueRole)
+			))
+			.returning().get();
+	}
+
 	updateWhitelisted(whitelisted: { id: bigint } & Partial<DbWhitelisted>) {
 		return db
 			.update(WHITELISTED_TABLE)
