@@ -15,6 +15,13 @@
       "when": 1779426199986,
       "tag": "0001_optimal_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779443616172,
+      "tag": "0002_wild_clea",
+      "breakpoints": true
     }
   ]
 }

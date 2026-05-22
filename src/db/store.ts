@@ -358,6 +358,7 @@ export class Store {
 	// throws error on conflict
 	insertEvent(newEvent: NewEvent) {
 		try {
+			this.incrementGuildStat("eventsAdded");
 			return db
 				.insert(EVENT_TABLE)
 				.values(omitBy(newEvent, isNil) as NewEvent)

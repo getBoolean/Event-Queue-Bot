@@ -1,0 +1,1 @@
+ALTER TABLE `guild` ADD `events_added` integer DEFAULT 0 NOT NULL;
