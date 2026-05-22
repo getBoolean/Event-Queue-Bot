@@ -240,6 +240,31 @@ export namespace EventUtils {
 	//                        Job scheduling
 	// ====================================================================
 
+	async function armPhase(
+		at: number,
+		now: number,
+		alreadyDone: boolean,
+		run: () => Promise<void>,
+		markDone: () => void,
+		label: string,
+	): Promise<Job | undefined> {
+		if (alreadyDone) return;
+		if (at <= now) {
+			await run();
+			markDone();
+			return;
+		}
+		return nodeSchedule.scheduleJob(new Date(at), async () => {
+			try {
+				await run();
+				markDone();
+			}
+			catch (e) {
+				console.error(`Event ${label} action failed:`, (e as Error).message);
+			}
+		});
+	}
+
 	async function armOccurrence(event: DbEvent, occurrence: DbEventOccurrence) {
 		unregisterJobs(occurrence.id);
 
@@ -249,29 +274,35 @@ export namespace EventUtils {
 		const lockAt = startMs + Number(event.lockOffsetMs);
 		const cleanupAt = startMs + Number(event.cleanupOffsetMs);
 
+		const guild = await ClientUtils.getGuild(occurrence.guildId);
+		if (!guild) return;
+		const store = new Store(guild);
+
+		const pingedQueueIds = new Set(
+			Queries.selectOccurrenceRoomPings({ occurrenceId: occurrence.id }).map(r => r.eventQueueId)
+		);
+
 		const jobs: OccurrenceJobs = { roomPings: new Map() };
 
 		// Open action
-		if (openAt <= now) {
-			await runOpenAction(occurrence.id);
-		}
-		else {
-			jobs.open = nodeSchedule.scheduleJob(new Date(openAt), async () => {
-				try { await runOpenAction(occurrence.id); }
-				catch (e) { console.error("Event open action failed:", (e as Error).message); }
-			});
-		}
+		jobs.open = await armPhase(
+			openAt,
+			now,
+			occurrence.openHandledAt != null,
+			() => runOpenAction(occurrence.id),
+			() => store.updateOccurrence({ id: occurrence.id }, { openHandledAt: BigInt(Date.now()) }),
+			"open",
+		);
 
 		// Lock action
-		if (lockAt <= now) {
-			await runLockAction(occurrence.id);
-		}
-		else {
-			jobs.lock = nodeSchedule.scheduleJob(new Date(lockAt), async () => {
-				try { await runLockAction(occurrence.id); }
-				catch (e) { console.error("Event lock action failed:", (e as Error).message); }
-			});
-		}
+		jobs.lock = await armPhase(
+			lockAt,
+			now,
+			occurrence.lockHandledAt != null,
+			() => runLockAction(occurrence.id),
+			() => store.updateOccurrence({ id: occurrence.id }, { lockHandledAt: BigInt(Date.now()) }),
+			"lock",
+		);
 
 		// Room pings
 		const eventQueues = Queries.selectManyEventQueues({ guildId: event.guildId, eventId: event.id })
@@ -286,19 +317,22 @@ export namespace EventUtils {
 				pingAt = startMs;
 			}
 
-			if (pingAt <= now) {
-				await runRoomPingAction(occurrence.id, eq);
-			}
-			else {
-				const pingJob = nodeSchedule.scheduleJob(new Date(pingAt), async () => {
-					try { await runRoomPingAction(occurrence.id, eq); }
-					catch (e) { console.error("Event room ping failed:", (e as Error).message); }
-				});
-				if (pingJob) jobs.roomPings.set(eq.id, pingJob);
-			}
+			const pingJob = await armPhase(
+				pingAt,
+				now,
+				pingedQueueIds.has(eq.id),
+				() => runRoomPingAction(occurrence.id, eq),
+				() => store.insertOccurrenceRoomPing({
+					occurrenceId: occurrence.id,
+					eventQueueId: eq.id,
+					handledAt: BigInt(Date.now()),
+				}),
+				"room ping",
+			);
+			if (pingJob) jobs.roomPings.set(eq.id, pingJob);
 		}
 
-		// Cleanup action
+		// Cleanup action — no flag needed; cleanup deletes the row (cascades the junction)
 		if (cleanupAt <= now) {
 			await runCleanupAction(occurrence.id);
 		}
@@ -423,7 +457,7 @@ export namespace EventUtils {
 			const channel = await store.jsChannel(pingChannelId) as GuildTextBasedChannel;
 			if (!channel) return;
 
-			const template = event.roomPingMessage ?? "{room_role} — {room_name} is starting now!";
+			const template = event.roomPingMessage ?? "{room_role} — {room_name} is starting soon!";
 			const ctx = buildRoomPingContext(event, occurrence, eventQueue, queue);
 			const content = renderTemplate(template, ctx);
 

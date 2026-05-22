@@ -1,5 +1,5 @@
 import type { ColorResolvable, Snowflake } from "discord.js";
-import { index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { get } from "lodash-es";
 
 import {
@@ -193,6 +193,8 @@ export const EVENT_OCCURRENCE_TABLE = sqliteTable("event_occurrence", ({
 	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
 	startTime: integer("start_time").$type<bigint>().notNull(),
 	timezone: text("timezone"),
+	openHandledAt: integer("open_handled_at").$type<bigint>(),
+	lockHandledAt: integer("lock_handled_at").$type<bigint>(),
 }),
 (table) => ({
 	unq: unique().on(table.eventId, table.startTime),
@@ -202,6 +204,22 @@ export const EVENT_OCCURRENCE_TABLE = sqliteTable("event_occurrence", ({
 
 export type NewEventOccurrence = typeof EVENT_OCCURRENCE_TABLE.$inferInsert;
 export type DbEventOccurrence = typeof EVENT_OCCURRENCE_TABLE.$inferSelect;
+
+
+export const EVENT_OCCURRENCE_ROOM_PING_TABLE = sqliteTable("event_occurrence_room_ping", ({
+	occurrenceId: integer("occurrence_id").$type<bigint>().notNull()
+		.references(() => EVENT_OCCURRENCE_TABLE.id, { onDelete: "cascade" }),
+	eventQueueId: integer("event_queue_id").$type<bigint>().notNull()
+		.references(() => EVENT_QUEUE_TABLE.id, { onDelete: "cascade" }),
+	handledAt: integer("handled_at").$type<bigint>().notNull(),
+}),
+(table) => ({
+	pk: primaryKey({ columns: [table.occurrenceId, table.eventQueueId] }),
+	occurrenceIdIndex: index("event_occurrence_room_ping_occurrence_id_index").on(table.occurrenceId),
+}));
+
+export type NewEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.$inferInsert;
+export type DbEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.$inferSelect;
 
 
 export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({

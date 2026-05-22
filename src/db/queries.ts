@@ -8,6 +8,7 @@ import {
 	BLACKLISTED_TABLE,
 	DISPLAY_TABLE,
 	EVENT_DEFAULT_TABLE,
+	EVENT_OCCURRENCE_ROOM_PING_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_QUEUE_TABLE,
 	EVENT_TABLE,
@@ -362,6 +363,12 @@ export namespace Queries {
 			.select()
 			.from(EVENT_OCCURRENCE_TABLE)
 			.all();
+	}
+
+	// Event Occurrence Room Pings
+
+	export function selectOccurrenceRoomPings(by: { occurrenceId: bigint }) {
+		return selectOccurrenceRoomPingsByOccurrenceId.all(by);
 	}
 
 	// Event Queues
@@ -884,6 +891,16 @@ export namespace Queries {
 			eq(EVENT_OCCURRENCE_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_OCCURRENCE_TABLE.eventId, sql.placeholder("eventId"))
 		))
+		.prepare();
+
+	// Event Occurrence Room Pings
+
+	const selectOccurrenceRoomPingsByOccurrenceId = db
+		.select()
+		.from(EVENT_OCCURRENCE_ROOM_PING_TABLE)
+		.where(
+			eq(EVENT_OCCURRENCE_ROOM_PING_TABLE.occurrenceId, sql.placeholder("occurrenceId"))
+		)
 		.prepare();
 
 	// Event Queues

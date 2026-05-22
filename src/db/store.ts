@@ -28,6 +28,7 @@ import {
 	type DbDisplay,
 	type DbEvent,
 	type DbEventOccurrence,
+	type DbEventOccurrenceRoomPing,
 	type DbEventQueue,
 	type DbMember,
 	type DbPrioritized,
@@ -37,6 +38,7 @@ import {
 	type DbWhitelisted,
 	DISPLAY_TABLE,
 	EVENT_DEFAULT_TABLE,
+	EVENT_OCCURRENCE_ROOM_PING_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_QUEUE_TABLE,
 	EVENT_TABLE,
@@ -49,6 +51,7 @@ import {
 	type NewEvent,
 	type NewEventDefault,
 	type NewEventOccurrence,
+	type NewEventOccurrenceRoomPing,
 	type NewEventQueue,
 	type NewGuild,
 	type NewMember,
@@ -424,6 +427,15 @@ export class Store {
 			.returning().get();
 	}
 
+	// idempotent: composite PK conflict is a no-op
+	insertOccurrenceRoomPing(row: NewEventOccurrenceRoomPing): DbEventOccurrenceRoomPing {
+		return db
+			.insert(EVENT_OCCURRENCE_ROOM_PING_TABLE)
+			.values(row)
+			.onConflictDoNothing()
+			.returning().get();
+	}
+
 	// upsert on conflict
 	insertEventDefault(newEventDefault: NewEventDefault) {
 		const values = omitBy(newEventDefault, isNil) as NewEventDefault;
@@ -547,6 +559,17 @@ export class Store {
 			.where(and(
 				eq(EVENT_TABLE.id, event.id),
 				eq(EVENT_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateOccurrence(by: { id: bigint }, update: Partial<DbEventOccurrence>) {
+		return db
+			.update(EVENT_OCCURRENCE_TABLE)
+			.set(update)
+			.where(and(
+				eq(EVENT_OCCURRENCE_TABLE.id, by.id),
+				eq(EVENT_OCCURRENCE_TABLE.guildId, this.guild.id)
 			))
 			.returning().get();
 	}
