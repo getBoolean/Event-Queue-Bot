@@ -78,20 +78,11 @@ BOT_TOKEN
 | `BOT_APP_ID` | Discord Developer Portal -> your application -> `General Information` -> `Application ID` |
 | `BOT_TOKEN` | Discord Developer Portal -> your application -> `Bot` -> token |
 
-Optional bot secrets:
-
-| Secret | If omitted |
-| --- | --- |
-| `TOP_GG_TOKEN` | empty |
-| `PATCH_NOTES_CHANNEL_ID` | empty |
-| `DEFAULT_COLOR` | `Random` |
-| `DEFAULT_SCHEDULE_TIMEZONE` | `america/chicago` |
-| `ENABLE_LEGACY_MIGRATION` | `false` |
-| `FORCE_SEND_PATCH_NOTES` | `false` |
-
 The workflow generates the server `.env` file from these secrets during deploy.
 
 ## 5. Optional GitHub Variables
+
+These are environment variables (not secrets) set on the `production` environment.
 
 | Variable | Default |
 | --- | --- |
@@ -101,6 +92,12 @@ The workflow generates the server `.env` file from these secrets during deploy.
 | `DO_DROPLET_NAME` | `event-queue-bot` |
 | `DO_ENABLE_BACKUPS` | `false` |
 | `APP_PATH` | `/opt/event-queue-bot` |
+| `BOT_TOP_GG_TOKEN` | empty |
+| `BOT_PATCH_NOTES_CHANNEL_ID` | empty |
+| `BOT_DEFAULT_COLOR` | `Random` |
+| `BOT_DEFAULT_SCHEDULE_TIMEZONE` | `america/chicago` |
+| `BOT_ENABLE_LEGACY_MIGRATION` | `false` |
+| `BOT_FORCE_SEND_PATCH_NOTES` | `false` |
 
 Set `DO_ENABLE_BACKUPS` to `true` before the first deploy if you want DigitalOcean
 Droplet backups. Backups add 20% to the droplet cost. You can also back up the

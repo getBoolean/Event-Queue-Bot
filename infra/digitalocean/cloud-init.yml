@@ -3,6 +3,7 @@ package_update: true
 package_upgrade: false
 disable_root: true
 ssh_pwauth: false
+ssh_deletekeys: false
 
 groups:
   - docker
@@ -63,6 +64,7 @@ write_files:
     content: {{SSH_HOST_PUBLIC_KEY}}
 
 runcmd:
+  - systemctl restart ssh
   - apt-get update
   - apt-get install -y ca-certificates curl git gnupg rsync
   - install -m 0755 -d /etc/apt/keyrings
@@ -74,4 +76,3 @@ runcmd:
   - systemctl enable --now docker
   - mkdir -p {{APP_PATH_SHELL}}/data {{APP_PATH_SHELL}}/logs
   - chown -R deploy:deploy {{APP_PATH_SHELL}}
-  - systemctl restart ssh

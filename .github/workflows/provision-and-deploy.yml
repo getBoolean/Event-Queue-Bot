@@ -82,10 +82,10 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
           for attempt in {1..30}; do
-            if ssh -i ~/.ssh/bot_deploy_key -o BatchMode=yes -o ConnectTimeout=5 deploy@"${BOT_HOST}" true 2>/dev/null; then
+            if ssh_output=$(ssh -i ~/.ssh/bot_deploy_key -o BatchMode=yes -o ConnectTimeout=5 deploy@"${BOT_HOST}" true 2>&1); then
               exit 0
             fi
-            echo "Waiting for SSH to become reachable..."
+            echo "Waiting for SSH (attempt ${attempt}/30): ${ssh_output}"
             sleep 10
           done
 
@@ -112,23 +112,23 @@ jobs:
         env:
           BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          TOP_GG_TOKEN: ${{ secrets.TOP_GG_TOKEN }}
-          PATCH_NOTES_CHANNEL_ID: ${{ secrets.PATCH_NOTES_CHANNEL_ID }}
-          DEFAULT_COLOR: ${{ secrets.DEFAULT_COLOR }}
-          DEFAULT_SCHEDULE_TIMEZONE: ${{ secrets.DEFAULT_SCHEDULE_TIMEZONE }}
-          ENABLE_LEGACY_MIGRATION: ${{ secrets.ENABLE_LEGACY_MIGRATION }}
-          FORCE_SEND_PATCH_NOTES: ${{ secrets.FORCE_SEND_PATCH_NOTES }}
+          BOT_TOP_GG_TOKEN: ${{ vars.BOT_TOP_GG_TOKEN }}
+          BOT_PATCH_NOTES_CHANNEL_ID: ${{ vars.BOT_PATCH_NOTES_CHANNEL_ID }}
+          BOT_DEFAULT_COLOR: ${{ vars.BOT_DEFAULT_COLOR }}
+          BOT_DEFAULT_SCHEDULE_TIMEZONE: ${{ vars.BOT_DEFAULT_SCHEDULE_TIMEZONE }}
+          BOT_ENABLE_LEGACY_MIGRATION: ${{ vars.BOT_ENABLE_LEGACY_MIGRATION }}
+          BOT_FORCE_SEND_PATCH_NOTES: ${{ vars.BOT_FORCE_SEND_PATCH_NOTES }}
         run: |
           umask 077
           {
             printf 'CLIENT_ID=%s\n' "${BOT_APP_ID}"
             printf 'TOKEN=%s\n' "${BOT_TOKEN}"
-            printf 'TOP_GG_TOKEN=%s\n' "${TOP_GG_TOKEN}"
-            printf 'PATCH_NOTES_CHANNEL_ID=%s\n' "${PATCH_NOTES_CHANNEL_ID}"
-            printf 'DEFAULT_COLOR=%s\n' "${DEFAULT_COLOR:-Random}"
-            printf 'DEFAULT_SCHEDULE_TIMEZONE=%s\n' "${DEFAULT_SCHEDULE_TIMEZONE:-america/chicago}"
-            printf 'ENABLE_LEGACY_MIGRATION=%s\n' "${ENABLE_LEGACY_MIGRATION:-false}"
-            printf 'FORCE_SEND_PATCH_NOTES=%s\n' "${FORCE_SEND_PATCH_NOTES:-false}"
+            printf 'TOP_GG_TOKEN=%s\n' "${BOT_TOP_GG_TOKEN}"
+            printf 'PATCH_NOTES_CHANNEL_ID=%s\n' "${BOT_PATCH_NOTES_CHANNEL_ID}"
+            printf 'DEFAULT_COLOR=%s\n' "${BOT_DEFAULT_COLOR:-Random}"
+            printf 'DEFAULT_SCHEDULE_TIMEZONE=%s\n' "${BOT_DEFAULT_SCHEDULE_TIMEZONE:-america/chicago}"
+            printf 'ENABLE_LEGACY_MIGRATION=%s\n' "${BOT_ENABLE_LEGACY_MIGRATION:-false}"
+            printf 'FORCE_SEND_PATCH_NOTES=%s\n' "${BOT_FORCE_SEND_PATCH_NOTES:-false}"
           } > "${RUNNER_TEMP}/bot.env"
 
       - name: Sync repository to VPS
