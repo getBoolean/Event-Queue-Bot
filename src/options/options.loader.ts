@@ -17,6 +17,7 @@ import { CreateDiscordEventToggleOption } from "./options/create-discord-event-t
 import { CreateOffsetHoursOption } from "./options/create-offset-hours.option.ts";
 import { CronOption } from "./options/cron.option.ts";
 import { CustomCronOption } from "./options/custom-cron.option.ts";
+import { DayOption } from "./options/day.option.ts";
 import { DiscordEventDescriptionOption } from "./options/discord-event-description.option.ts";
 import { DisplayOption } from "./options/display.option.ts";
 import { ButtonsToggleOption } from "./options/display-buttons.option.ts";
@@ -42,6 +43,7 @@ import { MembersOption } from "./options/members.option.ts";
 import { MentionableOption } from "./options/mentionable.option.ts";
 import { MessageOption } from "./options/message.option.ts";
 import { MessageChannelOption } from "./options/message-channel.option.ts";
+import { MonthOption } from "./options/month.option.ts";
 import { NameOption } from "./options/name.option.ts";
 import { NumberOption } from "./options/number.option.ts";
 import { ParentSubMutuallyExclusiveOption } from "./options/parent-sub-mutually-exclusive.option.ts";
@@ -76,6 +78,7 @@ import { ScopeOption } from "./options/scope.option.ts";
 import { SizeOption } from "./options/size.option.ts";
 import { SlowmodeOption } from "./options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "./options/slowmode-time.option.ts";
+import { StartTimeOption } from "./options/start-time.option.ts";
 import { SubQueuesChannelOption } from "./options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "./options/timestamp-type.option.ts";
 import { TimezoneOption } from "./options/timezone.option.ts";
@@ -86,6 +89,7 @@ import { VoiceSourceChannelOption } from "./options/voice-source-channel.option.
 import { VoicesOption } from "./options/voices.option.ts";
 import { WhitelistedOption } from "./options/whitelisted.option.ts";
 import { WhitelistedsOption } from "./options/whitelisteds.option.ts";
+import { YearOption } from "./options/year.option.ts";
 
 export const OPTIONS = new Collection<string, BaseOption>([
 	[AdminOption.ID, new AdminOption()],
@@ -105,6 +109,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[CreateOffsetHoursOption.ID, new CreateOffsetHoursOption()],
 	[CronOption.ID, new CronOption()],
 	[CustomCronOption.ID, new CustomCronOption()],
+	[DayOption.ID, new DayOption()],
 	[DiscordEventDescriptionOption.ID, new DiscordEventDescriptionOption()],
 	[DisplayOption.ID, new DisplayOption()],
 	[DisplaysOption.ID, new DisplaysOption()],
@@ -129,6 +134,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[MentionableOption.ID, new MentionableOption()],
 	[MessageChannelOption.ID, new MessageChannelOption()],
 	[MessageOption.ID, new MessageOption()],
+	[MonthOption.ID, new MonthOption()],
 	[NameOption.ID, new NameOption()],
 	[NumberOption.ID, new NumberOption()],
 	[ParentSubMutuallyExclusiveOption.ID, new ParentSubMutuallyExclusiveOption()],
@@ -163,6 +169,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[SizeOption.ID, new SizeOption()],
 	[SlowmodeOption.ID, new SlowmodeOption()],
 	[SlowmodeTimeOption.ID, new SlowmodeTimeOption()],
+	[StartTimeOption.ID, new StartTimeOption()],
 	[SubQueuesChannelOption.ID, new SubQueuesChannelOption()],
 	[TimestampTypeOption.ID, new TimestampTypeOption()],
 	[TimezoneOption.ID, new TimezoneOption()],
@@ -174,4 +181,5 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[VoiceOnlyToggleOption.ID, new VoiceOnlyToggleOption()],
 	[WhitelistedOption.ID, new WhitelistedOption()],
 	[WhitelistedsOption.ID, new WhitelistedsOption()],
+	[YearOption.ID, new YearOption()],
 ]);

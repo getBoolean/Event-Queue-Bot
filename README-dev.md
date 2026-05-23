@@ -9,7 +9,6 @@
   * [Adding commands](#adding-commands)
   * [Adding command options](#adding-command-options)
   * [Adding buttons](#adding-buttons)
-  * [Adding modals](#adding-modals)
   * [Util files](#util-files)
   * [Database changes](#database-changes)
 * [Misc](#misc)
@@ -117,7 +116,7 @@ to the files that will need to be added/updated.
 
 ### Adding commands
 
-1. Add a new `.command.ts` file under `src/commands/commands`, extending `EveryoneCommand` or `AdminCommand`. Subcommands are methods named `<commandName>_<subcommand>` (e.g. `queues_add` for `/queues add`). Set `deferResponse = false` if the command opens a modal.
+1. Add a new `.command.ts` file under `src/commands/commands`, extending `EveryoneCommand` or `AdminCommand`. Subcommands are methods named `<commandName>_<subcommand>` (e.g. `queues_add` for `/queues add`).
 2. Register it in `src/commands/commands.loader.ts`.
 3. Update `README.md` and the help text in `src/commands/commands/help.command.ts`.
 
@@ -130,11 +129,6 @@ to the files that will need to be added/updated.
 
 1. Create a new `.button.ts` file in the `src/buttons/buttons` directory. Buttons should extend `EveryoneButton` or `AdminButton`.
 2. Update the `src/buttons/buttons.loader.ts` file.
-
-### Adding modals
-
-1. Create a new `.modal.ts` file in `src/modals` (see `join.modal.ts`).
-2. The command opening the modal must set `deferResponse = false` — Discord rejects modals on deferred interactions.
 
 ### Util files
 
