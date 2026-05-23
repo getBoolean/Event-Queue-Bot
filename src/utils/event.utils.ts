@@ -255,11 +255,10 @@ export namespace EventUtils {
 		const roomCount = Number(event.roomCount);
 		const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
 
-		// Step A — recreate any missing (role, queueIndex) slots
+		// Step A — recreate any missing (role, queueIndex) slots. Skip display creation here;
+		// Step C is the sole writer of displays so its sequential post order isn't racing
+		// against fire-and-forget updates from DisplayUtils.insertDisplays.
 		for (const role of roles) {
-			const displayChannelId = role === EventQueueRole.Room
-				? event.roomQueuesChannelId
-				: event.subQueuesChannelId;
 			for (let i = 1; i <= roomCount; i++) {
 				const eqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 				const match = eqs.find(eq => eq.queueRole === role && Number(eq.queueIndex) === i);
@@ -267,13 +266,15 @@ export namespace EventUtils {
 					? Queries.selectQueue({ guildId: store.guild.id, id: match.queueId })
 					: undefined;
 				if (!match || !existingQueue) {
-					await createEventQueue(store, event, role, i, displayChannelId);
+					await insertEventQueueRowWithoutDisplay(store, event, role, i);
 					recreatedCount++;
 				}
 			}
 		}
 
-		// Step B — reset queue-config columns to schema defaults, then overlay the stored event defaults
+		// Step B — reset queue-config columns to schema defaults, then overlay the stored event defaults.
+		// Direct store.updateQueue writes (not QueueUtils.updateQueues) so we don't fire an async
+		// requestDisplaysUpdate that would race with Step C and leave orphan messages in the channel.
 		const defaultColumnKeys = Object.keys(EVENT_DEFAULT_TABLE)
 			.filter(k => !EVENT_DEFAULT_NON_QUEUE_KEYS.has(k));
 
@@ -303,12 +304,15 @@ export namespace EventUtils {
 			));
 
 			if (queues.length > 0) {
-				await QueueUtils.updateQueues(store, queues, update);
+				const updatedQueues = compact(queues.map(q => store.updateQueue({ id: q.id, ...update })));
+				if (update.roleInQueueId) {
+					await QueueUtils.setRoleInQueue(store, updatedQueues);
+				}
 				if (role === EventQueueRole.Room) {
-					reappliedRoomCount = queues.length;
+					reappliedRoomCount = updatedQueues.length;
 				}
 				else {
-					reappliedSubCount = queues.length;
+					reappliedSubCount = updatedQueues.length;
 				}
 			}
 		}
@@ -836,17 +840,15 @@ export namespace EventUtils {
 		}
 	}
 
-	export async function createEventQueue(
+	async function insertEventQueueRowWithoutDisplay(
 		store: Store,
 		event: DbEvent,
 		role: EventQueueRole,
 		index: number,
-		displayChannelId: Snowflake,
 	) {
 		const roleLabel = role === EventQueueRole.Room ? "Room" : "Sub";
 		let queueName = `${event.name} ${roleLabel} ${index}`;
 
-		// Load defaults for this role
 		const defaults = Queries.selectEventDefault({
 			guildId: store.guild.id,
 			eventId: event.id,
@@ -882,10 +884,6 @@ export namespace EventUtils {
 			}
 		}
 
-		// Create display for the queue
-		await DisplayUtils.insertDisplays(store, [insertedQueue], displayChannelId);
-
-		// Create junction row
 		store.insertEventQueue({
 			guildId: store.guild.id,
 			eventId: event.id,
@@ -894,6 +892,18 @@ export namespace EventUtils {
 			queueIndex: BigInt(index),
 		});
 
+		return insertedQueue;
+	}
+
+	export async function createEventQueue(
+		store: Store,
+		event: DbEvent,
+		role: EventQueueRole,
+		index: number,
+		displayChannelId: Snowflake,
+	) {
+		const insertedQueue = await insertEventQueueRowWithoutDisplay(store, event, role, index);
+		await DisplayUtils.insertDisplays(store, [insertedQueue], displayChannelId);
 		return insertedQueue;
 	}
 }
