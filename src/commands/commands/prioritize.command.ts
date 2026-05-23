@@ -138,11 +138,12 @@ export class PrioritizeCommand extends AdminCommand {
 	//                           /prioritize add
 	// ====================================================================
 
+	// Discord requires required options before non-required ones, so mentionable1 sits next to scope.
 	static readonly ADD_OPTIONS = {
 		scope: new ScopeOption({ required: true, description: "Scope to prioritize in" }),
+		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to prioritize" }),
 		queues: new QueuesOption({ description: "Queue(s) — required when scope is queue" }),
 		events: new EventsOption({ description: "Event(s) — required when scope is event" }),
-		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to prioritize" }),
 		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User/role to prioritize" }),
 		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User/role to prioritize" }),
 		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User/role to prioritize" }),
