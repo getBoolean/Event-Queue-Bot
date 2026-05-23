@@ -118,11 +118,12 @@ export class WhitelistCommand extends AdminCommand {
 	//                           /whitelist add
 	// ====================================================================
 
+	// Discord requires required options before non-required ones, so mentionable1 sits next to scope.
 	static readonly ADD_OPTIONS = {
 		scope: new ScopeOption({ required: true, description: "Scope to whitelist in" }),
+		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to whitelist" }),
 		queues: new QueuesOption({ description: "Queue(s) — required when scope is queue" }),
 		events: new EventsOption({ description: "Event(s) — required when scope is event" }),
-		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to whitelist" }),
 		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User/role to whitelist" }),
 		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User/role to whitelist" }),
 		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User/role to whitelist" }),

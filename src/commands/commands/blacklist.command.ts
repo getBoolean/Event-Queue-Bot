@@ -112,11 +112,12 @@ export class BlacklistCommand extends AdminCommand {
 	//                           /blacklist add
 	// ====================================================================
 
+	// Discord requires required options before non-required ones, so mentionable1 sits next to scope.
 	static readonly ADD_OPTIONS = {
 		scope: new ScopeOption({ required: true, description: "Scope to blacklist in" }),
+		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to blacklist" }),
 		queues: new QueuesOption({ description: "Queue(s) — required when scope is queue" }),
 		events: new EventsOption({ description: "Event(s) — required when scope is event" }),
-		mentionable1: new MentionableOption({ required: true, id: "mentionable_1", description: "User/role to blacklist" }),
 		mentionable2: new MentionableOption({ id: "mentionable_2", description: "User/role to blacklist" }),
 		mentionable3: new MentionableOption({ id: "mentionable_3", description: "User/role to blacklist" }),
 		mentionable4: new MentionableOption({ id: "mentionable_4", description: "User/role to blacklist" }),
