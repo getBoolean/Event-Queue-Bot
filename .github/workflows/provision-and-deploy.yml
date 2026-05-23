@@ -12,9 +12,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  discover:
+  gate:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'master' && 'prod-gate' || 'dev-gate' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Await reviewer approval
+        run: echo "Approved for ${{ github.ref_name }}."
+
+  discover:
+    needs: gate
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'master' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
