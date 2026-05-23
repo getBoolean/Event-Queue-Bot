@@ -255,6 +255,19 @@ export namespace EventUtils {
 		const roomCount = Number(event.roomCount);
 		const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
 
+		// Lock all existing event queues up-front so the sync runs from a known-locked baseline.
+		// Newly-created queues in Step A pick up correct lock state via insertEventQueueRowWithoutDisplay,
+		// and Step E re-evaluates every queue to unlock those whose pre-start window contains now.
+		{
+			const existingEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+			const existingQueues = compact(existingEqs.map(eq =>
+				Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
+			));
+			if (existingQueues.length > 0) {
+				await QueueUtils.updateQueues(store, existingQueues, { lockToggle: true } as Partial<DbQueue>);
+			}
+		}
+
 		// Step A — recreate any missing (role, queueIndex) slots. Skip display creation here;
 		// Step C is the sole writer of displays so its sequential post order isn't racing
 		// against fire-and-forget updates from DisplayUtils.insertDisplays.
@@ -275,8 +288,10 @@ export namespace EventUtils {
 		// Step B — reset queue-config columns to schema defaults, then overlay the stored event defaults.
 		// Direct store.updateQueue writes (not QueueUtils.updateQueues) so we don't fire an async
 		// requestDisplaysUpdate that would race with Step C and leave orphan messages in the channel.
+		// `lockToggle` is intentionally excluded — it's owned by the up-front lock above and Step E below.
+		const LOCK_KEY = "lockToggle";
 		const defaultColumnKeys = Object.keys(EVENT_DEFAULT_TABLE)
-			.filter(k => !EVENT_DEFAULT_NON_QUEUE_KEYS.has(k));
+			.filter(k => !EVENT_DEFAULT_NON_QUEUE_KEYS.has(k) && k !== LOCK_KEY);
 
 		for (const role of roles) {
 			const resetPatch: Record<string, unknown> = {};
@@ -294,6 +309,7 @@ export namespace EventUtils {
 			delete overlay.guildId;
 			delete overlay.eventId;
 			delete overlay.queueRole;
+			delete overlay[LOCK_KEY];
 
 			const update = { ...resetPatch, ...overlay } as Partial<DbQueue>;
 
@@ -375,6 +391,23 @@ export namespace EventUtils {
 		// Step D — reconcile channels + auto-created room roles
 		if (event.roomCategoryId) {
 			await EventChannelUtils.reconcileRoomChannels(store, event);
+		}
+
+		// Step E — unlock any event queues whose role-appropriate pre-start window currently contains now.
+		// All other queues stay locked from the up-front lock above.
+		{
+			const allEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+			const toUnlock: DbQueue[] = [];
+			for (const eq of allEqs) {
+				const q = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
+				if (!q) continue;
+				if (shouldEventQueueBeUnlocked(event, eq.queueRole as EventQueueRole)) {
+					toUnlock.push(q);
+				}
+			}
+			if (toUnlock.length > 0) {
+				await QueueUtils.updateQueues(store, toUnlock, { lockToggle: false } as Partial<DbQueue>);
+			}
 		}
 
 		return { recreatedCount, reappliedRoomCount, reappliedSubCount, reshownCount };
@@ -460,6 +493,25 @@ export namespace EventUtils {
 			catch (e) {
 				console.error(`Event ${label} action failed:`, (e as Error).message);
 			}
+		});
+	}
+
+	// True iff any of the event's occurrences has a window (role-dependent) that contains `nowMs`.
+	// Room window: [start − createOffsetMs, start + lockOffsetMs). Sub window extends to cleanup.
+	// Empty occurrence list → false (covers `/events add` before any occurrence is scheduled).
+	function shouldEventQueueBeUnlocked(
+		event: DbEvent,
+		role: EventQueueRole,
+		nowMs: number = Date.now(),
+	): boolean {
+		const occurrences = Queries.selectManyOccurrences({ guildId: event.guildId, eventId: event.id });
+		return occurrences.some((occ) => {
+			const start = Number(occ.startTime);
+			const openAt = start - Number(event.createOffsetMs);
+			const closeAt = role === EventQueueRole.Room
+				? start + Number(event.lockOffsetMs)
+				: getRoomsFinishMs(event, start) + Number(event.cleanupOffsetMs);
+			return nowMs >= openAt && nowMs < closeAt;
 		});
 	}
 
@@ -859,6 +911,9 @@ export namespace EventUtils {
 		delete queueConfig.guildId;
 		delete queueConfig.eventId;
 		delete queueConfig.queueRole;
+		// Event queues are gated by their pre-start window — the schema default / event-default
+		// overlay must not be used to leave a queue unlocked outside that window.
+		queueConfig.lockToggle = !shouldEventQueueBeUnlocked(event, role);
 
 		let insertedQueue: DbQueue;
 		try {
