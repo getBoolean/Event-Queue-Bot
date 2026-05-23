@@ -4,7 +4,6 @@ import { findKey, isNil, omitBy } from "lodash-es";
 
 import { Queries } from "../../db/queries.ts";
 import { type DbEvent, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
-import { EventScheduleModal } from "../../modals/event-schedule.modal.ts";
 import { AnnouncementChannelOption } from "../../options/options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
 import { AutopullToggleOption } from "../../options/options/autopull-toggle.option.ts";
@@ -14,6 +13,7 @@ import { CleanupOffsetHoursOption } from "../../options/options/cleanup-offset-h
 import { ColorOption } from "../../options/options/color.option.ts";
 import { CreateDiscordEventToggleOption } from "../../options/options/create-discord-event-toggle.option.ts";
 import { CreateOffsetHoursOption } from "../../options/options/create-offset-hours.option.ts";
+import { DayOption } from "../../options/options/day.option.ts";
 import { DiscordEventDescriptionOption } from "../../options/options/discord-event-description.option.ts";
 import { ButtonsToggleOption } from "../../options/options/display-buttons.option.ts";
 import { DisplayUpdateTypeOption } from "../../options/options/display-update-type.option.ts";
@@ -27,6 +27,7 @@ import { LockToggleOption } from "../../options/options/lock-toggle.option.ts";
 import { MaxRoomsPerUserOption } from "../../options/options/max-rooms-per-user.option.ts";
 import { MaxSubsPerUserOption } from "../../options/options/max-subs-per-user.option.ts";
 import { MemberDisplayTypeOption } from "../../options/options/member-display-type.option.ts";
+import { MonthOption } from "../../options/options/month.option.ts";
 import { NameOption } from "../../options/options/name.option.ts";
 import { ParentSubMutuallyExclusiveOption } from "../../options/options/parent-sub-mutually-exclusive.option.ts";
 import { PullBatchSizeOption } from "../../options/options/pull-batch-size.option.ts";
@@ -51,13 +52,17 @@ import { RoomSchedulingOption } from "../../options/options/room-scheduling.opti
 import { SizeOption } from "../../options/options/size.option.ts";
 import { SlowmodeOption } from "../../options/options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "../../options/options/slowmode-time.option.ts";
+import { StartTimeOption } from "../../options/options/start-time.option.ts";
 import { SubQueuesChannelOption } from "../../options/options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "../../options/options/timestamp-type.option.ts";
+import { TimezoneOption } from "../../options/options/timezone.option.ts";
 import { VoiceDestinationChannelOption } from "../../options/options/voice-destination-channel.option.ts";
 import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.option.ts";
+import { YearOption } from "../../options/options/year.option.ts";
 import { AdminCommand } from "../../types/command.types.ts";
 import { Color, EventQueueRole, type RoomScheduling } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
+import { DateUtils } from "../../utils/date.utils.ts";
 import { CustomError, EventNotFoundWarning } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
@@ -906,12 +911,54 @@ export class EventsCommand extends AdminCommand {
 
 	static readonly SCHEDULE_OPTIONS = {
 		event: new EventOption({ required: true, description: "Target event" }),
+		year: new YearOption({ required: true, description: "Start year" }),
+		month: new MonthOption({ required: true, description: "Start month" }),
+		day: new DayOption({ required: true, description: "Start day" }),
+		startTime: new StartTimeOption({ required: true, description: "Start time (12-hour, e.g. 9 AM, 9:30 PM)" }),
+		timezone: new TimezoneOption({ required: false, description: "IANA timezone", defaultValue: process.env.DEFAULT_SCHEDULE_TIMEZONE }),
 	};
 
 	static async events_schedule(inter: SlashInteraction) {
+		await inter.deferReply();
+
 		const event = await EventsCommand.SCHEDULE_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
-		await inter.showModal(EventScheduleModal.getModal({ eventId: event.id }));
+
+		const yearStr = await EventsCommand.SCHEDULE_OPTIONS.year.get(inter);
+		const monthStr = await EventsCommand.SCHEDULE_OPTIONS.month.get(inter);
+		const dayStr = await EventsCommand.SCHEDULE_OPTIONS.day.get(inter);
+		const startTime = await EventsCommand.SCHEDULE_OPTIONS.startTime.get(inter);
+		const timezoneRaw = await EventsCommand.SCHEDULE_OPTIONS.timezone.get(inter);
+
+		const parsed = DateUtils.parseScheduledStart({
+			yearStr,
+			monthStr,
+			dayStr,
+			startTime,
+			timezone: timezoneRaw || process.env.DEFAULT_SCHEDULE_TIMEZONE || "UTC",
+		});
+
+		const startTimeMs = BigInt(parsed.valueOf());
+		const occurrence = await EventUtils.scheduleOccurrence(
+			inter.store,
+			event,
+			startTimeMs,
+			timezoneRaw || undefined,
+		);
+
+		const startDate = new Date(Number(occurrence.startTime));
+		const embed = new EmbedBuilder()
+			.setTitle(`Scheduled ${event.name}`)
+			.setColor(Color.Green)
+			.setDescription(
+				`Occurrence scheduled for ${time(startDate, TimestampStyles.LongDateTime)} (${time(startDate, TimestampStyles.RelativeTime)}).\n\n` +
+				`**Event:** ${eventMention(event)}\n` +
+				`**Opens:** ${time(new Date(Number(occurrence.startTime) - Number(event.createOffsetMs)), TimestampStyles.RelativeTime)}\n` +
+				`**Locks rooms:** ${time(new Date(Number(occurrence.startTime) + Number(event.lockOffsetMs)), TimestampStyles.RelativeTime)}\n` +
+				`**Cleans up:** ${time(new Date(EventUtils.getRoomsFinishMs(event, Number(occurrence.startTime)) + Number(event.cleanupOffsetMs)), TimestampStyles.RelativeTime)}`,
+			);
+
+		await inter.respond({ embeds: [embed] });
 	}
 
 	// ====================================================================
@@ -997,7 +1044,7 @@ export class EventsCommand extends AdminCommand {
 				"**Quick start:**\n" +
 				`1. ${commandMention("events", "add")} — create an event with N rooms (${inlineCode("room_category")} is required; one private \`room-{N}\` channel and a \`{event} Room {N}\` role are auto-created per room)\n` +
 				`2. ${commandMention("events", "set-room-defaults")} — configure room queue defaults (size, etc.)\n` +
-				`3. ${commandMention("events", "schedule")} — schedule an occurrence (opens a date/time modal)\n\n` +
+				`3. ${commandMention("events", "schedule")} — schedule an occurrence (\`event\`, \`year\`, \`month\`, \`day\`, \`start_time\` (12-hour, e.g. \`9:30 PM\`), optional \`timezone\`)\n\n` +
 				"**Lifecycle per occurrence:**\n" +
 				"- **T − create_offset** (default 24h before): queues unlock, displays refresh, announcement posts\n" +
 				"- **T + lock_offset** (default 0): room queues lock (sub queues stay open)\n" +
