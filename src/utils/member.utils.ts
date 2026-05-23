@@ -36,7 +36,7 @@ import { LoggingUtils } from "./message-utils/logging.utils.ts";
 import { map } from "./misc.utils.ts";
 import { NotificationUtils } from "./notification.utils.ts";
 import { PriorityUtils } from "./priority.utils.ts";
-import { membersMention, queueMention, queuesMention, timeMention, usersMention } from "./string.utils.ts";
+import { membersMention, queueMention, timeMention, usersMention } from "./string.utils.ts";
 import { WhitelistUtils } from "./whitelist.utils.ts";
 
 export namespace MemberUtils {
@@ -49,25 +49,28 @@ export namespace MemberUtils {
 	}) {
 		const { store, users, queues, force, dmMember } = options;
 
-		const skippedMembers: { userId: Snowflake }[] = [];
+		const insertedByQueue = new Map<bigint, DbMember[]>();
+		const skippedByQueue = new Map<bigint, { userId: Snowflake }[]>();
 
 		const insertedMembers = compact(
 			await db.transaction(async () => {
-				const inserted = [];
+				const inserted: DbMember[] = [];
 				for (const user of users) {
 					const jsMember = await store.jsMember(user.id);
 					if (!jsMember) continue;
 
 					for (const queue of queues.values()) {
 						try {
-							inserted.push(
-								await insertMemberInternal({ store, queue, jsMember, force })
-							);
+							const member = await insertMemberInternal({ store, queue, jsMember, force });
+							inserted.push(member);
+							if (!insertedByQueue.has(queue.id)) insertedByQueue.set(queue.id, []);
+							insertedByQueue.get(queue.id).push(member);
 						}
 						catch (e) {
 							// Skip users already in this queue so the rest of the batch still goes through.
 							if (e instanceof AlreadyInQueueError) {
-								skippedMembers.push({ userId: jsMember.id });
+								if (!skippedByQueue.has(queue.id)) skippedByQueue.set(queue.id, []);
+								skippedByQueue.get(queue.id).push({ userId: jsMember.id });
 								continue;
 							}
 							throw e;
@@ -85,11 +88,11 @@ export namespace MemberUtils {
 
 		if (store.inter) {
 			const lines: string[] = [];
-			if (insertedMembers.length > 0) {
-				lines.push(`Added ${usersMention(insertedMembers)} to ${queuesMention(queues)} queue${queues.size > 1 ? "s" : ""}.`);
-			}
-			if (skippedMembers.length > 0) {
-				lines.push(`Already in queue: ${usersMention(skippedMembers)}.`);
+			for (const queue of queues.values()) {
+				const ins = insertedByQueue.get(queue.id);
+				const skp = skippedByQueue.get(queue.id);
+				if (ins?.length) lines.push(`Added ${usersMention(ins)} to ${queueMention(queue)} queue.`);
+				if (skp?.length) lines.push(`Already in ${queueMention(queue)} queue: ${usersMention(skp)}.`);
 			}
 			if (lines.length === 0) {
 				lines.push("No members were added.");
