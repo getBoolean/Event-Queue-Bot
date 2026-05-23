@@ -257,16 +257,18 @@ export namespace EventUtils {
 			const roomCount = Number(event.roomCount);
 			const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
 
-			// Lock all existing event queues up-front so the sync runs from a known-locked baseline.
-			// Newly-created queues in Step A pick up correct lock state via insertEventQueueRowWithoutDisplay,
-			// and Step E re-evaluates every queue to unlock those whose pre-start window contains now.
+			// Lock every existing event queue up-front so the sync runs from a known-locked baseline.
+			// Step A's new queues lock themselves via insertEventQueueRowWithoutDisplay; Step E unlocks
+			// any whose pre-start window contains now. Direct store.updateQueue (not QueueUtils.updateQueues)
+			// — its requestDisplaysUpdate is fire-and-forget and would race Step C. No display refresh
+			// needed: Step C reposts every display.
 			{
 				const existingEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 				const existingQueues = compact(existingEqs.map(eq =>
 					Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
 				));
-				if (existingQueues.length > 0) {
-					await QueueUtils.updateQueues(store, existingQueues, { lockToggle: true } as Partial<DbQueue>);
+				for (const q of existingQueues) {
+					store.updateQueue({ id: q.id, lockToggle: true });
 				}
 			}
 
@@ -336,67 +338,14 @@ export namespace EventUtils {
 			}
 
 			// Step C — re-show every queue display in queue-index order in the event's display channels.
-			// Insert the row directly + `await updateDisplays` so per-queue posts are sequential
-			// (DisplayUtils.insertDisplays also fires a non-awaited update, which would race with the explicit await below).
-			for (const role of roles) {
-				const displayChannelId = role === EventQueueRole.Room
-					? event.roomQueuesChannelId
-					: event.subQueuesChannelId;
-				const orderedEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
-					.filter(eq => eq.queueRole === role)
-					.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
-
-				for (const eq of orderedEqs) {
-					const queue = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
-					if (!queue) continue;
-
-					const existingDisplays = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()];
-					for (const display of existingDisplays) {
-						if (display.lastMessageId) {
-							const channel = await store.jsChannel(display.displayChannelId) as GuildTextBasedChannel | undefined;
-							if (channel) {
-								const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
-									console.error(`EventUtils.syncEventQueues: failed to fetch stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
-									return null;
-								});
-								if (message) {
-									await message.delete().catch(e => {
-										console.error(`EventUtils.syncEventQueues: failed to delete stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
-										return null;
-									});
-								}
-							}
-						}
-						store.deleteDisplay({ id: display.id });
-					}
-
-					const newDisplay = store.insertDisplay({
-						guildId: store.guild.id,
-						queueId: queue.id,
-						displayChannelId,
-					});
-					if (!newDisplay) continue;
-
-					await DisplayUtils.updateDisplays({
-						store,
-						queueId: queue.id,
-						opts: {
-							displayIds: [newDisplay.id],
-							updateTypeOverride: DisplayUpdateType.Replace,
-						},
-					});
-
-					reshownCount++;
-				}
-			}
+			reshownCount = await reshowEventQueueDisplays(store, event);
 
 			// Step D — reconcile channels + auto-created room roles
 			if (event.roomCategoryId) {
 				await EventChannelUtils.reconcileRoomChannels(store, event);
 			}
 
-			// Step E — unlock any event queues whose role-appropriate pre-start window currently contains now.
-			// All other queues stay locked from the up-front lock above.
+			// Step E — unlock any event queues whose role-appropriate pre-start window contains now.
 			{
 				const allEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 				const toUnlock: DbQueue[] = [];
@@ -638,6 +587,70 @@ export namespace EventUtils {
 		return { occurrence, event, store, eventQueues, queues };
 	}
 
+	// Sequentially re-shows every event-queue display in queue-index order across the event's Room
+	// and Sub display channels: deletes each existing display (and its posted Discord message) then
+	// inserts a fresh row and awaits a Replace refresh. Awaiting per queue guarantees the new
+	// messages have landed before the caller continues (used by `syncEventQueues` Step C and
+	// `runOpenAction` so a same-channel announcement stays as the most-recent message).
+	async function reshowEventQueueDisplays(store: Store, event: DbEvent): Promise<number> {
+		let reshownCount = 0;
+		const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
+
+		for (const role of roles) {
+			const displayChannelId = role === EventQueueRole.Room
+				? event.roomQueuesChannelId
+				: event.subQueuesChannelId;
+			const orderedEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+				.filter(eq => eq.queueRole === role)
+				.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+
+			for (const eq of orderedEqs) {
+				const queue = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
+				if (!queue) continue;
+
+				const existingDisplays = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()];
+				for (const display of existingDisplays) {
+					if (display.lastMessageId) {
+						const channel = await store.jsChannel(display.displayChannelId) as GuildTextBasedChannel | undefined;
+						if (channel) {
+							const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
+								console.error(`EventUtils.reshowEventQueueDisplays: failed to fetch stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+								return null;
+							});
+							if (message) {
+								await message.delete().catch(e => {
+									console.error(`EventUtils.reshowEventQueueDisplays: failed to delete stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+									return null;
+								});
+							}
+						}
+					}
+					store.deleteDisplay({ id: display.id });
+				}
+
+				const newDisplay = store.insertDisplay({
+					guildId: store.guild.id,
+					queueId: queue.id,
+					displayChannelId,
+				});
+				if (!newDisplay) continue;
+
+				await DisplayUtils.updateDisplays({
+					store,
+					queueId: queue.id,
+					opts: {
+						displayIds: [newDisplay.id],
+						updateTypeOverride: DisplayUpdateType.Replace,
+					},
+				});
+
+				reshownCount++;
+			}
+		}
+
+		return reshownCount;
+	}
+
 	async function runOpenAction(occurrenceId: bigint) {
 		const ctx = await getEventContext(occurrenceId);
 		if (!ctx) return;
@@ -648,13 +661,9 @@ export namespace EventUtils {
 			await QueueUtils.updateQueues(store, queues, { lockToggle: false } as Partial<DbQueue>);
 		}
 
-		// Force-refresh displays
-		const queueIds = queues.map(q => q.id);
-		DisplayUtils.requestDisplaysUpdate({
-			store,
-			queueIds,
-			opts: { updateTypeOverride: DisplayUpdateType.Replace },
-		});
+		// Re-show every event-queue display sequentially before announcing so the announcement
+		// remains the most-recent message when announcementChannelId coincides with a display channel.
+		await reshowEventQueueDisplays(store, event);
 
 		// Send announcement
 		if (event.announcementChannelId && event.announcementMessage) {
