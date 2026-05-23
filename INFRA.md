@@ -138,7 +138,9 @@ In GitHub:
 The workflow creates or reuses the VPS, writes `.env`, syncs the repo, and runs
 Docker Compose.
 
-Future pushes to `master` deploy automatically.
+Future pushes to `master` trigger the workflow automatically; each run pauses
+at `discover` for a reviewer to approve via the `prod-gate` environment before
+`provision` and `deploy` proceed.
 
 ## Optional: setting up a dev environment
 
@@ -170,8 +172,10 @@ Maintainer's dev bot invite:
 5. Create the `dev` branch from `master` and push. `discover` requests approval
    via `dev-gate`; `provision`/`deploy` then spin up `event-queue-bot-dev`.
 
-Subsequent pushes to `dev` deploy automatically. Prod and dev share no state:
-separate droplets, separate `data/main.sqlite`, separate Discord applications.
+Subsequent pushes to `dev` trigger the workflow automatically; each run pauses
+at `discover` for `dev-gate` approval before `provision`/`deploy` proceed. Prod
+and dev share no state: separate droplets, separate `data/main.sqlite`,
+separate Discord applications.
 
 ## Connect to the Droplet
 
