@@ -130,7 +130,7 @@ export class HelpCommand extends EveryoneCommand {
 					},
 					{
 						name: commandMention("blacklist", "get"),
-						value: "Blacklist a user or role from queues",
+						value: "Blacklist a user or role. Use the `scope` option to target a single queue, every queue in an event, or every queue in the server",
 					},
 					{
 						name: commandMention("clear"),
@@ -158,7 +158,7 @@ export class HelpCommand extends EveryoneCommand {
 					},
 					{
 						name: commandMention("prioritize", "get"),
-						value: "Manage prioritized users and roles",
+						value: "Manage prioritized users and roles. Use the `scope` option to target a single queue, every queue in an event, or every queue in the server",
 					},
 					{
 						name: commandMention("pull"),
@@ -182,7 +182,7 @@ export class HelpCommand extends EveryoneCommand {
 					},
 					{
 						name: commandMention("whitelist", "get"),
-						value: "Whitelist a user or role in queues",
+						value: "Whitelist a user or role. Use the `scope` option to target a single queue, every queue in an event, or every queue in the server",
 					},
 					{
 						name: "\u200b",

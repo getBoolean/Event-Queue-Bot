@@ -38,15 +38,15 @@ Built with [Discord.js](https://discord.js.org/).
 Restricted to users with the **Administrator** permission and users added via `/admins add`.
 
 `/admins` - manage admin users and roles  
-`/blacklist` - manage blacklisted users and roles  
-`/whitelist` - manage whitelisted users and roles  
+`/blacklist` - manage blacklisted users and roles (`scope`: `queue` / `event` / `global`)  
+`/whitelist` - manage whitelisted users and roles (`scope`: `queue` / `event` / `global`)  
 `/clear` - remove all members from queue(s)  
 `/displays` - manage display channels  
 `/events` - manage recurring events with auto-managed queues (and optional auto-created per-room channels)  
 `/logging` - manage logging channels  
 `/members` - manage queue members  
 `/move` - change the position of a queue member  
-`/prioritize` - manage prioritized users and roles  
+`/prioritize` - manage prioritized users and roles (`scope`: `queue` / `event` / `global`)  
 `/pull` - pull members from queue(s)  
 `/queues` - manage queues  
 `/schedules` - manage scheduled commands  

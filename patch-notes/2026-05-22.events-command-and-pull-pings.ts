@@ -51,6 +51,12 @@ Admins can choose where the pull notification is posted when pulling members, ma
 - ${"`parent_sub_mutually_exclusive`"} (default \`true\`) — a user can't be in both a room and its matching sub. Joining the sub while in the room is blocked; joining the room while in the sub silently kicks them from the sub. Set to \`false\` to allow both.`,
 			},
 			{
+				name: "Event-wide and global blacklist / whitelist / prioritize",
+				value: `${"`/blacklist`"}, ${"`/whitelist`"}, and ${"`/prioritize`"} now take a ${"`scope`"} option: ${"`queue`"} (existing per-queue behavior), ${"`event`"} (one entry covers every queue in the chosen event), or ${"`global`"} (one entry covers every queue in the server).
+
+On join, blacklists block if any scope matches, whitelists require a match in the aggregate of all scopes that have entries, and priority takes the lowest ${"`priority_order`"} across scopes.`,
+			},
+			{
 				name: "How to get started",
 				value: `Use ${"`/events help`"} for the event workflow. Existing queue commands still work normally for non-event queues.`,
 			},

@@ -388,6 +388,116 @@ export type NewPrioritized = typeof PRIORITIZED_TABLE.$inferInsert;
 export type DbPrioritized = typeof PRIORITIZED_TABLE.$inferSelect;
 
 
+export const EVENT_BLACKLISTED_TABLE = sqliteTable("event_blacklisted", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	subjectId: text("subject_id").$type<Snowflake>().notNull(),
+	isRole: integer("is_role", { mode: "boolean" }).notNull(),
+	reason: text("reason"),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.subjectId),
+	guildIdIndex: index("event_blacklisted_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_blacklisted_event_id_index").on(table.eventId),
+}));
+
+export type NewEventBlacklisted = typeof EVENT_BLACKLISTED_TABLE.$inferInsert;
+export type DbEventBlacklisted = typeof EVENT_BLACKLISTED_TABLE.$inferSelect;
+
+
+export const EVENT_WHITELISTED_TABLE = sqliteTable("event_whitelisted", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	subjectId: text("subject_id").$type<Snowflake>().notNull(),
+	isRole: integer("is_role", { mode: "boolean" }).notNull(),
+	reason: text("reason"),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.subjectId),
+	guildIdIndex: index("event_whitelisted_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_whitelisted_event_id_index").on(table.eventId),
+}));
+
+export type NewEventWhitelisted = typeof EVENT_WHITELISTED_TABLE.$inferInsert;
+export type DbEventWhitelisted = typeof EVENT_WHITELISTED_TABLE.$inferSelect;
+
+
+export const EVENT_PRIORITIZED_TABLE = sqliteTable("event_prioritized", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	subjectId: text("subject_id").$type<Snowflake>().notNull(),
+	isRole: integer("is_role", { mode: "boolean" }).notNull(),
+	priorityOrder: integer("priority_order").$type<bigint>().notNull().default(5 as any),
+	reason: text("reason"),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.subjectId),
+	guildIdIndex: index("event_prioritized_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_prioritized_event_id_index").on(table.eventId),
+}));
+
+export type NewEventPrioritized = typeof EVENT_PRIORITIZED_TABLE.$inferInsert;
+export type DbEventPrioritized = typeof EVENT_PRIORITIZED_TABLE.$inferSelect;
+
+
+export const GUILD_BLACKLISTED_TABLE = sqliteTable("guild_blacklisted", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	subjectId: text("subject_id").$type<Snowflake>().notNull(),
+	isRole: integer("is_role", { mode: "boolean" }).notNull(),
+	reason: text("reason"),
+}),
+(table) => ({
+	unq: unique().on(table.guildId, table.subjectId),
+	guildIdIndex: index("guild_blacklisted_guild_id_index").on(table.guildId),
+}));
+
+export type NewGuildBlacklisted = typeof GUILD_BLACKLISTED_TABLE.$inferInsert;
+export type DbGuildBlacklisted = typeof GUILD_BLACKLISTED_TABLE.$inferSelect;
+
+
+export const GUILD_WHITELISTED_TABLE = sqliteTable("guild_whitelisted", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	subjectId: text("subject_id").$type<Snowflake>().notNull(),
+	isRole: integer("is_role", { mode: "boolean" }).notNull(),
+	reason: text("reason"),
+}),
+(table) => ({
+	unq: unique().on(table.guildId, table.subjectId),
+	guildIdIndex: index("guild_whitelisted_guild_id_index").on(table.guildId),
+}));
+
+export type NewGuildWhitelisted = typeof GUILD_WHITELISTED_TABLE.$inferInsert;
+export type DbGuildWhitelisted = typeof GUILD_WHITELISTED_TABLE.$inferSelect;
+
+
+export const GUILD_PRIORITIZED_TABLE = sqliteTable("guild_prioritized", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	subjectId: text("subject_id").$type<Snowflake>().notNull(),
+	isRole: integer("is_role", { mode: "boolean" }).notNull(),
+	priorityOrder: integer("priority_order").$type<bigint>().notNull().default(5 as any),
+	reason: text("reason"),
+}),
+(table) => ({
+	unq: unique().on(table.guildId, table.subjectId),
+	guildIdIndex: index("guild_prioritized_guild_id_index").on(table.guildId),
+}));
+
+export type NewGuildPrioritized = typeof GUILD_PRIORITIZED_TABLE.$inferInsert;
+export type DbGuildPrioritized = typeof GUILD_PRIORITIZED_TABLE.$inferSelect;
+
+
 export const ADMIN_TABLE = sqliteTable("admin", ({
 	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
 

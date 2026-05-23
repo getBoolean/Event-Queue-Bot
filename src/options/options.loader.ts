@@ -72,6 +72,7 @@ import { RoomQueuesChannelOption } from "./options/room-queues-channel.option.ts
 import { RoomSchedulingOption } from "./options/room-scheduling.option.ts";
 import { ScheduleOption } from "./options/schedule.option.ts";
 import { SchedulesOption } from "./options/schedules.option.ts";
+import { ScopeOption } from "./options/scope.option.ts";
 import { SizeOption } from "./options/size.option.ts";
 import { SlowmodeOption } from "./options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "./options/slowmode-time.option.ts";
@@ -158,6 +159,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[RoleOnPullOption.ID, new RoleOnPullOption()],
 	[ScheduleOption.ID, new ScheduleOption()],
 	[SchedulesOption.ID, new SchedulesOption()],
+	[ScopeOption.ID, new ScopeOption()],
 	[SizeOption.ID, new SizeOption()],
 	[SlowmodeOption.ID, new SlowmodeOption()],
 	[SlowmodeTimeOption.ID, new SlowmodeTimeOption()],

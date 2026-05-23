@@ -27,11 +27,17 @@ import {
 	type DbBlacklisted,
 	type DbDisplay,
 	type DbEvent,
+	type DbEventBlacklisted,
 	type DbEventOccurrence,
 	type DbEventOccurrenceRoomPing,
+	type DbEventPrioritized,
 	type DbEventQueue,
 	type DbEventRoomChannel,
 	type DbEventRoomChannelTemplate,
+	type DbEventWhitelisted,
+	type DbGuildBlacklisted,
+	type DbGuildPrioritized,
+	type DbGuildWhitelisted,
 	type DbMember,
 	type DbPrioritized,
 	type DbQueue,
@@ -39,27 +45,39 @@ import {
 	type DbVoice,
 	type DbWhitelisted,
 	DISPLAY_TABLE,
+	EVENT_BLACKLISTED_TABLE,
 	EVENT_DEFAULT_TABLE,
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
 	EVENT_OCCURRENCE_TABLE,
+	EVENT_PRIORITIZED_TABLE,
 	EVENT_QUEUE_TABLE,
 	EVENT_ROOM_CHANNEL_TABLE,
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
+	EVENT_WHITELISTED_TABLE,
+	GUILD_BLACKLISTED_TABLE,
+	GUILD_PRIORITIZED_TABLE,
 	GUILD_TABLE,
+	GUILD_WHITELISTED_TABLE,
 	MEMBER_TABLE,
 	type NewAdmin,
 	type NewArchivedMember,
 	type NewBlacklisted,
 	type NewDisplay,
 	type NewEvent,
+	type NewEventBlacklisted,
 	type NewEventDefault,
 	type NewEventOccurrence,
 	type NewEventOccurrenceRoomPing,
+	type NewEventPrioritized,
 	type NewEventQueue,
 	type NewEventRoomChannel,
 	type NewEventRoomChannelTemplate,
+	type NewEventWhitelisted,
 	type NewGuild,
+	type NewGuildBlacklisted,
+	type NewGuildPrioritized,
+	type NewGuildWhitelisted,
 	type NewMember,
 	type NewPrioritized,
 	type NewQueue,
@@ -103,6 +121,12 @@ export class Store {
 	dbWhitelisted = () => toCollection<bigint, DbWhitelisted>("id", Queries.selectManyWhitelisted({ guildId: this.guild.id }));
 	dbBlacklisted = () => toCollection<bigint, DbBlacklisted>("id", Queries.selectManyBlacklisted({ guildId: this.guild.id }));
 	dbPrioritized = () => toCollection<bigint, DbPrioritized>("id", Queries.selectManyPrioritized({ guildId: this.guild.id }));
+	dbEventBlacklisted = () => toCollection<bigint, DbEventBlacklisted>("id", Queries.selectManyEventBlacklisted({ guildId: this.guild.id }));
+	dbEventWhitelisted = () => toCollection<bigint, DbEventWhitelisted>("id", Queries.selectManyEventWhitelisted({ guildId: this.guild.id }));
+	dbEventPrioritized = () => toCollection<bigint, DbEventPrioritized>("id", Queries.selectManyEventPrioritized({ guildId: this.guild.id }));
+	dbGuildBlacklisted = () => toCollection<bigint, DbGuildBlacklisted>("id", Queries.selectManyGuildBlacklisted({ guildId: this.guild.id }));
+	dbGuildWhitelisted = () => toCollection<bigint, DbGuildWhitelisted>("id", Queries.selectManyGuildWhitelisted({ guildId: this.guild.id }));
+	dbGuildPrioritized = () => toCollection<bigint, DbGuildPrioritized>("id", Queries.selectManyGuildPrioritized({ guildId: this.guild.id }));
 	dbAdmins = () => toCollection<bigint, DbAdmin>("id", Queries.selectManyAdmins({ guildId: this.guild.id }));
 	// dbArchivedMembers is **unordered**.
 	dbArchivedMembers = () => toCollection<bigint, DbArchivedMember>("id", Queries.selectManyArchivedMembers({ guildId: this.guild.id }));
@@ -185,6 +209,12 @@ export class Store {
 				this.deleteManyWhitelisted({ subjectId: roleId });
 				this.deleteManyBlacklisted({ subjectId: roleId });
 				this.deleteManyPrioritized({ subjectId: roleId });
+				this.deleteManyEventWhitelisted({ subjectId: roleId });
+				this.deleteManyEventBlacklisted({ subjectId: roleId });
+				this.deleteManyEventPrioritized({ subjectId: roleId });
+				this.deleteManyGuildWhitelisted({ subjectId: roleId });
+				this.deleteManyGuildBlacklisted({ subjectId: roleId });
+				this.deleteManyGuildPrioritized({ subjectId: roleId });
 				this.deleteAdmin({ subjectId: roleId });
 			}
 			else {
@@ -357,6 +387,114 @@ export class Store {
 				console.error("Store.insertPrioritized: unexpected failure:", e);
 				throw e;
 			}
+		}
+	}
+
+	// throws error on conflict
+	insertEventBlacklisted(newEventBlacklisted: NewEventBlacklisted) {
+		try {
+			this.incrementGuildStat("blacklistedAdded");
+			return db
+				.insert(EVENT_BLACKLISTED_TABLE)
+				.values(omitBy(newEventBlacklisted, isNil) as NewEventBlacklisted)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new BlacklistedAlreadyExistsError();
+			}
+			console.error("Store.insertEventBlacklisted: unexpected failure:", e);
+			throw e;
+		}
+	}
+
+	// throws error on conflict
+	insertEventWhitelisted(newEventWhitelisted: NewEventWhitelisted) {
+		try {
+			this.incrementGuildStat("whitelistedAdded");
+			return db
+				.insert(EVENT_WHITELISTED_TABLE)
+				.values(omitBy(newEventWhitelisted, isNil) as NewEventWhitelisted)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new WhitelistedAlreadyExistsError();
+			}
+			console.error("Store.insertEventWhitelisted: unexpected failure:", e);
+			throw e;
+		}
+	}
+
+	// throws error on conflict
+	insertEventPrioritized(newEventPrioritized: NewEventPrioritized) {
+		try {
+			this.incrementGuildStat("prioritizedAdded");
+			return db
+				.insert(EVENT_PRIORITIZED_TABLE)
+				.values(omitBy(newEventPrioritized, isNil) as NewEventPrioritized)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new PrioritizedAlreadyExistsError();
+			}
+			console.error("Store.insertEventPrioritized: unexpected failure:", e);
+			throw e;
+		}
+	}
+
+	// throws error on conflict
+	insertGuildBlacklisted(newGuildBlacklisted: NewGuildBlacklisted) {
+		try {
+			this.incrementGuildStat("blacklistedAdded");
+			return db
+				.insert(GUILD_BLACKLISTED_TABLE)
+				.values(omitBy(newGuildBlacklisted, isNil) as NewGuildBlacklisted)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new BlacklistedAlreadyExistsError();
+			}
+			console.error("Store.insertGuildBlacklisted: unexpected failure:", e);
+			throw e;
+		}
+	}
+
+	// throws error on conflict
+	insertGuildWhitelisted(newGuildWhitelisted: NewGuildWhitelisted) {
+		try {
+			this.incrementGuildStat("whitelistedAdded");
+			return db
+				.insert(GUILD_WHITELISTED_TABLE)
+				.values(omitBy(newGuildWhitelisted, isNil) as NewGuildWhitelisted)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new WhitelistedAlreadyExistsError();
+			}
+			console.error("Store.insertGuildWhitelisted: unexpected failure:", e);
+			throw e;
+		}
+	}
+
+	// throws error on conflict
+	insertGuildPrioritized(newGuildPrioritized: NewGuildPrioritized) {
+		try {
+			this.incrementGuildStat("prioritizedAdded");
+			return db
+				.insert(GUILD_PRIORITIZED_TABLE)
+				.values(omitBy(newGuildPrioritized, isNil) as NewGuildPrioritized)
+				.returning().get();
+		}
+		catch (e) {
+			if ((e as Error).message.includes("UNIQUE constraint failed")) {
+				throw new PrioritizedAlreadyExistsError();
+			}
+			console.error("Store.insertGuildPrioritized: unexpected failure:", e);
+			throw e;
 		}
 	}
 
@@ -690,6 +828,72 @@ export class Store {
 			.returning().get();
 	}
 
+	updateEventBlacklisted(eventBlacklisted: { id: bigint } & Partial<DbEventBlacklisted>) {
+		return db
+			.update(EVENT_BLACKLISTED_TABLE)
+			.set(eventBlacklisted)
+			.where(and(
+				eq(EVENT_BLACKLISTED_TABLE.id, eventBlacklisted.id),
+				eq(EVENT_BLACKLISTED_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateEventWhitelisted(eventWhitelisted: { id: bigint } & Partial<DbEventWhitelisted>) {
+		return db
+			.update(EVENT_WHITELISTED_TABLE)
+			.set(eventWhitelisted)
+			.where(and(
+				eq(EVENT_WHITELISTED_TABLE.id, eventWhitelisted.id),
+				eq(EVENT_WHITELISTED_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateEventPrioritized(eventPrioritized: { id: bigint } & Partial<DbEventPrioritized>) {
+		return db
+			.update(EVENT_PRIORITIZED_TABLE)
+			.set(eventPrioritized)
+			.where(and(
+				eq(EVENT_PRIORITIZED_TABLE.id, eventPrioritized.id),
+				eq(EVENT_PRIORITIZED_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateGuildBlacklisted(guildBlacklisted: { id: bigint } & Partial<DbGuildBlacklisted>) {
+		return db
+			.update(GUILD_BLACKLISTED_TABLE)
+			.set(guildBlacklisted)
+			.where(and(
+				eq(GUILD_BLACKLISTED_TABLE.id, guildBlacklisted.id),
+				eq(GUILD_BLACKLISTED_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateGuildWhitelisted(guildWhitelisted: { id: bigint } & Partial<DbGuildWhitelisted>) {
+		return db
+			.update(GUILD_WHITELISTED_TABLE)
+			.set(guildWhitelisted)
+			.where(and(
+				eq(GUILD_WHITELISTED_TABLE.id, guildWhitelisted.id),
+				eq(GUILD_WHITELISTED_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
+	updateGuildPrioritized(guildPrioritized: { id: bigint } & Partial<DbGuildPrioritized>) {
+		return db
+			.update(GUILD_PRIORITIZED_TABLE)
+			.set(guildPrioritized)
+			.where(and(
+				eq(GUILD_PRIORITIZED_TABLE.id, guildPrioritized.id),
+				eq(GUILD_PRIORITIZED_TABLE.guildId, this.guild.id)
+			))
+			.returning().get();
+	}
+
 	// ====================================================================
 	//                           Deletes
 	// ====================================================================
@@ -837,6 +1041,93 @@ export class Store {
 	) {
 		const cond = this.createCondition(PRIORITIZED_TABLE, by);
 		return db.delete(PRIORITIZED_TABLE).where(cond).returning().get();
+	}
+
+	deleteEventBlacklisted(by:
+		{ id: bigint } |
+		{ eventId: bigint, subjectId: Snowflake }
+	) {
+		const cond = this.createCondition(EVENT_BLACKLISTED_TABLE, by);
+		return db.delete(EVENT_BLACKLISTED_TABLE).where(cond).returning().get();
+	}
+
+	deleteManyEventBlacklisted(by:
+		{ subjectId?: Snowflake } |
+		{ eventId: bigint }
+	) {
+		const cond = this.createCondition(EVENT_BLACKLISTED_TABLE, by);
+		return db.delete(EVENT_BLACKLISTED_TABLE).where(cond).returning().all();
+	}
+
+	deleteEventWhitelisted(by:
+		{ id: bigint } |
+		{ eventId: bigint, subjectId: Snowflake }
+	) {
+		const cond = this.createCondition(EVENT_WHITELISTED_TABLE, by);
+		return db.delete(EVENT_WHITELISTED_TABLE).where(cond).returning().get();
+	}
+
+	deleteManyEventWhitelisted(by:
+		{ subjectId?: Snowflake } |
+		{ eventId: bigint }
+	) {
+		const cond = this.createCondition(EVENT_WHITELISTED_TABLE, by);
+		return db.delete(EVENT_WHITELISTED_TABLE).where(cond).returning().all();
+	}
+
+	deleteEventPrioritized(by:
+		{ id: bigint } |
+		{ eventId: bigint, subjectId: Snowflake }
+	) {
+		const cond = this.createCondition(EVENT_PRIORITIZED_TABLE, by);
+		return db.delete(EVENT_PRIORITIZED_TABLE).where(cond).returning().get();
+	}
+
+	deleteManyEventPrioritized(by:
+		{ subjectId?: Snowflake } |
+		{ eventId: bigint }
+	) {
+		const cond = this.createCondition(EVENT_PRIORITIZED_TABLE, by);
+		return db.delete(EVENT_PRIORITIZED_TABLE).where(cond).returning().all();
+	}
+
+	deleteGuildBlacklisted(by:
+		{ id: bigint } |
+		{ subjectId: Snowflake }
+	) {
+		const cond = this.createCondition(GUILD_BLACKLISTED_TABLE, by);
+		return db.delete(GUILD_BLACKLISTED_TABLE).where(cond).returning().get();
+	}
+
+	deleteManyGuildBlacklisted(by: { subjectId?: Snowflake }) {
+		const cond = this.createCondition(GUILD_BLACKLISTED_TABLE, by);
+		return db.delete(GUILD_BLACKLISTED_TABLE).where(cond).returning().all();
+	}
+
+	deleteGuildWhitelisted(by:
+		{ id: bigint } |
+		{ subjectId: Snowflake }
+	) {
+		const cond = this.createCondition(GUILD_WHITELISTED_TABLE, by);
+		return db.delete(GUILD_WHITELISTED_TABLE).where(cond).returning().get();
+	}
+
+	deleteManyGuildWhitelisted(by: { subjectId?: Snowflake }) {
+		const cond = this.createCondition(GUILD_WHITELISTED_TABLE, by);
+		return db.delete(GUILD_WHITELISTED_TABLE).where(cond).returning().all();
+	}
+
+	deleteGuildPrioritized(by:
+		{ id: bigint } |
+		{ subjectId: Snowflake }
+	) {
+		const cond = this.createCondition(GUILD_PRIORITIZED_TABLE, by);
+		return db.delete(GUILD_PRIORITIZED_TABLE).where(cond).returning().get();
+	}
+
+	deleteManyGuildPrioritized(by: { subjectId?: Snowflake }) {
+		const cond = this.createCondition(GUILD_PRIORITIZED_TABLE, by);
+		return db.delete(GUILD_PRIORITIZED_TABLE).where(cond).returning().all();
 	}
 
 	deleteAdmin(by:

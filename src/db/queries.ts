@@ -7,14 +7,20 @@ import {
 	ARCHIVED_MEMBER_TABLE,
 	BLACKLISTED_TABLE,
 	DISPLAY_TABLE,
+	EVENT_BLACKLISTED_TABLE,
 	EVENT_DEFAULT_TABLE,
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
 	EVENT_OCCURRENCE_TABLE,
+	EVENT_PRIORITIZED_TABLE,
 	EVENT_QUEUE_TABLE,
 	EVENT_ROOM_CHANNEL_TABLE,
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
+	EVENT_WHITELISTED_TABLE,
+	GUILD_BLACKLISTED_TABLE,
+	GUILD_PRIORITIZED_TABLE,
 	GUILD_TABLE,
+	GUILD_WHITELISTED_TABLE,
 	MEMBER_TABLE,
 	type NewPatchNote,
 	PATCH_NOTE_TABLE,
@@ -276,6 +282,99 @@ export namespace Queries {
 		}
 		else if ("guildId" in by) {
 			return selectManyPrioritizedByGuildId.all(by);
+		}
+	}
+
+	// Event Blacklisted
+
+	export function selectManyEventBlacklisted(by:
+		{ guildId: Snowflake, eventId: bigint } |
+		{ guildId: Snowflake, subjectId: Snowflake } |
+		{ guildId: Snowflake }
+	) {
+		if ("eventId" in by) {
+			return selectManyEventBlacklistedByGuildIdAndEventId.all(by);
+		}
+		else if ("subjectId" in by) {
+			return selectManyEventBlacklistedByGuildIdAndSubjectId.all(by);
+		}
+		else {
+			return selectManyEventBlacklistedByGuildId.all(by);
+		}
+	}
+
+	// Event Whitelisted
+
+	export function selectManyEventWhitelisted(by:
+		{ guildId: Snowflake, eventId: bigint } |
+		{ guildId: Snowflake, subjectId: Snowflake } |
+		{ guildId: Snowflake }
+	) {
+		if ("eventId" in by) {
+			return selectManyEventWhitelistedByGuildIdAndEventId.all(by);
+		}
+		else if ("subjectId" in by) {
+			return selectManyEventWhitelistedByGuildIdAndSubjectId.all(by);
+		}
+		else {
+			return selectManyEventWhitelistedByGuildId.all(by);
+		}
+	}
+
+	// Event Prioritized
+
+	export function selectManyEventPrioritized(by:
+		{ guildId: Snowflake, eventId: bigint } |
+		{ guildId: Snowflake, subjectId: Snowflake } |
+		{ guildId: Snowflake }
+	) {
+		if ("eventId" in by) {
+			return selectManyEventPrioritizedByGuildIdAndEventId.all(by);
+		}
+		else if ("subjectId" in by) {
+			return selectManyEventPrioritizedByGuildIdAndSubjectId.all(by);
+		}
+		else {
+			return selectManyEventPrioritizedByGuildId.all(by);
+		}
+	}
+
+	// Guild Blacklisted
+
+	export function selectManyGuildBlacklisted(by:
+		{ guildId: Snowflake, subjectId?: Snowflake }
+	) {
+		if ("subjectId" in by) {
+			return selectManyGuildBlacklistedByGuildIdAndSubjectId.all(by);
+		}
+		else {
+			return selectManyGuildBlacklistedByGuildId.all(by);
+		}
+	}
+
+	// Guild Whitelisted
+
+	export function selectManyGuildWhitelisted(by:
+		{ guildId: Snowflake, subjectId?: Snowflake }
+	) {
+		if ("subjectId" in by) {
+			return selectManyGuildWhitelistedByGuildIdAndSubjectId.all(by);
+		}
+		else {
+			return selectManyGuildWhitelistedByGuildId.all(by);
+		}
+	}
+
+	// Guild Prioritized
+
+	export function selectManyGuildPrioritized(by:
+		{ guildId: Snowflake, subjectId?: Snowflake }
+	) {
+		if ("subjectId" in by) {
+			return selectManyGuildPrioritizedByGuildIdAndSubjectId.all(by);
+		}
+		else {
+			return selectManyGuildPrioritizedByGuildId.all(by);
 		}
 	}
 
@@ -800,6 +899,147 @@ export namespace Queries {
 		.where(and(
 			eq(PRIORITIZED_TABLE.guildId, sql.placeholder("guildId")),
 			eq(PRIORITIZED_TABLE.queueId, sql.placeholder("queueId"))
+		))
+		.prepare();
+
+	// Event Blacklisted
+
+	const selectManyEventBlacklistedByGuildId = db
+		.select()
+		.from(EVENT_BLACKLISTED_TABLE)
+		.where(
+			eq(EVENT_BLACKLISTED_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyEventBlacklistedByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_BLACKLISTED_TABLE)
+		.where(and(
+			eq(EVENT_BLACKLISTED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_BLACKLISTED_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	const selectManyEventBlacklistedByGuildIdAndSubjectId = db
+		.select()
+		.from(EVENT_BLACKLISTED_TABLE)
+		.where(and(
+			eq(EVENT_BLACKLISTED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_BLACKLISTED_TABLE.subjectId, sql.placeholder("subjectId"))
+		))
+		.prepare();
+
+	// Event Whitelisted
+
+	const selectManyEventWhitelistedByGuildId = db
+		.select()
+		.from(EVENT_WHITELISTED_TABLE)
+		.where(
+			eq(EVENT_WHITELISTED_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyEventWhitelistedByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_WHITELISTED_TABLE)
+		.where(and(
+			eq(EVENT_WHITELISTED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_WHITELISTED_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	const selectManyEventWhitelistedByGuildIdAndSubjectId = db
+		.select()
+		.from(EVENT_WHITELISTED_TABLE)
+		.where(and(
+			eq(EVENT_WHITELISTED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_WHITELISTED_TABLE.subjectId, sql.placeholder("subjectId"))
+		))
+		.prepare();
+
+	// Event Prioritized
+
+	const selectManyEventPrioritizedByGuildId = db
+		.select()
+		.from(EVENT_PRIORITIZED_TABLE)
+		.where(
+			eq(EVENT_PRIORITIZED_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyEventPrioritizedByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_PRIORITIZED_TABLE)
+		.where(and(
+			eq(EVENT_PRIORITIZED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_PRIORITIZED_TABLE.eventId, sql.placeholder("eventId"))
+		))
+		.prepare();
+
+	const selectManyEventPrioritizedByGuildIdAndSubjectId = db
+		.select()
+		.from(EVENT_PRIORITIZED_TABLE)
+		.where(and(
+			eq(EVENT_PRIORITIZED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_PRIORITIZED_TABLE.subjectId, sql.placeholder("subjectId"))
+		))
+		.prepare();
+
+	// Guild Blacklisted
+
+	const selectManyGuildBlacklistedByGuildId = db
+		.select()
+		.from(GUILD_BLACKLISTED_TABLE)
+		.where(
+			eq(GUILD_BLACKLISTED_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyGuildBlacklistedByGuildIdAndSubjectId = db
+		.select()
+		.from(GUILD_BLACKLISTED_TABLE)
+		.where(and(
+			eq(GUILD_BLACKLISTED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(GUILD_BLACKLISTED_TABLE.subjectId, sql.placeholder("subjectId"))
+		))
+		.prepare();
+
+	// Guild Whitelisted
+
+	const selectManyGuildWhitelistedByGuildId = db
+		.select()
+		.from(GUILD_WHITELISTED_TABLE)
+		.where(
+			eq(GUILD_WHITELISTED_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyGuildWhitelistedByGuildIdAndSubjectId = db
+		.select()
+		.from(GUILD_WHITELISTED_TABLE)
+		.where(and(
+			eq(GUILD_WHITELISTED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(GUILD_WHITELISTED_TABLE.subjectId, sql.placeholder("subjectId"))
+		))
+		.prepare();
+
+	// Guild Prioritized
+
+	const selectManyGuildPrioritizedByGuildId = db
+		.select()
+		.from(GUILD_PRIORITIZED_TABLE)
+		.where(
+			eq(GUILD_PRIORITIZED_TABLE.guildId, sql.placeholder("guildId"))
+		)
+		.prepare();
+
+	const selectManyGuildPrioritizedByGuildIdAndSubjectId = db
+		.select()
+		.from(GUILD_PRIORITIZED_TABLE)
+		.where(and(
+			eq(GUILD_PRIORITIZED_TABLE.guildId, sql.placeholder("guildId")),
+			eq(GUILD_PRIORITIZED_TABLE.subjectId, sql.placeholder("subjectId"))
 		))
 		.prepare();
 

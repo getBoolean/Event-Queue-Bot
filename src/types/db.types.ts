@@ -7,6 +7,12 @@ export enum Scope {
 	None = "none",
 }
 
+export enum ListScope {
+	Queue = "queue",
+	Event = "event",
+	Global = "global",
+}
+
 export enum ScheduleCommand {
 	Clear = "clear",
 	Pull = "pull",

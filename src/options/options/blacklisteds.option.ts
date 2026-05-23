@@ -1,62 +1,66 @@
 import { Collection } from "discord.js";
 
-import type { DbBlacklisted } from "../../db/schema.ts";
+import type { DbBlacklisted, DbEventBlacklisted, DbGuildBlacklisted } from "../../db/schema.ts";
+import { ListScope } from "../../types/db.types.ts";
+import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
 import { CHOICE_ALL, CHOICE_SOME } from "../../types/parsing.types.ts";
-import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
+import { BlacklistedNotFoundError } from "../../utils/error.utils.ts";
 import { CustomOption } from "../base-option.ts";
-import { BlacklistedOption } from "./blacklisted.option.ts";
+import { buildScopeSuggestions, pickScopedEntries, resolveListScope } from "./_list-scope.utils.ts";
+
+export type ScopedBlacklistedSelection =
+	| { scope: ListScope.Queue, entries: Collection<bigint, DbBlacklisted> }
+	| { scope: ListScope.Event, entries: Collection<bigint, DbEventBlacklisted> }
+	| { scope: ListScope.Global, entries: Collection<bigint, DbGuildBlacklisted> };
 
 export class BlacklistedsOption extends CustomOption {
 	static readonly ID = "blacklisted";
 	id = BlacklistedsOption.ID;
 	extraChoices = [CHOICE_ALL, CHOICE_SOME];
 
-	getAutocompletions = BlacklistedOption.getAutocompletions;
+	getAutocompletions = BlacklistedsOption.getAutocompletions;
 
-	// force return type to be DbBlacklisted
 	get(inter: AutocompleteInteraction | SlashInteraction) {
-		return super.get(inter) as Promise<Collection<bigint, DbBlacklisted>>;
+		return super.get(inter) as Promise<ScopedBlacklistedSelection | null>;
 	}
 
-	protected async getUncached(inter: AutocompleteInteraction | SlashInteraction) {
+	protected async getUncached(inter: AutocompleteInteraction | SlashInteraction): Promise<ScopedBlacklistedSelection | null> {
 		const inputString = inter.options.getString(BlacklistedsOption.ID);
-		if (!inputString) return;
+		if (!inputString) return null;
 
-		const queues = await inter.parser.getScopedQueues();
-		const blacklisteds = inter.parser.getScopedBlacklisted(queues);
-
-		switch (inputString) {
-			case CHOICE_ALL.value:
-				return blacklisteds;
-			case CHOICE_SOME.value:
-				return await this.getViaSelectMenu(inter as SlashInteraction, blacklisteds);
-			default:
-				const blacklisted = BlacklistedOption.findBlacklisted(blacklisteds, inputString);
-				return blacklisted ? new Collection([[blacklisted.id, blacklisted]]) : null;
+		const scope = resolveListScope(inter);
+		if (scope === ListScope.Queue) {
+			const queues = await inter.parser.getScopedQueues();
+			const entries = inter.parser.getScopedBlacklisted(queues);
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundError()) };
 		}
+		if (scope === ListScope.Event) {
+			const entries = inter.store.dbEventBlacklisted();
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundError()) };
+		}
+		const entries = inter.store.dbGuildBlacklisted();
+		return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundError()) };
 	}
 
-	protected async getViaSelectMenu(inter: SlashInteraction, blacklisteds: Collection<bigint, DbBlacklisted>): Promise<Collection<bigint, DbBlacklisted>> {
-		// build menu
-		const label = BlacklistedsOption.ID;
-		const options = blacklisteds.map(blacklisted => ({
-			name: blacklisted.toString(),
-			value: blacklisted.id.toString(),
-		}));
-
-		// send and receive
-		const selectMenuTransactor = new SelectMenuTransactor(inter);
-		const result = await selectMenuTransactor.sendAndReceive(label, options);
-		if (!result) return;
-
-		// parse result
-		const blacklistedIds = result.map(id => BigInt(id));
-		const selectedBlacklisteds = blacklisteds.filter(blacklisted => blacklistedIds.includes(blacklisted.id));
-
-		// write result
-		await selectMenuTransactor.updateWithResult(label, selectedBlacklisteds);
-
-		return selectedBlacklisteds;
+	static async getAutocompletions({ inter }: { inter: AutocompleteInteraction }): Promise<UIOption[]> {
+		const scope = resolveListScope(inter);
+		if (scope === ListScope.Queue) {
+			const queues = await inter.parser.getScopedQueues();
+			const entries = inter.parser.getScopedBlacklisted(queues);
+			return buildScopeSuggestions(inter, [...entries.values()], row => {
+				const queue = inter.store.dbQueues().get((row as DbBlacklisted).queueId);
+				return queue ? `[Queue: ${queue.name}]` : "[Queue]";
+			});
+		}
+		if (scope === ListScope.Event) {
+			const entries = inter.store.dbEventBlacklisted();
+			return buildScopeSuggestions(inter, [...entries.values()], row => {
+				const event = inter.store.dbEvents().get((row as DbEventBlacklisted).eventId);
+				return event ? `[Event: ${event.name}]` : "[Event]";
+			});
+		}
+		const entries = inter.store.dbGuildBlacklisted();
+		return buildScopeSuggestions(inter, [...entries.values()], () => "[Global]");
 	}
 }
