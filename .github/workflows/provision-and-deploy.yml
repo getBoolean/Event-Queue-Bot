@@ -90,6 +90,7 @@ jobs:
 
     env:
       DEPLOY_BRANCH: ${{ github.ref_name }}
+      APP_PATH: ${{ vars.APP_PATH || '/opt/event-queue-bot' }}
       DO_REGION: ${{ vars.DO_REGION || 'nyc3' }}
       DO_SIZE: ${{ vars.DO_SIZE || 's-1vcpu-1gb' }}
       DO_IMAGE: ${{ vars.DO_IMAGE || 'ubuntu-24-04-x64' }}
