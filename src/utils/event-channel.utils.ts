@@ -260,29 +260,21 @@ export namespace EventChannelUtils {
 		const rowByChannelId = new Map<Snowflake, DbEventRoomChannel>();
 		for (const row of rows) rowByChannelId.set(row.channelId, row);
 
-		// Walk the category in current position order, breaking into runs of consecutive
-		// tracked channels. Any non-tracked channel ends the current run — so reordering
-		// only ever rearranges tracked channels within their own contiguous block, never
-		// across a non-tracked channel.
+		// Partition category children into non-tracked (kept at the top of the category
+		// in their existing relative order) and tracked (sorted into desired order and
+		// placed below). Children are split by Discord channel type so text and voice
+		// channels stay within their own type-local position sequence.
 		const children = [...(category.children?.cache.values() ?? [])]
 			.sort((a, b) => (a as any).position - (b as any).position);
 
-		const blocks: { rows: DbEventRoomChannel[], slots: number[] }[] = [];
-		let current: { rows: DbEventRoomChannel[], slots: number[] } | null = null;
+		const byType = new Map<ChannelType, { untracked: Snowflake[], tracked: DbEventRoomChannel[] }>();
 		for (const ch of children) {
+			const bucket = byType.get(ch.type) ?? { untracked: [], tracked: [] };
 			const row = rowByChannelId.get(ch.id);
-			if (row) {
-				if (!current) current = { rows: [], slots: [] };
-				current.rows.push(row);
-				current.slots.push((ch as any).position);
-			}
-			else if (current) {
-				blocks.push(current);
-				current = null;
-			}
+			if (row) bucket.tracked.push(row);
+			else bucket.untracked.push(ch.id);
+			byType.set(ch.type, bucket);
 		}
-		if (current) blocks.push(current);
-		if (blocks.length === 0) return;
 
 		const desiredOrder = (a: DbEventRoomChannel, b: DbEventRoomChannel) => {
 			const indexDiff = Number(a.roomIndex) - Number(b.roomIndex);
@@ -295,12 +287,14 @@ export namespace EventChannelUtils {
 		};
 
 		const payload: { channel: Snowflake, position: number }[] = [];
-		for (const block of blocks) {
-			const sorted = [...block.rows].sort(desiredOrder);
-			for (let i = 0; i < sorted.length; i++) {
-				payload.push({ channel: sorted[i].channelId, position: block.slots[i] });
-			}
+		for (const { untracked, tracked } of byType.values()) {
+			if (tracked.length === 0) continue;
+			const sortedTracked = [...tracked].sort(desiredOrder);
+			let position = 0;
+			for (const id of untracked) payload.push({ channel: id, position: position++ });
+			for (const row of sortedTracked) payload.push({ channel: row.channelId, position: position++ });
 		}
+		if (payload.length === 0) return;
 
 		try {
 			await store.guild.channels.setPositions(payload);
