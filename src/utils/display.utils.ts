@@ -68,13 +68,15 @@ class DisplayUpdateManager {
 		return DisplayUpdateManager.instance;
 	}
 
-	public addUpdate(update: DisplayUpdate): void {
+	public addUpdate(update: DisplayUpdate): Promise<void> {
 		const { queueId } = update;
 		if (this.updatedQueueIds.has(queueId)) {
+			// Coalesced into the next setInterval drain — caller cannot await the eventual update.
 			this.pendingQueueIds.set(queueId, update);
+			return Promise.resolve();
 		}
 		else {
-			DisplayUtils.updateDisplays(update);
+			return DisplayUtils.updateDisplays(update);
 		}
 	}
 
@@ -140,14 +142,14 @@ export namespace DisplayUtils {
 		return { deletedDisplays, updatedQueueIds };
 	}
 
-	export function requestDisplayUpdate(displayUpdate: DisplayUpdate): void {
-		updateManager.addUpdate(displayUpdate);
+	export function requestDisplayUpdate(displayUpdate: DisplayUpdate): Promise<void> {
+		return updateManager.addUpdate(displayUpdate);
 	}
 
-	export function requestDisplaysUpdate(displaysUpdate: DisplaysUpdate): void {
-		uniq(displaysUpdate.queueIds).forEach(queueId =>
+	export async function requestDisplaysUpdate(displaysUpdate: DisplaysUpdate): Promise<void> {
+		await Promise.all(uniq(displaysUpdate.queueIds).map(queueId =>
 			requestDisplayUpdate({ ...displaysUpdate, queueId })
-		);
+		));
 	}
 
 	export async function updateDisplays(displayUpdate: DisplayUpdate): Promise<void> {

@@ -257,16 +257,18 @@ export namespace EventUtils {
 			const roomCount = Number(event.roomCount);
 			const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
 
-			// Lock all existing event queues up-front so the sync runs from a known-locked baseline.
-			// Newly-created queues in Step A pick up correct lock state via insertEventQueueRowWithoutDisplay,
-			// and Step E re-evaluates every queue to unlock those whose pre-start window contains now.
+			// Lock every existing event queue up-front so the sync runs from a known-locked baseline.
+			// Step A's new queues lock themselves via insertEventQueueRowWithoutDisplay; Step E unlocks
+			// any whose pre-start window contains now. Direct store.updateQueue (not QueueUtils.updateQueues)
+			// — its requestDisplaysUpdate is fire-and-forget and would race Step C. No display refresh
+			// needed: Step C reposts every display.
 			{
 				const existingEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 				const existingQueues = compact(existingEqs.map(eq =>
 					Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
 				));
-				if (existingQueues.length > 0) {
-					await QueueUtils.updateQueues(store, existingQueues, { lockToggle: true } as Partial<DbQueue>);
+				for (const q of existingQueues) {
+					store.updateQueue({ id: q.id, lockToggle: true });
 				}
 			}
 
@@ -343,8 +345,7 @@ export namespace EventUtils {
 				await EventChannelUtils.reconcileRoomChannels(store, event);
 			}
 
-			// Step E — unlock any event queues whose role-appropriate pre-start window currently contains now.
-			// All other queues stay locked from the up-front lock above.
+			// Step E — unlock any event queues whose role-appropriate pre-start window contains now.
 			{
 				const allEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
 				const toUnlock: DbQueue[] = [];
