@@ -61,6 +61,7 @@ import type { SlashInteraction } from "../../types/interaction.types.ts";
 import { CustomError, EventNotFoundWarning } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
+import { EventSyncLock } from "../../utils/event-sync-lock.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
 import { commandMention, describeTable, eventMention, queuesMention } from "../../utils/string.utils.ts";
@@ -672,9 +673,12 @@ export class EventsCommand extends AdminCommand {
 			return;
 		}
 
-		const reports = await EventChannelUtils.reconcileAllGuildEvents(inter.store);
+		const { reports, skipped } = await EventChannelUtils.reconcileAllGuildEvents(inter.store);
 
-		const header = `Synced room channels for ${reports.length} event(s):`;
+		const skippedSuffix = skipped.length > 0
+			? `, skipped ${skipped.length} event(s) already in progress: ${skipped.map(e => inlineCode(e.name)).join(", ")}`
+			: "";
+		const header = `Synced room channels for ${reports.length} event(s)${skippedSuffix}:`;
 		const blocks = reports.map(renderSyncReport);
 		const combined = `${header}\n\n${blocks.join("\n\n")}`;
 
@@ -732,18 +736,29 @@ export class EventsCommand extends AdminCommand {
 		let reappliedRoomTotal = 0;
 		let reappliedSubTotal = 0;
 		let reshownTotal = 0;
+		const skipped: DbEvent[] = [];
 		for (const ev of targeted) {
-			const result = await EventUtils.syncEventQueues(inter.store, ev);
+			const result = await EventSyncLock.tryWithLock(inter.store.guild.id, ev.id, () =>
+				EventUtils.syncEventQueues(inter.store, ev)
+			);
+			if (result === "skipped") {
+				skipped.push(ev);
+				continue;
+			}
 			recreatedTotal += result.recreatedCount;
 			reappliedRoomTotal += result.reappliedRoomCount;
 			reappliedSubTotal += result.reappliedSubCount;
 			reshownTotal += result.reshownCount;
 		}
 
+		const syncedCount = targeted.length - skipped.length;
+		const skippedSuffix = skipped.length > 0
+			? `, skipped ${skipped.length} event(s) already in progress: ${skipped.map(e => inlineCode(e.name)).join(", ")}`
+			: "";
 		await inter.respond(
-			`Synced queues for ${targeted.length} event(s): recreated ${recreatedTotal} queue(s), ` +
+			`Synced queues for ${syncedCount} event(s): recreated ${recreatedTotal} queue(s), ` +
 			`re-applied defaults to ${reappliedRoomTotal} room + ${reappliedSubTotal} sub queue(s), ` +
-			`re-posted ${reshownTotal} display(s).`,
+			`re-posted ${reshownTotal} display(s)${skippedSuffix}.`,
 			true,
 		);
 	}

@@ -18,6 +18,7 @@ import type {
 import { Store } from "../db/store.ts";
 import { EventQueueRole } from "../types/db.types.ts";
 import { CustomError } from "./error.utils.ts";
+import { EventSyncLock } from "./event-sync-lock.utils.ts";
 import { QueueUtils } from "./queue.utils.ts";
 
 const DISCORD_MAX_SLOWMODE_SECONDS = 21600;
@@ -169,121 +170,132 @@ export namespace EventChannelUtils {
 	}
 
 	export async function reconcileRoomChannels(store: Store, event: DbEvent): Promise<SyncReport> {
-		const report = emptyReport(event);
-		if (!event.roomCategoryId) return report;
+		return EventSyncLock.withLock(store.guild.id, event.id, async () => {
+			const report = emptyReport(event);
+			if (!event.roomCategoryId) return report;
 
-		const category = await store.jsChannel(event.roomCategoryId);
-		if (!category || category.type !== ChannelType.GuildCategory) {
-			throw new CustomError({
-				message: `Configured room category (${event.roomCategoryId}) was not found. Reset it with /events reset, or pick a new one with /events set.`,
-			});
-		}
+			const category = await store.jsChannel(event.roomCategoryId);
+			if (!category || category.type !== ChannelType.GuildCategory) {
+				throw new CustomError({
+					message: `Configured room category (${event.roomCategoryId}) was not found. Reset it with /events reset, or pick a new one with /events set.`,
+				});
+			}
 
-		const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
-		const roomEqs = eventQueues
-			.filter(eq => eq.queueRole === EventQueueRole.Room)
-			.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+			const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+			const roomEqs = eventQueues
+				.filter(eq => eq.queueRole === EventQueueRole.Room)
+				.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
 
-		const templates = Queries.selectManyRoomChannelTemplates({ guildId: store.guild.id, eventId: event.id });
-		const existing = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
+			const templates = Queries.selectManyRoomChannelTemplates({ guildId: store.guild.id, eventId: event.id });
+			const existing = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
 
-		// Build desired set: per room, one main (suffix=null) + one per template suffix
-		const desired: DesiredChannel[] = [];
-		for (const roomEq of roomEqs) {
-			const queue = Queries.selectQueue({ guildId: store.guild.id, id: roomEq.queueId });
-			if (!queue) continue;
-			desired.push({
-				roomIndex: roomEq.queueIndex,
-				suffix: null,
-				slowmodeSeconds: 0,
-				roomEventQueue: roomEq,
-				roomQueue: queue,
-			});
-			for (const tmpl of templates) {
+			// Build desired set: per room, one main (suffix=null) + one per template suffix
+			const desired: DesiredChannel[] = [];
+			for (const roomEq of roomEqs) {
+				const queue = Queries.selectQueue({ guildId: store.guild.id, id: roomEq.queueId });
+				if (!queue) continue;
 				desired.push({
 					roomIndex: roomEq.queueIndex,
-					suffix: tmpl.suffix,
-					slowmodeSeconds: Number(tmpl.slowmodeSeconds ?? 0n),
+					suffix: null,
+					slowmodeSeconds: 0,
 					roomEventQueue: roomEq,
 					roomQueue: queue,
 				});
+				for (const tmpl of templates) {
+					desired.push({
+						roomIndex: roomEq.queueIndex,
+						suffix: tmpl.suffix,
+						slowmodeSeconds: Number(tmpl.slowmodeSeconds ?? 0n),
+						roomEventQueue: roomEq,
+						roomQueue: queue,
+					});
+				}
 			}
-		}
 
-		const keyOf = (roomIndex: bigint | number, suffix: string | null) => `${roomIndex}|${suffix ?? ""}`;
+			const keyOf = (roomIndex: bigint | number, suffix: string | null) => `${roomIndex}|${suffix ?? ""}`;
 
-		const existingByKey = new Map<string, DbEventRoomChannel>();
-		for (const row of existing) {
-			existingByKey.set(keyOf(row.roomIndex, row.suffix), row);
-		}
-		const desiredByKey = new Map<string, DesiredChannel>();
-		for (const d of desired) {
-			desiredByKey.set(keyOf(d.roomIndex, d.suffix), d);
-		}
-
-		// Ensure room roles for every room (lazy creation)
-		const roleByRoomIndex = new Map<bigint, Snowflake | null>();
-		for (const roomEq of roomEqs) {
-			const roleId = await ensureRoomRole(store, event, roomEq);
-			roleByRoomIndex.set(roomEq.queueIndex, roleId);
-		}
-
-		// To-untrack: existing − desired (we leave the Discord channels alone; if the
-		// same key becomes desired again later, ensureRoomChannel will adopt it back).
-		for (const [key, row] of existingByKey) {
-			if (desiredByKey.has(key)) continue;
-			untrackRoomChannel(store, row);
-			report.untrackedRows.push(buildChannelName(row.suffix, row.roomIndex));
-		}
-
-		// To-create + to-update
-		for (const [key, d] of desiredByKey) {
-			const existingRow = existingByKey.get(key);
-			const roomRoleId = roleByRoomIndex.get(d.roomIndex) ?? null;
-			const overwrites = buildOverwrites(store, roomRoleId);
-			const channelName = buildChannelName(d.suffix, d.roomIndex);
-
-			if (!existingRow) {
-				const { id: channelId, adopted } = await ensureRoomChannel(store, event, d, overwrites, channelName);
-				trackRoomChannel(store, event, d, channelId);
-				(adopted ? report.adopted : report.created).push(channelName);
+			const existingByKey = new Map<string, DbEventRoomChannel>();
+			for (const row of existing) {
+				existingByKey.set(keyOf(row.roomIndex, row.suffix), row);
 			}
-			else {
-				const channel = await tryFetchChannel(store, existingRow.channelId);
-				if (!channel) {
-					// Tracked channel is gone — drop the row and adopt/create afresh.
-					store.deleteEventRoomChannel({ id: existingRow.id });
-					const { id: channelId } = await ensureRoomChannel(store, event, d, overwrites, channelName);
+			const desiredByKey = new Map<string, DesiredChannel>();
+			for (const d of desired) {
+				desiredByKey.set(keyOf(d.roomIndex, d.suffix), d);
+			}
+
+			// Ensure room roles for every room (lazy creation)
+			const roleByRoomIndex = new Map<bigint, Snowflake | null>();
+			for (const roomEq of roomEqs) {
+				const roleId = await ensureRoomRole(store, event, roomEq);
+				roleByRoomIndex.set(roomEq.queueIndex, roleId);
+			}
+
+			// To-untrack: existing − desired (we leave the Discord channels alone; if the
+			// same key becomes desired again later, ensureRoomChannel will adopt it back).
+			for (const [key, row] of existingByKey) {
+				if (desiredByKey.has(key)) continue;
+				untrackRoomChannel(store, row);
+				report.untrackedRows.push(buildChannelName(row.suffix, row.roomIndex));
+			}
+
+			// To-create + to-update
+			for (const [key, d] of desiredByKey) {
+				const existingRow = existingByKey.get(key);
+				const roomRoleId = roleByRoomIndex.get(d.roomIndex) ?? null;
+				const overwrites = buildOverwrites(store, roomRoleId);
+				const channelName = buildChannelName(d.suffix, d.roomIndex);
+
+				if (!existingRow) {
+					const { id: channelId, adopted } = await ensureRoomChannel(store, event, d, overwrites, channelName);
 					trackRoomChannel(store, event, d, channelId);
-					report.recreatedMissing.push(channelName);
+					(adopted ? report.adopted : report.created).push(channelName);
 				}
 				else {
-					await applyChannelSettings(channel, overwrites, d.slowmodeSeconds);
-					if (d.suffix === null && d.roomEventQueue.pingChannelId !== channel.id) {
-						store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: channel.id });
+					const channel = await tryFetchChannel(store, existingRow.channelId);
+					if (!channel) {
+					// Tracked channel is gone — drop the row and adopt/create afresh.
+						store.deleteEventRoomChannel({ id: existingRow.id });
+						const { id: channelId } = await ensureRoomChannel(store, event, d, overwrites, channelName);
+						trackRoomChannel(store, event, d, channelId);
+						report.recreatedMissing.push(channelName);
+					}
+					else {
+						await applyChannelSettings(channel, overwrites, d.slowmodeSeconds);
+						if (d.suffix === null && d.roomEventQueue.pingChannelId !== channel.id) {
+							store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: channel.id });
+						}
 					}
 				}
 			}
-		}
 
-		const reorderResult = await reorderRoomChannels(store, event);
-		report.nonOwnedAtTop = reorderResult.nonOwnedAtTop;
-		report.trackedCount = reorderResult.trackedCount;
-		report.reorderApplied = reorderResult.reorderApplied;
+			const reorderResult = await reorderRoomChannels(store, event);
+			report.nonOwnedAtTop = reorderResult.nonOwnedAtTop;
+			report.trackedCount = reorderResult.trackedCount;
+			report.reorderApplied = reorderResult.reorderApplied;
 
-		await reconcileRoleAssignments(store, event);
+			await reconcileRoleAssignments(store, event);
 
-		return report;
+			return report;
+		});
 	}
 
-	export async function reconcileAllGuildEvents(store: Store): Promise<SyncReport[]> {
+	export async function reconcileAllGuildEvents(store: Store): Promise<{ reports: SyncReport[]; skipped: DbEvent[] }> {
 		const events = Queries.selectManyEvents({ guildId: store.guild.id });
 		const reports: SyncReport[] = [];
+		const skipped: DbEvent[] = [];
 		for (const event of events) {
 			if (!event.roomCategoryId) continue;
-			reports.push(await reconcileRoomChannels(store, event));
+			const result = await EventSyncLock.tryWithLock(store.guild.id, event.id, () =>
+				reconcileRoomChannels(store, event)
+			);
+			if (result === "skipped") {
+				skipped.push(event);
+			}
+			else {
+				reports.push(result);
+			}
 		}
-		return reports;
+		return { reports, skipped };
 	}
 
 	interface ReorderResult {
