@@ -328,10 +328,24 @@ export namespace EventUtils {
 				const queue = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
 				if (!queue) continue;
 
-				const existingDisplayIds = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()]
-					.map(d => d.id);
-				if (existingDisplayIds.length > 0) {
-					DisplayUtils.deleteDisplays(store, existingDisplayIds);
+				const existingDisplays = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()];
+				for (const display of existingDisplays) {
+					if (display.lastMessageId) {
+						const channel = await store.jsChannel(display.displayChannelId) as GuildTextBasedChannel | undefined;
+						if (channel) {
+							const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
+								console.error(`EventUtils.syncEventQueues: failed to fetch stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+								return null;
+							});
+							if (message) {
+								await message.delete().catch(e => {
+									console.error(`EventUtils.syncEventQueues: failed to delete stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+									return null;
+								});
+							}
+						}
+					}
+					store.deleteDisplay({ id: display.id });
 				}
 
 				const newDisplay = store.insertDisplay({
