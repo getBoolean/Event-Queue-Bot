@@ -252,6 +252,10 @@ export namespace EventChannelUtils {
 		if (!event.roomCategoryId) return;
 
 		const rows = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
+		console.log(`[reorder] event=${event.id} rows=${rows.length}`);
+		for (const r of rows) {
+			console.log(`[reorder] row id=${r.id} roomIndex=${r.roomIndex} (typeof=${typeof r.roomIndex}) suffix=${JSON.stringify(r.suffix)} channelId=${r.channelId}`);
+		}
 		if (rows.length === 0) return;
 
 		const category = await store.jsChannel(event.roomCategoryId);
@@ -271,6 +275,7 @@ export namespace EventChannelUtils {
 		// not-yet-cached channels would otherwise be silently dropped, leaving them
 		// clumped at their creation-order positions.
 		const sortedTracked = [...rows].sort(desiredOrder);
+		console.log(`[reorder] sortedTracked: ${sortedTracked.map(r => `(idx=${r.roomIndex},sfx=${r.suffix})`).join(" | ")}`);
 
 		// Untracked channels are anything in the category not in the tracked set.
 		// Preserve their current relative Discord-position order so user-owned channels
@@ -280,20 +285,44 @@ export namespace EventChannelUtils {
 			.filter(ch => !trackedIds.has(ch.id))
 			.sort((a, b) => (a as any).position - (b as any).position)
 			.map(ch => ch.id);
+		console.log(`[reorder] untrackedIds count=${untrackedIds.length} ids=${untrackedIds.join(",")}`);
 
 		const payload: { channel: Snowflake, position: number }[] = [];
 		let position = 0;
 		for (const id of untrackedIds) payload.push({ channel: id, position: position++ });
 		for (const row of sortedTracked) payload.push({ channel: row.channelId, position: position++ });
 
+		console.log(`[reorder] payload sent to setPositions:`);
+		for (const p of payload) {
+			const ch = store.guild.channels.cache.get(p.channel);
+			console.log(`[reorder]   { channel: ${p.channel} (name=${(ch as any)?.name ?? "?"}, currentPosition=${(ch as any)?.position ?? "?"}, parentId=${(ch as any)?.parentId ?? "?"}), position: ${p.position} }`);
+		}
+
 		try {
 			await store.guild.channels.setPositions(payload);
+			console.log(`[reorder] setPositions resolved successfully`);
 		}
 		catch (e) {
 			console.error(`EventChannelUtils.reorderRoomChannels: failed to set positions for event ${event.id}:`, e);
 			throw new CustomError({
 				message: "Failed to reorder room channels — check that the bot has the Manage Channels permission in the room category.",
 			});
+		}
+
+		// Re-fetch & log actual positions post-write so we can see if Discord applied the change.
+		try {
+			const refreshedCategory = await store.guild.channels.fetch(event.roomCategoryId);
+			if (refreshedCategory && refreshedCategory.type === ChannelType.GuildCategory) {
+				const refreshedChildren = [...(refreshedCategory.children?.cache.values() ?? [])]
+					.sort((a, b) => (a as any).position - (b as any).position);
+				console.log(`[reorder] post-write category children:`);
+				for (const ch of refreshedChildren) {
+					console.log(`[reorder]   ${(ch as any).name} id=${ch.id} position=${(ch as any).position}`);
+				}
+			}
+		}
+		catch (e) {
+			console.error(`[reorder] post-write inspection failed:`, e);
 		}
 	}
 
