@@ -27,12 +27,12 @@ Requires the **Manage Channels** permission in the target category.`,
 			},
 			{
 				name: "Room role assignment flags",
-				value: `Four booleans on the event template decide where the auto-created room role is assigned:
+				value: `Four booleans on the event template decide where the auto-created room role is assigned. All four default to \`false\` — opt in explicitly to any auto-role behavior.
 
-- ${"`role_in_room_queue`"} (default \`true\`) — assigned while a user is in the room queue
-- ${"`role_on_room_pull`"} (default \`false\`) — assigned when pulled from the room queue
-- ${"`role_in_sub_queue`"} (default \`false\`) — assigned while in the sub queue
-- ${"`role_on_sub_pull`"} (default \`true\`) — assigned when pulled from the sub queue
+- ${"`role_in_room_queue`"} — assigned while a user is in the room queue
+- ${"`role_on_room_pull`"} — assigned when pulled from the room queue
+- ${"`role_in_sub_queue`"} — assigned while in the sub queue
+- ${"`role_on_sub_pull`"} — assigned when pulled from the sub queue
 
 Set them on ${"`/events add`"} or ${"`/events set`"}.`,
 			},

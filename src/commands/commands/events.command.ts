@@ -883,10 +883,10 @@ export class EventsCommand extends AdminCommand {
 				"- `max_subs_per_user` — cap on sub-room queues (`0` = unlimited)\n" +
 				"- `parent_sub_mutually_exclusive` — when `true` (default), a user can't sit in both a room and its matching sub. Joining the room silently removes them from the sub; joining the sub while already in the room is blocked.\n\n" +
 				"**Room role assignment** — four booleans on the event template control which queues the auto-created `{event} Room {N}` role gets wired into:\n" +
-				"- `role_in_room_queue` (default `true`) — assign the role while a user is in the room queue\n" +
+				"- `role_in_room_queue` (default `false`) — assign the role while a user is in the room queue\n" +
 				"- `role_on_room_pull` (default `false`) — assign the role when a user is pulled from the room queue\n" +
 				"- `role_in_sub_queue` (default `false`) — assign the role while a user is in the sub queue\n" +
-				"- `role_on_sub_pull` (default `true`) — assign the role when a user is pulled from the sub queue\n\n" +
+				"- `role_on_sub_pull` (default `false`) — assign the role when a user is pulled from the sub queue\n\n" +
 				"**Extra per-room channels:**\n" +
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
 				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +
