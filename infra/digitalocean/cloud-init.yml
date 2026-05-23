@@ -5,6 +5,11 @@ disable_root: true
 ssh_pwauth: false
 ssh_deletekeys: false
 
+swap:
+  filename: /swapfile
+  size: {{DO_SWAP_SIZE}}
+  maxsize: {{DO_SWAP_SIZE}}
+
 groups:
   - docker
 
