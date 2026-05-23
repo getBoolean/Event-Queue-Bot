@@ -76,6 +76,39 @@ function verifyMentionEveryonePermission(inter: SlashInteraction, message: strin
 	}
 }
 
+const DISCORD_MESSAGE_LIMIT = 2000;
+
+function renderSyncReport(report: EventChannelUtils.SyncReport): string {
+	const lines: string[] = [`Synced room channels for **${report.eventName}**.`];
+
+	const namedBucket = (label: string, names: string[]) => {
+		if (names.length === 0) return;
+		lines.push(`• ${label}: ${names.map(inlineCode).join(", ")}`);
+	};
+
+	namedBucket("Created", report.created);
+	namedBucket("Adopted", report.adopted);
+	namedBucket("Untracked rows", report.untrackedRows);
+	namedBucket("Recreated missing", report.recreatedMissing);
+
+	if (report.reorderApplied) {
+		lines.push(`• Reorder: ${report.trackedCount} tracked channel${report.trackedCount === 1 ? "" : "s"} reordered.`);
+	}
+	else {
+		lines.push("• Reorder: already in desired order (no changes).");
+	}
+
+	if (report.nonOwnedAtTop.length === 0) {
+		lines.push("• Non-owned channels at top of category: (none)");
+	}
+	else {
+		const mentions = report.nonOwnedAtTop.map(c => channelMention(c.id)).join(", ");
+		lines.push(`• Non-owned channels at top of category (${report.nonOwnedAtTop.length}): ${mentions}`);
+	}
+
+	return lines.join("\n");
+}
+
 export class EventsCommand extends AdminCommand {
 	static readonly ID = "events";
 	deferResponse = false;
@@ -566,10 +599,13 @@ export class EventsCommand extends AdminCommand {
 			slowmodeSeconds: slowmodeSeconds > 0 ? BigInt(slowmodeSeconds) : null,
 		});
 
-		await EventChannelUtils.reconcileRoomChannels(inter.store, event);
+		const report = await EventChannelUtils.reconcileRoomChannels(inter.store, event);
 
+		const adoptedSuffix = report.adopted.length > 0
+			? ` Adopted ${report.adopted.length} existing channel${report.adopted.length === 1 ? "" : "s"}.`
+			: "";
 		await inter.respond(
-			`Added ${inlineCode(`room-${cleanSuffix}-{N}`)} channel template to ${eventMention(event)}${slowmodeSeconds > 0 ? ` (slowmode: ${slowmodeSeconds}s)` : ""}.`,
+			`Added ${inlineCode(`room-${cleanSuffix}-{N}`)} channel template to ${eventMention(event)}${slowmodeSeconds > 0 ? ` (slowmode: ${slowmodeSeconds}s)` : ""}.${adoptedSuffix}`,
 			true,
 		);
 	}
@@ -623,8 +659,8 @@ export class EventsCommand extends AdminCommand {
 
 		if (event) {
 			EventUtils.assertHasRoomCategory(event);
-			await EventChannelUtils.reconcileRoomChannels(inter.store, event);
-			await inter.respond("Synced room channels for 1 event(s).", true);
+			const report = await EventChannelUtils.reconcileRoomChannels(inter.store, event);
+			await inter.respond(renderSyncReport(report), true);
 			return;
 		}
 
@@ -636,12 +672,25 @@ export class EventsCommand extends AdminCommand {
 			return;
 		}
 
-		await EventChannelUtils.reconcileAllGuildEvents(inter.store);
+		const reports = await EventChannelUtils.reconcileAllGuildEvents(inter.store);
 
-		await inter.respond(
-			`Synced room channels for ${targeted.length} event(s).`,
-			true,
-		);
+		const header = `Synced room channels for ${reports.length} event(s):`;
+		const blocks = reports.map(renderSyncReport);
+		const combined = `${header}\n\n${blocks.join("\n\n")}`;
+
+		if (combined.length <= DISCORD_MESSAGE_LIMIT) {
+			await inter.respond(combined, true);
+		}
+		else {
+			const embed = new EmbedBuilder().setTitle(header);
+			for (const report of reports) {
+				embed.addFields({
+					name: report.eventName,
+					value: renderSyncReport(report).split("\n").slice(1).join("\n") || "(no changes)",
+				});
+			}
+			await inter.respond({ embeds: [embed] }, true);
+		}
 	}
 
 	// ====================================================================

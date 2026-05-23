@@ -142,8 +142,35 @@ export namespace EventChannelUtils {
 		roomQueue: DbQueue;
 	};
 
-	export async function reconcileRoomChannels(store: Store, event: DbEvent) {
-		if (!event.roomCategoryId) return;
+	export interface SyncReport {
+		eventId: bigint;
+		eventName: string;
+		created: string[];
+		adopted: string[];
+		untrackedRows: string[];
+		recreatedMissing: string[];
+		nonOwnedAtTop: { id: Snowflake, name: string }[];
+		trackedCount: number;
+		reorderApplied: boolean;
+	}
+
+	function emptyReport(event: DbEvent): SyncReport {
+		return {
+			eventId: event.id,
+			eventName: event.name,
+			created: [],
+			adopted: [],
+			untrackedRows: [],
+			recreatedMissing: [],
+			nonOwnedAtTop: [],
+			trackedCount: 0,
+			reorderApplied: false,
+		};
+	}
+
+	export async function reconcileRoomChannels(store: Store, event: DbEvent): Promise<SyncReport> {
+		const report = emptyReport(event);
+		if (!event.roomCategoryId) return report;
 
 		const category = await store.jsChannel(event.roomCategoryId);
 		if (!category || category.type !== ChannelType.GuildCategory) {
@@ -206,6 +233,7 @@ export namespace EventChannelUtils {
 		for (const [key, row] of existingByKey) {
 			if (desiredByKey.has(key)) continue;
 			untrackRoomChannel(store, row);
+			report.untrackedRows.push(buildChannelName(row.suffix, row.roomIndex));
 		}
 
 		// To-create + to-update
@@ -216,16 +244,18 @@ export namespace EventChannelUtils {
 			const channelName = buildChannelName(d.suffix, d.roomIndex);
 
 			if (!existingRow) {
-				const channelId = await ensureRoomChannel(store, event, d, overwrites, channelName);
+				const { id: channelId, adopted } = await ensureRoomChannel(store, event, d, overwrites, channelName);
 				trackRoomChannel(store, event, d, channelId);
+				(adopted ? report.adopted : report.created).push(channelName);
 			}
 			else {
 				const channel = await tryFetchChannel(store, existingRow.channelId);
 				if (!channel) {
 					// Tracked channel is gone — drop the row and adopt/create afresh.
 					store.deleteEventRoomChannel({ id: existingRow.id });
-					const channelId = await ensureRoomChannel(store, event, d, overwrites, channelName);
+					const { id: channelId } = await ensureRoomChannel(store, event, d, overwrites, channelName);
 					trackRoomChannel(store, event, d, channelId);
+					report.recreatedMissing.push(channelName);
 				}
 				else {
 					await applyChannelSettings(channel, overwrites, d.slowmodeSeconds);
@@ -236,30 +266,53 @@ export namespace EventChannelUtils {
 			}
 		}
 
-		await reorderRoomChannels(store, event);
+		const reorderResult = await reorderRoomChannels(store, event);
+		report.nonOwnedAtTop = reorderResult.nonOwnedAtTop;
+		report.trackedCount = reorderResult.trackedCount;
+		report.reorderApplied = reorderResult.reorderApplied;
+
 		await reconcileRoleAssignments(store, event);
+
+		return report;
 	}
 
-	export async function reconcileAllGuildEvents(store: Store) {
+	export async function reconcileAllGuildEvents(store: Store): Promise<SyncReport[]> {
 		const events = Queries.selectManyEvents({ guildId: store.guild.id });
+		const reports: SyncReport[] = [];
 		for (const event of events) {
 			if (!event.roomCategoryId) continue;
-			await reconcileRoomChannels(store, event);
+			reports.push(await reconcileRoomChannels(store, event));
 		}
+		return reports;
 	}
 
-	async function reorderRoomChannels(store: Store, event: DbEvent) {
-		if (!event.roomCategoryId) return;
+	interface ReorderResult {
+		nonOwnedAtTop: { id: Snowflake, name: string }[];
+		trackedCount: number;
+		reorderApplied: boolean;
+	}
+
+	async function reorderRoomChannels(store: Store, event: DbEvent): Promise<ReorderResult> {
+		const empty: ReorderResult = { nonOwnedAtTop: [], trackedCount: 0, reorderApplied: false };
+		if (!event.roomCategoryId) return empty;
 
 		const rows = Queries.selectManyEventRoomChannels({ guildId: store.guild.id, eventId: event.id });
-		console.log(`[reorder] event=${event.id} rows=${rows.length}`);
-		for (const r of rows) {
-			console.log(`[reorder] row id=${r.id} roomIndex=${r.roomIndex} (typeof=${typeof r.roomIndex}) suffix=${JSON.stringify(r.suffix)} channelId=${r.channelId}`);
-		}
-		if (rows.length === 0) return;
 
 		const category = await store.jsChannel(event.roomCategoryId);
-		if (!category || category.type !== ChannelType.GuildCategory) return;
+		if (!category || category.type !== ChannelType.GuildCategory) return empty;
+
+		// Untracked channels are anything in the category not in the tracked set.
+		// Preserve their current relative Discord-position order so user-owned channels
+		// are not shuffled.
+		const trackedIds = new Set<Snowflake>(rows.map(r => r.channelId));
+		const untrackedChannels = [...(category.children?.cache.values() ?? [])]
+			.filter(ch => !trackedIds.has(ch.id))
+			.sort((a, b) => (a as any).position - (b as any).position);
+		const nonOwnedAtTop = untrackedChannels.map(ch => ({ id: ch.id, name: (ch as any).name as string }));
+
+		if (rows.length === 0) {
+			return { nonOwnedAtTop, trackedCount: 0, reorderApplied: false };
+		}
 
 		const desiredOrder = (a: DbEventRoomChannel, b: DbEventRoomChannel) => {
 			const indexDiff = Number(a.roomIndex) - Number(b.roomIndex);
@@ -275,32 +328,27 @@ export namespace EventChannelUtils {
 		// not-yet-cached channels would otherwise be silently dropped, leaving them
 		// clumped at their creation-order positions.
 		const sortedTracked = [...rows].sort(desiredOrder);
-		console.log(`[reorder] sortedTracked: ${sortedTracked.map(r => `(idx=${r.roomIndex},sfx=${r.suffix})`).join(" | ")}`);
 
-		// Untracked channels are anything in the category not in the tracked set.
-		// Preserve their current relative Discord-position order so user-owned channels
-		// are not shuffled.
-		const trackedIds = new Set<Snowflake>(rows.map(r => r.channelId));
-		const untrackedIds = [...(category.children?.cache.values() ?? [])]
-			.filter(ch => !trackedIds.has(ch.id))
+		const desiredIds: Snowflake[] = [
+			...nonOwnedAtTop.map(c => c.id),
+			...sortedTracked.map(r => r.channelId),
+		];
+
+		const currentIds = [...(category.children?.cache.values() ?? [])]
 			.sort((a, b) => (a as any).position - (b as any).position)
 			.map(ch => ch.id);
-		console.log(`[reorder] untrackedIds count=${untrackedIds.length} ids=${untrackedIds.join(",")}`);
 
-		const payload: { channel: Snowflake, position: number }[] = [];
-		let position = 0;
-		for (const id of untrackedIds) payload.push({ channel: id, position: position++ });
-		for (const row of sortedTracked) payload.push({ channel: row.channelId, position: position++ });
+		const orderMatches = currentIds.length === desiredIds.length
+			&& currentIds.every((id, i) => id === desiredIds[i]);
 
-		console.log(`[reorder] payload sent to setPositions:`);
-		for (const p of payload) {
-			const ch = store.guild.channels.cache.get(p.channel);
-			console.log(`[reorder]   { channel: ${p.channel} (name=${(ch as any)?.name ?? "?"}, currentPosition=${(ch as any)?.position ?? "?"}, parentId=${(ch as any)?.parentId ?? "?"}), position: ${p.position} }`);
+		if (orderMatches) {
+			return { nonOwnedAtTop, trackedCount: sortedTracked.length, reorderApplied: false };
 		}
+
+		const payload = desiredIds.map((channel, position) => ({ channel, position }));
 
 		try {
 			await store.guild.channels.setPositions(payload);
-			console.log(`[reorder] setPositions resolved successfully`);
 		}
 		catch (e) {
 			console.error(`EventChannelUtils.reorderRoomChannels: failed to set positions for event ${event.id}:`, e);
@@ -309,21 +357,7 @@ export namespace EventChannelUtils {
 			});
 		}
 
-		// Re-fetch & log actual positions post-write so we can see if Discord applied the change.
-		try {
-			const refreshedCategory = await store.guild.channels.fetch(event.roomCategoryId);
-			if (refreshedCategory && refreshedCategory.type === ChannelType.GuildCategory) {
-				const refreshedChildren = [...(refreshedCategory.children?.cache.values() ?? [])]
-					.sort((a, b) => (a as any).position - (b as any).position);
-				console.log(`[reorder] post-write category children:`);
-				for (const ch of refreshedChildren) {
-					console.log(`[reorder]   ${(ch as any).name} id=${ch.id} position=${(ch as any).position}`);
-				}
-			}
-		}
-		catch (e) {
-			console.error(`[reorder] post-write inspection failed:`, e);
-		}
+		return { nonOwnedAtTop, trackedCount: sortedTracked.length, reorderApplied: true };
 	}
 
 	export async function reconcileRoleAssignments(store: Store, event: DbEvent) {
@@ -416,11 +450,11 @@ export namespace EventChannelUtils {
 		d: DesiredChannel,
 		overwrites: OverwriteResolvable[],
 		channelName: string,
-	): Promise<Snowflake> {
-		const adopted = await findCategoryChild(store, event.roomCategoryId, channelName);
-		if (adopted) {
-			await applyChannelSettings(adopted, overwrites, d.slowmodeSeconds);
-			return adopted.id;
+	): Promise<{ id: Snowflake, adopted: boolean }> {
+		const existing = await findCategoryChild(store, event.roomCategoryId, channelName);
+		if (existing) {
+			await applyChannelSettings(existing, overwrites, d.slowmodeSeconds);
+			return { id: existing.id, adopted: true };
 		}
 		try {
 			const channel = await store.guild.channels.create({
@@ -431,7 +465,7 @@ export namespace EventChannelUtils {
 				permissionOverwrites: overwrites,
 				reason: `Auto-created for event "${event.name}" room ${d.roomIndex}${d.suffix ? ` (${d.suffix})` : ""}`,
 			});
-			return channel.id;
+			return { id: channel.id, adopted: false };
 		}
 		catch (e) {
 			console.error(`EventChannelUtils.ensureRoomChannel: failed to create channel "${channelName}" for event ${event.id}:`, e);
