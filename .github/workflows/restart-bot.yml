@@ -33,6 +33,7 @@ jobs:
         uses: digitalocean/action-doctl@v2.5.2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          version: 1.159.0
 
       - name: Look up droplet
         id: lookup
