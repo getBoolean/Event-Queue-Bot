@@ -53,7 +53,7 @@ export class InteractionHandler implements Handler {
 	}
 
 	private async handleInteractionError(error: Error | string) {
-		const { stack, embeds, log } = error as CustomError;
+		const { stack, embeds, log, ephemeral } = error as CustomError;
 		const message = typeof error === "string" ? error : error.message;
 
 		// log === true → always log; log === false → never log;
@@ -80,7 +80,7 @@ export class InteractionHandler implements Handler {
 				const isButton = (this.inter as any).isButton?.() === true;
 				await this.inter.respond({
 					embeds: compact(concat(embeds, embed)),
-					...(isButton ? { ephemeral: true } : {}),
+					...(isButton || ephemeral ? { ephemeral: true } : {}),
 				});
 			}
 		}

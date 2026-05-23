@@ -23,6 +23,7 @@ import { BlacklistUtils } from "./blacklist.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
 import {
 	AlreadyInEventParentError,
+	AlreadyInQueueError,
 	CustomError,
 	EventRoomLimitExceededError,
 	EventSubLimitExceededError,
@@ -48,6 +49,8 @@ export namespace MemberUtils {
 	}) {
 		const { store, users, queues, force, dmMember } = options;
 
+		const skippedMembers: { userId: Snowflake }[] = [];
+
 		const insertedMembers = compact(
 			await db.transaction(async () => {
 				const inserted = [];
@@ -56,9 +59,19 @@ export namespace MemberUtils {
 					if (!jsMember) continue;
 
 					for (const queue of queues.values()) {
-						inserted.push(
-							await insertMemberInternal({ store, queue, jsMember, force })
-						);
+						try {
+							inserted.push(
+								await insertMemberInternal({ store, queue, jsMember, force })
+							);
+						}
+						catch (e) {
+							// Skip users already in this queue so the rest of the batch still goes through.
+							if (e instanceof AlreadyInQueueError) {
+								skippedMembers.push({ userId: jsMember.id });
+								continue;
+							}
+							throw e;
+						}
 					}
 				}
 				return inserted;
@@ -71,7 +84,17 @@ export namespace MemberUtils {
 		});
 
 		if (store.inter) {
-			const message = await store.inter.respond(`Added ${usersMention(insertedMembers)} to ${queuesMention(queues)} queue${queues.size > 1 ? "s" : ""}.`, true);
+			const lines: string[] = [];
+			if (insertedMembers.length > 0) {
+				lines.push(`Added ${usersMention(insertedMembers)} to ${queuesMention(queues)} queue${queues.size > 1 ? "s" : ""}.`);
+			}
+			if (skippedMembers.length > 0) {
+				lines.push(`Already in queue: ${usersMention(skippedMembers)}.`);
+			}
+			if (lines.length === 0) {
+				lines.push("No members were added.");
+			}
+			const message = await store.inter.respond(lines.join("\n"), true);
 			if (dmMember) {
 				for (const queue of queues.values()) {
 					await NotificationUtils.dmToMembers({
@@ -413,6 +436,13 @@ export namespace MemberUtils {
 		force?: boolean,
 	}) {
 		const { store, queue, jsMember, message, force } = options;
+
+		const existingMember = Queries.selectMember({
+			guildId: store.guild.id,
+			queueId: queue.id,
+			userId: jsMember.id,
+		});
+		if (existingMember) throw new AlreadyInQueueError();
 
 		const archivedMember = store.dbArchivedMembers().find(member =>
 			member.queueId === queue.id && member.userId === jsMember.id

@@ -6,6 +6,7 @@ export abstract class AbstractError extends Error {
 	message = "Unknown Error";
 	embeds?: EmbedBuilder[];
 	log?: boolean;
+	ephemeral?: boolean;
 }
 
 export class CustomError extends AbstractError {
@@ -13,6 +14,7 @@ export class CustomError extends AbstractError {
 		message: string
 		embeds?: EmbedBuilder[],
 		log?: boolean,
+		ephemeral?: boolean,
 	}) {
 		super();
 		Object.assign(this, opts);
@@ -190,4 +192,9 @@ export class AlreadyInEventParentError extends AbstractError {
 		super();
 		this.message = `You are already in this event's room ${roomIndex} queue. Leave it before joining the sub queue.`;
 	}
+}
+
+export class AlreadyInQueueError extends AbstractError {
+	message = "You are already in this queue.";
+	ephemeral = true;
 }
