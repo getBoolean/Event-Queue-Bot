@@ -215,9 +215,11 @@ guild so you can poke at it):
      approvals on push.
 
 **Promotion workflow:** feature branch → PR to `master` → merge → dev deploys
-automatically (gated by `dev-gate`) → open PR `master → prod` → branch
+automatically (gated by `dev-gate`) → open PR [`master → prod`][promote-pr] → branch
 protection confirms the head SHA succeeded on dev → merge → prod deploys
 (gated by `prod-gate`).
+
+[promote-pr]: https://github.com/getBoolean/Event-Queue-Bot/compare/prod...getBoolean:Event-Queue-Bot:master
 
 Prod and dev share no state: separate droplets, separate `data/main.sqlite`,
 separate Discord applications.

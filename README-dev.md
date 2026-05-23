@@ -100,6 +100,8 @@ Pushes to `master` trigger `.github/workflows/provision-and-deploy.yml`, which r
 
 Secrets, variables, and SSH key setup live in [`INFRA.md`](INFRA.md). For SSH access to the droplet, see [`INFRA.md` → "Connect to the Droplet"](INFRA.md#connect-to-the-droplet).
 
+To promote `master` to prod, open the prefilled compare PR: [`master → prod`](https://github.com/getBoolean/Event-Queue-Bot/compare/prod...getBoolean:Event-Queue-Bot:master).
+
 ## Data storage and access
 
 The bot uses a SQLite database, which is stored in the `data/main.sqlite` file.

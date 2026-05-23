@@ -67,3 +67,7 @@ OAuth scopes: `bot`, `applications.commands`.
 - **Read Message History** — update existing displays
 - **Send Messages** — post displays and responses
 - **View Channels** — read channels
+
+## Maintainer shortcuts
+
+- Promote `master` → `prod`: [open compare PR](https://github.com/getBoolean/Event-Queue-Bot/compare/prod...getBoolean:Event-Queue-Bot:master)
