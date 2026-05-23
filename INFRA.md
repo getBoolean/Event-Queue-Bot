@@ -1,7 +1,9 @@
 # Infrastructure Setup
 
 GitHub Actions provisions a DigitalOcean VPS with the official `doctl` CLI and
-deploys the bot from `master`. No local Terraform or server setup is required.
+deploys the bot. Pushes to `master` deploy to a throwaway **dev** droplet;
+promotion to prod is a deliberate `master → prod` PR merge. No local Terraform
+or server setup is required.
 
 Each environment is split into a **gate** env (required reviewers, no secrets;
 attached to the `discover` job) and a **secrets** env (no reviewers; attached to
@@ -13,12 +15,12 @@ lives per-environment so prod and dev can target different Discord applications.
 
 Create before first deploy:
 
-- `prod-gate` — required reviewers, no secrets/vars.
-- `prod` — no reviewers; holds secrets `BOT_APP_ID`, `BOT_TOKEN`, and any per-env vars
+- `dev-gate` — required reviewers, no secrets/vars.
+- `dev` — no reviewers; holds secrets `BOT_APP_ID`, `BOT_TOKEN`, and any per-env vars
   from [Optional GitHub Variables](#5-optional-github-variables).
 
-A `dev` environment is optional — see
-[Optional: setting up a dev environment](#optional-setting-up-a-dev-environment).
+A `prod` environment and `prod` branch are required for prod deploys — see
+[Setting up the prod promotion path](#setting-up-the-prod-promotion-path).
 
 ## 1. Create DigitalOcean Token
 
@@ -86,13 +88,17 @@ for the rotation path.
 
 ## 4. Add Bot Secrets
 
-Save these on the **`prod` environment** (not at repo level, so dev can hold a
+Save these on the **`dev` environment** (not at repo level, so prod can hold a
 different application's credentials):
 
 ```text
 BOT_APP_ID
 BOT_TOKEN
 ```
+
+When the prod promotion path is set up, the prod bot's `BOT_APP_ID` /
+`BOT_TOKEN` go on the **`prod` environment** instead — see
+[Setting up the prod promotion path](#setting-up-the-prod-promotion-path).
 
 | Secret | Where to find it |
 | --- | --- |
@@ -148,26 +154,44 @@ In GitHub:
 The workflow creates or reuses the VPS, writes `.env`, syncs the repo, and runs
 Docker Compose.
 
-Future pushes to `master` trigger the workflow automatically; each run pauses
-at `discover` for a reviewer to approve via the `prod-gate` environment before
-`provision` and `deploy` proceed.
+Future pushes to `master` deploy to dev automatically; each run pauses at
+`gate` for `dev-gate` reviewer approval before `discover`, `provision`, and
+`deploy` proceed. Prod is reached only by merging `master → prod` — see
+[Setting up the prod promotion path](#setting-up-the-prod-promotion-path).
 
-## Optional: setting up a dev environment
+## Setting up the prod promotion path
 
-Optional. Adds a parallel droplet running a second Discord bot from the `dev`
-branch, for testing risky changes (migrations, refactors, patch notes) before
-prod. The dev side activates only on pushes to `dev`; if the branch and
-environments don't exist, prod is unaffected.
+Required for prod deploys. Without this, the workflow only ever targets dev.
+Adds the prod-side droplet and the `master → prod` merge gate so feature work
+auto-validates on dev and only reaches users when explicitly promoted.
 
-Maintainer's dev bot invite:
+The default `dev` environment from §4 already covers the dev droplet (running
+the dev Discord application from §4's `BOT_APP_ID`/`BOT_TOKEN`). What follows
+sets up the *prod* side and the promotion workflow.
+
+Maintainer's dev bot invite (for reference; install this on your own test
+guild so you can poke at it):
 <https://discord.com/oauth2/authorize?client_id=1507641818907672688>
 
-1. Create a second Discord application; note its Application ID and bot token.
+1. Create a second Discord application for **prod**; note its Application ID
+   and bot token. (The dev application from §4 stays on dev.)
 2. Create two GitHub environments:
-   - `dev-gate` — required reviewers, no secrets/vars.
-   - `dev` — no reviewers.
-3. On `dev`, add `BOT_APP_ID` and `BOT_TOKEN` from step 1.
-4. On `dev`, add these vars (shared infra secrets stay at repo level):
+   - `prod-gate` — required reviewers, no secrets/vars.
+   - `prod` — no reviewers.
+3. On `prod`, add `BOT_APP_ID` and `BOT_TOKEN` from step 1.
+4. On `prod`, add these vars (shared infra secrets stay at repo level; the dev
+   environment from §4 carries the dev-droplet overrides):
+
+   | Variable | Value |
+   | --- | --- |
+   | `DO_DROPLET_NAME` | `event-queue-bot` |
+   | `APP_PATH` | `/opt/event-queue-bot` |
+   | `DO_PROJECT_NAME` | `Event Queue Bot` |
+   | `DO_PROJECT_ENVIRONMENT` | `Production` |
+   | `DO_SIZE` | `s-1vcpu-1gb` |
+
+   The dev environment should mirror the inverse (dev droplet name/path/size).
+   The relevant dev overrides (set on the `dev` environment):
 
    | Variable | Value |
    | --- | --- |
@@ -180,14 +204,22 @@ Maintainer's dev bot invite:
    At the 512 MB dev size, leave `DO_SWAP_SIZE` at its `1G` default — without swap,
    `npm ci` OOMs during `better-sqlite3`'s native compile and the build wedges silently.
 
-   Leave `BOT_PATCH_NOTES_CHANNEL_ID`, `BOT_TOP_GG_TOKEN`, etc. empty or point
-   at a test channel.
-5. Create the `dev` branch from `master` and push. `discover` requests approval
-   via `dev-gate`; `provision`/`deploy` then spin up `event-queue-bot-dev`.
+5. Create the `prod` branch from `master` and push it. Pushes and merges to
+   `prod` deploy to the prod droplet, gated by `prod-gate`.
+6. Add branch protection on `prod`:
+   - Require a pull request before merging.
+   - Require deployments to succeed before merging → add `dev`. This forces
+     the head SHA to have already passed a dev deploy before it can land on
+     prod.
+   - (Optional) restrict who can merge, require approvals, dismiss stale
+     approvals on push.
 
-Subsequent pushes to `dev` trigger the workflow automatically; each run pauses
-at `discover` for `dev-gate` approval before `provision`/`deploy` proceed. Prod
-and dev share no state: separate droplets, separate `data/main.sqlite`,
+**Promotion workflow:** feature branch → PR to `master` → merge → dev deploys
+automatically (gated by `dev-gate`) → open PR `master → prod` → branch
+protection confirms the head SHA succeeded on dev → merge → prod deploys
+(gated by `prod-gate`).
+
+Prod and dev share no state: separate droplets, separate `data/main.sqlite`,
 separate Discord applications.
 
 ## Connect to the Droplet
@@ -209,34 +241,35 @@ re-run the workflow.
 
 ## Backup Before Deleting
 
-The production database is:
+The dev database is:
 
 ```text
-/opt/event-queue-bot/data/main.sqlite
+/opt/event-queue-bot-dev/data/main.sqlite
 ```
 
 Download it before deleting the Droplet:
 
 ```bash
-scp deploy@your_server_ip:/opt/event-queue-bot/data/main.sqlite ./main.sqlite.backup
+scp deploy@your_server_ip:/opt/event-queue-bot-dev/data/main.sqlite ./main.sqlite.backup
 ```
 
-To remove the deployment, delete these DigitalOcean resources:
+To remove the dev deployment, delete these DigitalOcean resources:
 
 ```text
-Droplet:  event-queue-bot
-Firewall: event-queue-bot-ssh
-SSH key:  event-queue-bot-deploy
-Tag:      event-queue-bot
-```
-
-If dev is configured, the same names with a `-dev` suffix (derived from
-`DO_DROPLET_NAME` in `scripts/provision-digitalocean.sh`):
-
-```text
-Database: /opt/event-queue-bot-dev/data/main.sqlite
 Droplet:  event-queue-bot-dev
 Firewall: event-queue-bot-dev-ssh
 SSH key:  event-queue-bot-dev-deploy
 Tag:      event-queue-bot-dev
+```
+
+If the prod promotion path is configured, prod uses the same resource names
+without the `-dev` suffix (the suffix is derived from `DO_DROPLET_NAME` in
+`scripts/provision-digitalocean.sh`):
+
+```text
+Database: /opt/event-queue-bot/data/main.sqlite
+Droplet:  event-queue-bot
+Firewall: event-queue-bot-ssh
+SSH key:  event-queue-bot-deploy
+Tag:      event-queue-bot
 ```

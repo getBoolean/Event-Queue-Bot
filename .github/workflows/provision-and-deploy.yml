@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - dev
+      - prod
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +14,7 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'master' && 'prod-gate' || 'dev-gate' }}
+    environment: ${{ github.ref_name == 'prod' && 'prod-gate' || 'dev-gate' }}
     permissions:
       contents: read
     steps:
@@ -24,7 +24,7 @@ jobs:
   discover:
     needs: gate
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'master' && 'prod' || 'dev' }}
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
@@ -84,7 +84,7 @@ jobs:
     needs: discover
     if: needs.discover.outputs.droplet_exists != 'true'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'master' && 'prod' || 'dev' }}
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
@@ -148,7 +148,7 @@ jobs:
       && needs.discover.result == 'success'
       && (needs.provision.result == 'success' || needs.provision.result == 'skipped')
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'master' && 'prod' || 'dev' }}
+    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
