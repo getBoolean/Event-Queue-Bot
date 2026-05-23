@@ -4,7 +4,7 @@ import { compact } from "lodash-es";
 import { db } from "../db/db.ts";
 import type { Store } from "../db/store.ts";
 import type { Mentionable } from "../types/parsing.types.ts";
-import { AdminAccessError } from "./error.utils.ts";
+import { AdminAccessWarning } from "./error.utils.ts";
 import { EventChannelUtils } from "./event-channel.utils.ts";
 
 export namespace AdminUtils {
@@ -48,7 +48,7 @@ export namespace AdminUtils {
 
 	export function verifyIsAdmin(store: Store, member: GuildMember) {
 		if (!isAdmin(store, member)) {
-			throw new AdminAccessError();
+			throw new AdminAccessWarning();
 		}
 	}
 }

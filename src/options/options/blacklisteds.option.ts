@@ -5,7 +5,7 @@ import { ListScope } from "../../types/db.types.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
 import { CHOICE_ALL, CHOICE_SOME } from "../../types/parsing.types.ts";
-import { BlacklistedNotFoundError } from "../../utils/error.utils.ts";
+import { BlacklistedNotFoundWarning } from "../../utils/error.utils.ts";
 import { CustomOption } from "../base-option.ts";
 import { buildScopeSuggestions, pickScopedEntries, resolveListScope } from "./_list-scope.utils.ts";
 
@@ -33,14 +33,14 @@ export class BlacklistedsOption extends CustomOption {
 		if (scope === ListScope.Queue) {
 			const queues = await inter.parser.getScopedQueues();
 			const entries = inter.parser.getScopedBlacklisted(queues);
-			return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundError()) };
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundWarning()) };
 		}
 		if (scope === ListScope.Event) {
 			const entries = inter.store.dbEventBlacklisted();
-			return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundError()) };
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundWarning()) };
 		}
 		const entries = inter.store.dbGuildBlacklisted();
-		return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundError()) };
+		return { scope, entries: await pickScopedEntries(inter, inputString, entries, BlacklistedsOption.ID, () => new BlacklistedNotFoundWarning()) };
 	}
 
 	static async getAutocompletions({ inter }: { inter: AutocompleteInteraction }): Promise<UIOption[]> {

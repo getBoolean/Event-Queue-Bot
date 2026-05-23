@@ -3,7 +3,7 @@ import type { Collection } from "discord.js";
 import type { DbAdmin } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { AdminNotFoundError } from "../../utils/error.utils.ts";
+import { AdminNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class AdminOption extends CustomOption {
@@ -37,7 +37,7 @@ export class AdminOption extends CustomOption {
 			return admin;
 		}
 		else {
-			throw new AdminNotFoundError();
+			throw new AdminNotFoundWarning();
 		}
 	}
 

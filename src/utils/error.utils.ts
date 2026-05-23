@@ -2,14 +2,22 @@ import { EmbedBuilder } from "discord.js";
 
 import { commandMention } from "./string.utils.ts";
 
-export abstract class AbstractError extends Error {
-	message = "Unknown Error";
+export abstract class AbstractInteractionIssue extends Error {
+	message = "Unknown Issue";
 	embeds?: EmbedBuilder[];
 	log?: boolean;
 	ephemeral?: boolean;
 }
 
-export class CustomError extends AbstractError {
+export abstract class AbstractError extends AbstractInteractionIssue {
+	message = "Unknown Error";
+}
+
+export abstract class AbstractWarning extends AbstractInteractionIssue {
+	message = "Unknown Warning";
+}
+
+export class CustomError extends AbstractWarning {
 	constructor(opts: {
 		message: string
 		embeds?: EmbedBuilder[],
@@ -21,180 +29,180 @@ export class CustomError extends AbstractError {
 	}
 }
 
-export class QueueLockedError extends AbstractError {
+export class QueueLockedWarning extends AbstractWarning {
 	message = "Failed to join queue because it is locked";
 }
 
-export class QueueFullError extends AbstractError {
+export class QueueFullWarning extends AbstractWarning {
 	message = "Failed to join queue because it is full";
 }
 
-export class QueueNotFoundError extends AbstractError {
+export class QueueNotFoundWarning extends AbstractWarning {
 	message = "Queue not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Queues can be created with ${commandMention("queues", "add")}.`),
 	];
 }
 
-export class VoiceNotFoundError extends AbstractError {
+export class VoiceNotFoundWarning extends AbstractWarning {
 	message = "Voice not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Voices can be created with ${commandMention("voice", "add_source")}.`),
 	];
 }
 
-export class DisplayNotFoundError extends AbstractError {
+export class DisplayNotFoundWarning extends AbstractWarning {
 	message = "Display not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Displays can be created with ${commandMention("show")} or ${commandMention("displays", "add")}.`),
 	];
 }
 
-export class MemberNotFoundError extends AbstractError {
+export class MemberNotFoundWarning extends AbstractWarning {
 	message = "Member not found";
 }
 
-export class ScheduleNotFoundError extends AbstractError {
+export class ScheduleNotFoundWarning extends AbstractWarning {
 	message = "Schedule not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Schedules can be created with ${commandMention("schedule", "add")}.`),
 	];
 }
 
-export class PrioritizedNotFoundError extends AbstractError {
+export class PrioritizedNotFoundWarning extends AbstractWarning {
 	message = "Prioritized not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Users and roles can be prioritized with ${commandMention("prioritize", "add")}.`),
 	];
 }
 
-export class WhitelistedNotFoundError extends AbstractError {
+export class WhitelistedNotFoundWarning extends AbstractWarning {
 	message = "Whitelisted not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Users and roles can be whitelisted with ${commandMention("whitelist", "add")}.`),
 	];
 }
 
-export class BlacklistedNotFoundError extends AbstractError {
+export class BlacklistedNotFoundWarning extends AbstractWarning {
 	message = "Blacklisted not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Users and roles can be blacklisted with ${commandMention("blacklist", "add")}.`),
 	];
 }
 
-export class AdminNotFoundError extends AbstractError {
+export class AdminNotFoundWarning extends AbstractWarning {
 	message = "Admin not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Admins can be added with ${commandMention("admins", "add")}.`),
 	];
 }
 
-export class NotOnQueueWhitelistError extends AbstractError {
+export class NotOnQueueWhitelistWarning extends AbstractWarning {
 	message = "Failed to join queue because you are not on the queue whitelist";
 }
 
-export class OnQueueBlacklistError extends AbstractError {
+export class OnQueueBlacklistWarning extends AbstractWarning {
 	message = "Failed to join queue because you are on the queue blacklist";
 }
 
-export class QueueAlreadyExistsError extends AbstractError {
+export class QueueAlreadyExistsWarning extends AbstractWarning {
 	message = "Queue already exists";
 }
 
-export class ScheduleAlreadyExistsError extends AbstractError {
+export class ScheduleAlreadyExistsWarning extends AbstractWarning {
 	message = "Schedule already exists";
 }
 
-export class WhitelistedAlreadyExistsError extends AbstractError {
+export class WhitelistedAlreadyExistsWarning extends AbstractWarning {
 	message = "Whitelisted already exists";
 }
 
-export class BlacklistedAlreadyExistsError extends AbstractError {
+export class BlacklistedAlreadyExistsWarning extends AbstractWarning {
 	message = "Blacklisted already exists";
 }
 
-export class PrioritizedAlreadyExistsError extends AbstractError {
+export class PrioritizedAlreadyExistsWarning extends AbstractWarning {
 	message = "Prioritized already exists";
 }
 
-export class AdminAlreadyExistsError extends AbstractError {
+export class AdminAlreadyExistsWarning extends AbstractWarning {
 	message = "Admin already exists";
 }
 
-export class AdminAccessError extends AbstractError {
+export class AdminAccessWarning extends AbstractWarning {
 	message = "Missing Queue Bot admin access";
 	embeds = [
 		new EmbedBuilder().setDescription(`Other admins may grant admin access ${commandMention("admins", "add")}.`),
 	];
 }
 
-export class InvalidCronError extends AbstractError {
+export class InvalidCronWarning extends AbstractWarning {
 	message = "Invalid cron schedule.";
 	embeds = [
 		new EmbedBuilder().setDescription("Please see https://crontab.guru/examples.html. Highest frequency is once a minute."),
 	];
 }
 
-export class EventNotFoundError extends AbstractError {
+export class EventNotFoundWarning extends AbstractWarning {
 	message = "Event not found";
 	embeds = [
 		new EmbedBuilder().setDescription(`Events can be created with ${commandMention("events", "add")}.`),
 	];
 }
 
-export class EventAlreadyExistsError extends AbstractError {
+export class EventAlreadyExistsWarning extends AbstractWarning {
 	message = "An event with that name already exists in this server";
 }
 
-export class OccurrenceAlreadyExistsError extends AbstractError {
+export class OccurrenceAlreadyExistsWarning extends AbstractWarning {
 	message = "An occurrence with that start time already exists for this event";
 }
 
-export class OccurrenceInPastError extends AbstractError {
+export class OccurrenceInPastWarning extends AbstractWarning {
 	message = "Cannot schedule an occurrence whose cleanup time is already in the past";
 }
 
-export class SequentialEventRequiresRoomLengthError extends AbstractError {
+export class SequentialEventRequiresRoomLengthWarning extends AbstractWarning {
 	message = "Sequential room scheduling requires a room length greater than 0";
 }
 
-export class RoomIndexNotFoundError extends AbstractError {
+export class RoomIndexNotFoundWarning extends AbstractWarning {
 	constructor(maxIndex: number) {
 		super();
 		this.message = `Room index not found. Valid range is 1..${maxIndex}`;
 	}
 }
 
-export class LockBeforeOpenError extends AbstractError {
+export class LockBeforeOpenWarning extends AbstractWarning {
 	message = "Lock offset would cause rooms to lock before the event opens. Adjust create_offset_hours or lock_offset_minutes";
 }
 
-export class EventRoomCountShrinkError extends AbstractError {
+export class EventRoomCountShrinkWarning extends AbstractWarning {
 	message = "Cannot reduce room count. Delete surplus queues manually via /queues delete, then reduce the count";
 }
 
-export class EventRoomLimitExceededError extends AbstractError {
+export class EventRoomLimitExceededWarning extends AbstractWarning {
 	constructor(max: number) {
 		super();
 		this.message = `You can only join up to ${max} room(s) in this event.`;
 	}
 }
 
-export class EventSubLimitExceededError extends AbstractError {
+export class EventSubLimitExceededWarning extends AbstractWarning {
 	constructor(max: number) {
 		super();
 		this.message = `You can only join up to ${max} sub-room(s) in this event.`;
 	}
 }
 
-export class AlreadyInEventParentError extends AbstractError {
+export class AlreadyInEventParentWarning extends AbstractWarning {
 	constructor(roomIndex: bigint | number) {
 		super();
 		this.message = `You are already in this event's room ${roomIndex} queue. Leave it before joining the sub queue.`;
 	}
 }
 
-export class AlreadyInQueueError extends AbstractError {
+export class AlreadyInQueueWarning extends AbstractWarning {
 	message = "You are already in this queue.";
 	ephemeral = true;
 }

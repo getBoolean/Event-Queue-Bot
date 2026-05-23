@@ -3,7 +3,7 @@ import { Collection } from "discord.js";
 import type { DbDisplay } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { DisplayNotFoundError } from "../../utils/error.utils.ts";
+import { DisplayNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class DisplayOption extends CustomOption {
@@ -40,7 +40,7 @@ export class DisplayOption extends CustomOption {
 			return display;
 		}
 		else {
-			throw new DisplayNotFoundError();
+			throw new DisplayNotFoundWarning();
 		}
 	}
 

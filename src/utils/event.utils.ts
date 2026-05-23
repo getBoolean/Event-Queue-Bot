@@ -30,11 +30,11 @@ import { ClientUtils } from "./client.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
 import {
 	CustomError,
-	EventRoomCountShrinkError,
-	LockBeforeOpenError,
-	OccurrenceInPastError,
-	QueueAlreadyExistsError,
-	SequentialEventRequiresRoomLengthError,
+	EventRoomCountShrinkWarning,
+	LockBeforeOpenWarning,
+	OccurrenceInPastWarning,
+	QueueAlreadyExistsWarning,
+	SequentialEventRequiresRoomLengthWarning,
 } from "./error.utils.ts";
 import { EventChannelUtils } from "./event-channel.utils.ts";
 import { MemberUtils } from "./member.utils.ts";
@@ -87,7 +87,7 @@ export namespace EventUtils {
 
 		if (newEvent.roomScheduling === RoomScheduling.Sequential) {
 			if (!newEvent.roomLengthMs || BigInt(newEvent.roomLengthMs) <= 0n) {
-				throw new SequentialEventRequiresRoomLengthError();
+				throw new SequentialEventRequiresRoomLengthWarning();
 			}
 		}
 
@@ -115,7 +115,7 @@ export namespace EventUtils {
 		const newRoomLengthMs = update.roomLengthMs !== undefined ? update.roomLengthMs : event.roomLengthMs;
 		if (newScheduling === RoomScheduling.Sequential) {
 			if (!newRoomLengthMs || BigInt(newRoomLengthMs) <= 0n) {
-				throw new SequentialEventRequiresRoomLengthError();
+				throw new SequentialEventRequiresRoomLengthWarning();
 			}
 		}
 
@@ -123,7 +123,7 @@ export namespace EventUtils {
 			const oldCount = Number(event.roomCount);
 			const newCount = Number(update.roomCount);
 			if (newCount < oldCount) {
-				throw new EventRoomCountShrinkError();
+				throw new EventRoomCountShrinkWarning();
 			}
 			if (newCount > oldCount) {
 				for (let i = oldCount + 1; i <= newCount; i++) {
@@ -388,12 +388,12 @@ export namespace EventUtils {
 	) {
 		const cleanupAt = getRoomsFinishMs(event, Number(startTime)) + Number(event.cleanupOffsetMs);
 		if (cleanupAt < Date.now()) {
-			throw new OccurrenceInPastError();
+			throw new OccurrenceInPastWarning();
 		}
 
 		if (event.roomScheduling === RoomScheduling.Sequential) {
 			if (!event.roomLengthMs || BigInt(event.roomLengthMs) <= 0n) {
-				throw new SequentialEventRequiresRoomLengthError();
+				throw new SequentialEventRequiresRoomLengthWarning();
 			}
 		}
 
@@ -836,7 +836,7 @@ export namespace EventUtils {
 		// openAt = startTime - createOffsetMs
 		// lockAt must be >= openAt => lockOffsetMs >= -createOffsetMs
 		if (lockOffsetMs < -createOffsetMs) {
-			throw new LockBeforeOpenError();
+			throw new LockBeforeOpenWarning();
 		}
 	}
 
@@ -870,7 +870,7 @@ export namespace EventUtils {
 			insertedQueue = result.insertedQueue;
 		}
 		catch (e) {
-			if (e instanceof QueueAlreadyExistsError) {
+			if (e instanceof QueueAlreadyExistsWarning) {
 				queueName = `${queueName} (event)`;
 				const result = await QueueUtils.insertQueue(store, {
 					guildId: store.guild.id,

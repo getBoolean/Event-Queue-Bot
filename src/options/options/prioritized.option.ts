@@ -3,7 +3,7 @@ import type { Collection } from "discord.js";
 import type { DbPrioritized } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { PrioritizedNotFoundError } from "../../utils/error.utils.ts";
+import { PrioritizedNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class PrioritizedOption extends CustomOption {
@@ -40,7 +40,7 @@ export class PrioritizedOption extends CustomOption {
 			return prioritized;
 		}
 		else {
-			throw new PrioritizedNotFoundError();
+			throw new PrioritizedNotFoundWarning();
 		}
 	}
 
