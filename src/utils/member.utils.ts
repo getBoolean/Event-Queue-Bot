@@ -135,8 +135,9 @@ export namespace MemberUtils {
 		destinationChannelId?: Snowflake;
 		force?: boolean,
 		dmMember?: boolean,
+		ephemeralResponse?: boolean,
 	}) {
-		const { store, reason, by, messageChannelId, force, dmMember } = options;
+		const { store, reason, by, messageChannelId, force, dmMember, ephemeralResponse } = options;
 		const queues = options.queues instanceof Collection ? [...options.queues.values()] : options.queues;
 		const { userId, userIds, roleId, count } = by ?? {} as any;
 		const deletedMembers: DbMember[] = [];
@@ -192,13 +193,16 @@ export namespace MemberUtils {
 						}
 					}
 					if (store.inter) {
-						await store.inter.respond(`${upperFirst(reason)}.`, false);
+						await store.inter.respond(
+							{ content: `${upperFirst(reason)}.`, ephemeral: ephemeralResponse },
+							false,
+						);
 					}
 				}
 				else if (queue.pullMessageDisplayType === PullMessageDisplayType.Private) {
 					if (store.inter) {
 						// logs as part of respond
-						await store.inter.respond(messageToSend, true);
+						await store.inter.respond({ ...messageToSend, ephemeral: ephemeralResponse }, true);
 						link = store.inter.channel.url;
 					}
 					else {
@@ -591,6 +595,7 @@ export namespace MemberUtils {
 			reason: MemberRemovalReason.Kicked,
 			by: { userId: jsMember.id },
 			force: true,
+			ephemeralResponse: true,
 		});
 	}
 }
