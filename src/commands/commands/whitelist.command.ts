@@ -26,6 +26,8 @@ export class WhitelistCommand extends AdminCommand {
 	whitelist_add = WhitelistCommand.whitelist_add;
 	whitelist_delete = WhitelistCommand.whitelist_delete;
 
+	ephemeralSubcommands = new Set(["whitelist_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName(WhitelistCommand.ID)
 		.setDescription("Manage whitelisted users and roles")

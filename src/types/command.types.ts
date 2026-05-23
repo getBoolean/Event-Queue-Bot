@@ -4,11 +4,13 @@ export interface Command {
 	data: SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
 	adminOnly: boolean;
 	deferResponse: boolean;
+	ephemeralSubcommands: Set<string>;
 }
 
 abstract class CommandBase implements Command {
 	readonly adminOnly: boolean;
 	deferResponse = true;
+	ephemeralSubcommands: Set<string> = new Set();
 
 	abstract data: SlashCommandOptionsOnlyBuilder | SlashCommandSubcommandsOnlyBuilder;
 }

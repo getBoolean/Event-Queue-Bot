@@ -18,6 +18,8 @@ export class AdminsCommand extends AdminCommand {
 	admins_add = AdminsCommand.admins_add;
 	admins_delete = AdminsCommand.admins_delete;
 
+	ephemeralSubcommands = new Set(["admins_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName(AdminsCommand.ID)
 		.setDescription("Manage bot admins")

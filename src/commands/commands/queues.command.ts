@@ -48,6 +48,8 @@ export class QueuesCommand extends AdminCommand {
 	queues_reset = QueuesCommand.queues_reset;
 	queues_delete = QueuesCommand.queues_delete;
 
+	ephemeralSubcommands = new Set(["queues_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName(QueuesCommand.ID)
 		.setDescription("Manage queues")

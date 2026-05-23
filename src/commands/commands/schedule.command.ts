@@ -30,6 +30,8 @@ export class ScheduleCommand extends AdminCommand {
 	schedule_delete = ScheduleCommand.schedule_delete;
 	schedule_help = ScheduleCommand.schedule_help;
 
+	ephemeralSubcommands = new Set(["schedule_get", "schedule_help"]);
+
 	data = new SlashCommandBuilder()
 		.setName(ScheduleCommand.ID)
 		.setDescription("Manage scheduled commands")

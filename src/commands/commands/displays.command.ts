@@ -17,6 +17,8 @@ export class DisplaysCommand extends AdminCommand {
 	displays_add = DisplaysCommand.displays_add;
 	displays_delete = DisplaysCommand.displays_delete;
 
+	ephemeralSubcommands = new Set(["displays_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName(DisplaysCommand.ID)
 		.setDescription("Manage display channels")

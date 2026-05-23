@@ -13,6 +13,8 @@ export class LoggingCommand extends AdminCommand {
 	logging_set = LoggingCommand.logging_set;
 	logging_disable = LoggingCommand.logging_disable;
 
+	ephemeralSubcommands = new Set(["logging_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName("logging")
 		.setDescription("Manage logging settings")

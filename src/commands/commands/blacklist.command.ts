@@ -26,6 +26,8 @@ export class BlacklistCommand extends AdminCommand {
 	blacklist_add = BlacklistCommand.blacklist_add;
 	blacklist_delete = BlacklistCommand.blacklist_delete;
 
+	ephemeralSubcommands = new Set(["blacklist_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName(BlacklistCommand.ID)
 		.setDescription("Manage blacklisted users and roles")

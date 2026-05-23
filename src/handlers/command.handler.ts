@@ -26,7 +26,8 @@ export class CommandHandler implements Handler {
 			this.inter.respond = (message: InteractionReplyOptions | string, log = false) => InteractionUtils.respond(this.inter, command.adminOnly, message, log);
 
 			if (command.deferResponse) {
-				await this.inter.deferReply();
+				const ephemeral = !command.adminOnly || command.ephemeralSubcommands.has(fullCommandName);
+				await this.inter.deferReply({ ephemeral });
 			}
 
 			if (command.adminOnly) {

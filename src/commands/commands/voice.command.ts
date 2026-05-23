@@ -29,6 +29,8 @@ export class VoiceCommand extends AdminCommand {
 	voice_reset_destination = VoiceCommand.voice_reset_destination;
 	voice_help = VoiceCommand.voice_help;
 
+	ephemeralSubcommands = new Set(["voice_get", "voice_help"]);
+
 	data = new SlashCommandBuilder()
 		.setName(VoiceCommand.ID)
 		.setDescription("Manage voice integrations")

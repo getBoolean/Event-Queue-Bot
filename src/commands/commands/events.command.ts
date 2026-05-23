@@ -213,7 +213,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_get(inter: SlashInteraction, events?: Collection<bigint, DbEvent>) {
-		if (!inter.deferred) await inter.deferReply();
+		if (!inter.deferred) await inter.deferReply({ ephemeral: true });
 		events = events ?? await EventsCommand.GET_OPTIONS.events.get(inter);
 
 		if (!events || events.size === 0) {
@@ -861,7 +861,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static async events_help(inter: SlashInteraction) {
-		await inter.deferReply();
+		await inter.deferReply({ ephemeral: true });
 		const embeds = [new EmbedBuilder()
 			.setTitle("Events")
 			.setColor(Color.Indigo)

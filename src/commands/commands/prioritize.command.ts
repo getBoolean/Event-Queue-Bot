@@ -28,6 +28,8 @@ export class PrioritizeCommand extends AdminCommand {
 	prioritize_update = PrioritizeCommand.prioritize_update;
 	prioritize_delete = PrioritizeCommand.prioritize_delete;
 
+	ephemeralSubcommands = new Set(["prioritize_get"]);
+
 	data = new SlashCommandBuilder()
 		.setName(PrioritizeCommand.ID)
 		.setDescription("Manage prioritized users and roles")
