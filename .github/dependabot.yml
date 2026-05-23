@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch

@@ -1,0 +1,105 @@
+name: Bump doctl version
+
+on:
+  schedule:
+    # Monthly on the 1st at 09:15 UTC (15 minutes after Dependabot's 09:00 UTC scan).
+    - cron: "15 9 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Resolve current and latest doctl versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          latest_raw=$(gh api repos/digitalocean/doctl/releases/latest --jq '.tag_name')
+          latest="${latest_raw#v}"
+
+          mapfile -t pinned < <(grep -hE '^\s+version:\s+[0-9]+\.[0-9]+\.[0-9]+\s*$' \
+            .github/workflows/provision-and-deploy.yml \
+            .github/workflows/restart-bot.yml \
+            | awk '{print $2}' | sort -u)
+
+          if [ "${#pinned[@]}" -ne 1 ]; then
+            echo "Pinned versions disagree across workflows: ${pinned[*]}" >&2
+            exit 1
+          fi
+          current="${pinned[0]}"
+
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          echo "latest=${latest}"   >> "$GITHUB_OUTPUT"
+
+          if [ "${current}" = "${latest}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "doctl already pinned at ${current}; no PR needed."
+          else
+            echo "changed=true"  >> "$GITHUB_OUTPUT"
+            echo "Bumping doctl: ${current} -> ${latest}"
+          fi
+
+      - name: Update workflow pins
+        if: steps.versions.outputs.changed == 'true'
+        env:
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST:  ${{ steps.versions.outputs.latest }}
+        run: |
+          set -euo pipefail
+          esc_current="${CURRENT//./\\.}"
+          sed -i -E "s/^(\s+version:\s+)${esc_current}(\s*)$/\1${LATEST}\2/" \
+            .github/workflows/provision-and-deploy.yml \
+            .github/workflows/restart-bot.yml
+
+          new_count=$(grep -cE "^\s+version:\s+${LATEST}\s*$" \
+            .github/workflows/provision-and-deploy.yml \
+            .github/workflows/restart-bot.yml | awk -F: '{s+=$2} END {print s}')
+          old_count=$(grep -cE "^\s+version:\s+${esc_current}\s*$" \
+            .github/workflows/provision-and-deploy.yml \
+            .github/workflows/restart-bot.yml | awk -F: '{s+=$2} END {print s}')
+
+          if [ "${new_count}" -ne 3 ] || [ "${old_count}" -ne 0 ]; then
+            echo "Unexpected sed result: new=${new_count} old=${old_count} (expected 3 and 0)" >&2
+            exit 1
+          fi
+
+      - name: Open pull request
+        if: steps.versions.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bump-doctl-${{ steps.versions.outputs.latest }}
+          delete-branch: true
+          commit-message: "bump doctl to ${{ steps.versions.outputs.latest }}"
+          title: "bump doctl to ${{ steps.versions.outputs.latest }}"
+          body: |
+            Bumps the `version:` input passed to `digitalocean/action-doctl` from
+            `${{ steps.versions.outputs.current }}` to `${{ steps.versions.outputs.latest }}`
+            across all three call sites:
+
+            - `.github/workflows/provision-and-deploy.yml` (discover + provision jobs)
+            - `.github/workflows/restart-bot.yml` (restart job)
+
+            Source: https://github.com/digitalocean/doctl/releases/latest
+
+            Opened automatically by `.github/workflows/bump-doctl-version.yml`.
+            We pin the version explicitly so the action skips its unauthenticated
+            GitHub API call (which gets rate-limited on shared runner IPs and falls
+            back to a stale baked-in default).
+          labels: |
+            dependencies
+            github-actions
+            automated
