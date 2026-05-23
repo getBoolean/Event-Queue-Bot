@@ -206,3 +206,7 @@ export class AlreadyInQueueWarning extends AbstractWarning {
 	message = "You are already in this queue.";
 	ephemeral = true;
 }
+
+export class EventSyncInProgressWarning extends AbstractWarning {
+	message = "An event sync is already in progress. Wait for it to finish before retrying.";
+}

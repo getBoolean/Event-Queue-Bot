@@ -37,6 +37,7 @@ import {
 	SequentialEventRequiresRoomLengthWarning,
 } from "./error.utils.ts";
 import { EventChannelUtils } from "./event-channel.utils.ts";
+import { EventSyncLock } from "./event-sync-lock.utils.ts";
 import { MemberUtils } from "./member.utils.ts";
 import { QueueUtils } from "./queue.utils.ts";
 
@@ -247,170 +248,172 @@ export namespace EventUtils {
 	const EVENT_DEFAULT_NON_QUEUE_KEYS = new Set(["id", "guildId", "eventId", "queueRole"]);
 
 	export async function syncEventQueues(store: Store, event: DbEvent) {
-		let recreatedCount = 0;
-		let reappliedRoomCount = 0;
-		let reappliedSubCount = 0;
-		let reshownCount = 0;
+		return EventSyncLock.withLock(store.guild.id, event.id, async () => {
+			let recreatedCount = 0;
+			let reappliedRoomCount = 0;
+			let reappliedSubCount = 0;
+			let reshownCount = 0;
 
-		const roomCount = Number(event.roomCount);
-		const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
+			const roomCount = Number(event.roomCount);
+			const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
 
-		// Lock all existing event queues up-front so the sync runs from a known-locked baseline.
-		// Newly-created queues in Step A pick up correct lock state via insertEventQueueRowWithoutDisplay,
-		// and Step E re-evaluates every queue to unlock those whose pre-start window contains now.
-		{
-			const existingEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
-			const existingQueues = compact(existingEqs.map(eq =>
-				Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
-			));
-			if (existingQueues.length > 0) {
-				await QueueUtils.updateQueues(store, existingQueues, { lockToggle: true } as Partial<DbQueue>);
-			}
-		}
-
-		// Step A — recreate any missing (role, queueIndex) slots. Skip display creation here;
-		// Step C is the sole writer of displays so its sequential post order isn't racing
-		// against fire-and-forget updates from DisplayUtils.insertDisplays.
-		for (const role of roles) {
-			for (let i = 1; i <= roomCount; i++) {
-				const eqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
-				const match = eqs.find(eq => eq.queueRole === role && Number(eq.queueIndex) === i);
-				const existingQueue = match
-					? Queries.selectQueue({ guildId: store.guild.id, id: match.queueId })
-					: undefined;
-				if (!match || !existingQueue) {
-					await insertEventQueueRowWithoutDisplay(store, event, role, i);
-					recreatedCount++;
+			// Lock all existing event queues up-front so the sync runs from a known-locked baseline.
+			// Newly-created queues in Step A pick up correct lock state via insertEventQueueRowWithoutDisplay,
+			// and Step E re-evaluates every queue to unlock those whose pre-start window contains now.
+			{
+				const existingEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+				const existingQueues = compact(existingEqs.map(eq =>
+					Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
+				));
+				if (existingQueues.length > 0) {
+					await QueueUtils.updateQueues(store, existingQueues, { lockToggle: true } as Partial<DbQueue>);
 				}
 			}
-		}
 
-		// Step B — reset queue-config columns to schema defaults, then overlay the stored event defaults.
-		// Direct store.updateQueue writes (not QueueUtils.updateQueues) so we don't fire an async
-		// requestDisplaysUpdate that would race with Step C and leave orphan messages in the channel.
-		// `lockToggle` is intentionally excluded — it's owned by the up-front lock above and Step E below.
-		const LOCK_KEY = "lockToggle";
-		const defaultColumnKeys = Object.keys(EVENT_DEFAULT_TABLE)
-			.filter(k => !EVENT_DEFAULT_NON_QUEUE_KEYS.has(k) && k !== LOCK_KEY);
-
-		for (const role of roles) {
-			const resetPatch: Record<string, unknown> = {};
-			for (const key of defaultColumnKeys) {
-				resetPatch[key] = (QUEUE_TABLE as any)[key]?.default ?? null;
-			}
-
-			const storedDefault = Queries.selectEventDefault({
-				guildId: store.guild.id,
-				eventId: event.id,
-				queueRole: role,
-			});
-			const overlay = storedDefault ? omitBy(storedDefault, isNil) : {};
-			delete overlay.id;
-			delete overlay.guildId;
-			delete overlay.eventId;
-			delete overlay.queueRole;
-			delete overlay[LOCK_KEY];
-
-			const update = { ...resetPatch, ...overlay } as Partial<DbQueue>;
-
-			const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
-				.filter(eq => eq.queueRole === role);
-			const queues = compact(eventQueues.map(eq =>
-				Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
-			));
-
-			if (queues.length > 0) {
-				const updatedQueues = compact(queues.map(q => store.updateQueue({ id: q.id, ...update })));
-				if (update.roleInQueueId) {
-					await QueueUtils.setRoleInQueue(store, updatedQueues);
-				}
-				if (role === EventQueueRole.Room) {
-					reappliedRoomCount = updatedQueues.length;
-				}
-				else {
-					reappliedSubCount = updatedQueues.length;
+			// Step A — recreate any missing (role, queueIndex) slots. Skip display creation here;
+			// Step C is the sole writer of displays so its sequential post order isn't racing
+			// against fire-and-forget updates from DisplayUtils.insertDisplays.
+			for (const role of roles) {
+				for (let i = 1; i <= roomCount; i++) {
+					const eqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+					const match = eqs.find(eq => eq.queueRole === role && Number(eq.queueIndex) === i);
+					const existingQueue = match
+						? Queries.selectQueue({ guildId: store.guild.id, id: match.queueId })
+						: undefined;
+					if (!match || !existingQueue) {
+						await insertEventQueueRowWithoutDisplay(store, event, role, i);
+						recreatedCount++;
+					}
 				}
 			}
-		}
 
-		// Step C — re-show every queue display in queue-index order in the event's display channels.
-		// Insert the row directly + `await updateDisplays` so per-queue posts are sequential
-		// (DisplayUtils.insertDisplays also fires a non-awaited update, which would race with the explicit await below).
-		for (const role of roles) {
-			const displayChannelId = role === EventQueueRole.Room
-				? event.roomQueuesChannelId
-				: event.subQueuesChannelId;
-			const orderedEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
-				.filter(eq => eq.queueRole === role)
-				.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+			// Step B — reset queue-config columns to schema defaults, then overlay the stored event defaults.
+			// Direct store.updateQueue writes (not QueueUtils.updateQueues) so we don't fire an async
+			// requestDisplaysUpdate that would race with Step C and leave orphan messages in the channel.
+			// `lockToggle` is intentionally excluded — it's owned by the up-front lock above and Step E below.
+			const LOCK_KEY = "lockToggle";
+			const defaultColumnKeys = Object.keys(EVENT_DEFAULT_TABLE)
+				.filter(k => !EVENT_DEFAULT_NON_QUEUE_KEYS.has(k) && k !== LOCK_KEY);
 
-			for (const eq of orderedEqs) {
-				const queue = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
-				if (!queue) continue;
+			for (const role of roles) {
+				const resetPatch: Record<string, unknown> = {};
+				for (const key of defaultColumnKeys) {
+					resetPatch[key] = (QUEUE_TABLE as any)[key]?.default ?? null;
+				}
 
-				const existingDisplays = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()];
-				for (const display of existingDisplays) {
-					if (display.lastMessageId) {
-						const channel = await store.jsChannel(display.displayChannelId) as GuildTextBasedChannel | undefined;
-						if (channel) {
-							const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
-								console.error(`EventUtils.syncEventQueues: failed to fetch stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
-								return null;
-							});
-							if (message) {
-								await message.delete().catch(e => {
-									console.error(`EventUtils.syncEventQueues: failed to delete stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+				const storedDefault = Queries.selectEventDefault({
+					guildId: store.guild.id,
+					eventId: event.id,
+					queueRole: role,
+				});
+				const overlay = storedDefault ? omitBy(storedDefault, isNil) : {};
+				delete overlay.id;
+				delete overlay.guildId;
+				delete overlay.eventId;
+				delete overlay.queueRole;
+				delete overlay[LOCK_KEY];
+
+				const update = { ...resetPatch, ...overlay } as Partial<DbQueue>;
+
+				const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+					.filter(eq => eq.queueRole === role);
+				const queues = compact(eventQueues.map(eq =>
+					Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
+				));
+
+				if (queues.length > 0) {
+					const updatedQueues = compact(queues.map(q => store.updateQueue({ id: q.id, ...update })));
+					if (update.roleInQueueId) {
+						await QueueUtils.setRoleInQueue(store, updatedQueues);
+					}
+					if (role === EventQueueRole.Room) {
+						reappliedRoomCount = updatedQueues.length;
+					}
+					else {
+						reappliedSubCount = updatedQueues.length;
+					}
+				}
+			}
+
+			// Step C — re-show every queue display in queue-index order in the event's display channels.
+			// Insert the row directly + `await updateDisplays` so per-queue posts are sequential
+			// (DisplayUtils.insertDisplays also fires a non-awaited update, which would race with the explicit await below).
+			for (const role of roles) {
+				const displayChannelId = role === EventQueueRole.Room
+					? event.roomQueuesChannelId
+					: event.subQueuesChannelId;
+				const orderedEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+					.filter(eq => eq.queueRole === role)
+					.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+
+				for (const eq of orderedEqs) {
+					const queue = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
+					if (!queue) continue;
+
+					const existingDisplays = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()];
+					for (const display of existingDisplays) {
+						if (display.lastMessageId) {
+							const channel = await store.jsChannel(display.displayChannelId) as GuildTextBasedChannel | undefined;
+							if (channel) {
+								const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
+									console.error(`EventUtils.syncEventQueues: failed to fetch stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
 									return null;
 								});
+								if (message) {
+									await message.delete().catch(e => {
+										console.error(`EventUtils.syncEventQueues: failed to delete stale display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+										return null;
+									});
+								}
 							}
 						}
+						store.deleteDisplay({ id: display.id });
 					}
-					store.deleteDisplay({ id: display.id });
-				}
 
-				const newDisplay = store.insertDisplay({
-					guildId: store.guild.id,
-					queueId: queue.id,
-					displayChannelId,
-				});
-				if (!newDisplay) continue;
+					const newDisplay = store.insertDisplay({
+						guildId: store.guild.id,
+						queueId: queue.id,
+						displayChannelId,
+					});
+					if (!newDisplay) continue;
 
-				await DisplayUtils.updateDisplays({
-					store,
-					queueId: queue.id,
-					opts: {
-						displayIds: [newDisplay.id],
-						updateTypeOverride: DisplayUpdateType.Replace,
-					},
-				});
+					await DisplayUtils.updateDisplays({
+						store,
+						queueId: queue.id,
+						opts: {
+							displayIds: [newDisplay.id],
+							updateTypeOverride: DisplayUpdateType.Replace,
+						},
+					});
 
-				reshownCount++;
-			}
-		}
-
-		// Step D — reconcile channels + auto-created room roles
-		if (event.roomCategoryId) {
-			await EventChannelUtils.reconcileRoomChannels(store, event);
-		}
-
-		// Step E — unlock any event queues whose role-appropriate pre-start window currently contains now.
-		// All other queues stay locked from the up-front lock above.
-		{
-			const allEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
-			const toUnlock: DbQueue[] = [];
-			for (const eq of allEqs) {
-				const q = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
-				if (!q) continue;
-				if (shouldEventQueueBeUnlocked(event, eq.queueRole as EventQueueRole)) {
-					toUnlock.push(q);
+					reshownCount++;
 				}
 			}
-			if (toUnlock.length > 0) {
-				await QueueUtils.updateQueues(store, toUnlock, { lockToggle: false } as Partial<DbQueue>);
-			}
-		}
 
-		return { recreatedCount, reappliedRoomCount, reappliedSubCount, reshownCount };
+			// Step D — reconcile channels + auto-created room roles
+			if (event.roomCategoryId) {
+				await EventChannelUtils.reconcileRoomChannels(store, event);
+			}
+
+			// Step E — unlock any event queues whose role-appropriate pre-start window currently contains now.
+			// All other queues stay locked from the up-front lock above.
+			{
+				const allEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+				const toUnlock: DbQueue[] = [];
+				for (const eq of allEqs) {
+					const q = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
+					if (!q) continue;
+					if (shouldEventQueueBeUnlocked(event, eq.queueRole as EventQueueRole)) {
+						toUnlock.push(q);
+					}
+				}
+				if (toUnlock.length > 0) {
+					await QueueUtils.updateQueues(store, toUnlock, { lockToggle: false } as Partial<DbQueue>);
+				}
+			}
+
+			return { recreatedCount, reappliedRoomCount, reappliedSubCount, reshownCount };
+		});
 	}
 
 	export async function scheduleOccurrence(

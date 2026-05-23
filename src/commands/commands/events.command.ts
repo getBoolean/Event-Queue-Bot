@@ -61,6 +61,7 @@ import type { SlashInteraction } from "../../types/interaction.types.ts";
 import { CustomError, EventNotFoundWarning } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
+import { EventSyncLock } from "../../utils/event-sync-lock.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
 import { commandMention, describeTable, eventMention, queuesMention } from "../../utils/string.utils.ts";
@@ -74,6 +75,39 @@ function verifyMentionEveryonePermission(inter: SlashInteraction, message: strin
 			message: "Your announcement message contains @everyone or @here, but you lack the 'Mention Everyone' permission in the announcement channel",
 		});
 	}
+}
+
+const DISCORD_MESSAGE_LIMIT = 2000;
+
+function renderSyncReport(report: EventChannelUtils.SyncReport): string {
+	const lines: string[] = [`Synced room channels for **${report.eventName}**.`];
+
+	const namedBucket = (label: string, names: string[]) => {
+		if (names.length === 0) return;
+		lines.push(`• ${label}: ${names.map(inlineCode).join(", ")}`);
+	};
+
+	namedBucket("Created", report.created);
+	namedBucket("Adopted", report.adopted);
+	namedBucket("Untracked rows", report.untrackedRows);
+	namedBucket("Recreated missing", report.recreatedMissing);
+
+	if (report.reorderApplied) {
+		lines.push(`• Reorder: ${report.trackedCount} tracked channel${report.trackedCount === 1 ? "" : "s"} reordered.`);
+	}
+	else {
+		lines.push("• Reorder: already in desired order (no changes).");
+	}
+
+	if (report.nonOwnedAtTop.length === 0) {
+		lines.push("• Non-owned channels at top of category: (none)");
+	}
+	else {
+		const mentions = report.nonOwnedAtTop.map(c => channelMention(c.id)).join(", ");
+		lines.push(`• Non-owned channels at top of category (${report.nonOwnedAtTop.length}): ${mentions}`);
+	}
+
+	return lines.join("\n");
 }
 
 export class EventsCommand extends AdminCommand {
@@ -566,10 +600,13 @@ export class EventsCommand extends AdminCommand {
 			slowmodeSeconds: slowmodeSeconds > 0 ? BigInt(slowmodeSeconds) : null,
 		});
 
-		await EventChannelUtils.reconcileRoomChannels(inter.store, event);
+		const report = await EventChannelUtils.reconcileRoomChannels(inter.store, event);
 
+		const adoptedSuffix = report.adopted.length > 0
+			? ` Adopted ${report.adopted.length} existing channel${report.adopted.length === 1 ? "" : "s"}.`
+			: "";
 		await inter.respond(
-			`Added ${inlineCode(`room-${cleanSuffix}-{N}`)} channel template to ${eventMention(event)}${slowmodeSeconds > 0 ? ` (slowmode: ${slowmodeSeconds}s)` : ""}.`,
+			`Added ${inlineCode(`room-${cleanSuffix}-{N}`)} channel template to ${eventMention(event)}${slowmodeSeconds > 0 ? ` (slowmode: ${slowmodeSeconds}s)` : ""}.${adoptedSuffix}`,
 			true,
 		);
 	}
@@ -623,8 +660,8 @@ export class EventsCommand extends AdminCommand {
 
 		if (event) {
 			EventUtils.assertHasRoomCategory(event);
-			await EventChannelUtils.reconcileRoomChannels(inter.store, event);
-			await inter.respond("Synced room channels for 1 event(s).", true);
+			const report = await EventChannelUtils.reconcileRoomChannels(inter.store, event);
+			await inter.respond(renderSyncReport(report), true);
 			return;
 		}
 
@@ -636,12 +673,28 @@ export class EventsCommand extends AdminCommand {
 			return;
 		}
 
-		await EventChannelUtils.reconcileAllGuildEvents(inter.store);
+		const { reports, skipped } = await EventChannelUtils.reconcileAllGuildEvents(inter.store);
 
-		await inter.respond(
-			`Synced room channels for ${targeted.length} event(s).`,
-			true,
-		);
+		const skippedSuffix = skipped.length > 0
+			? `, skipped ${skipped.length} event(s) already in progress: ${skipped.map(e => inlineCode(e.name)).join(", ")}`
+			: "";
+		const header = `Synced room channels for ${reports.length} event(s)${skippedSuffix}:`;
+		const blocks = reports.map(renderSyncReport);
+		const combined = `${header}\n\n${blocks.join("\n\n")}`;
+
+		if (combined.length <= DISCORD_MESSAGE_LIMIT) {
+			await inter.respond(combined, true);
+		}
+		else {
+			const embed = new EmbedBuilder().setTitle(header);
+			for (const report of reports) {
+				embed.addFields({
+					name: report.eventName,
+					value: renderSyncReport(report).split("\n").slice(1).join("\n") || "(no changes)",
+				});
+			}
+			await inter.respond({ embeds: [embed] }, true);
+		}
 	}
 
 	// ====================================================================
@@ -683,18 +736,29 @@ export class EventsCommand extends AdminCommand {
 		let reappliedRoomTotal = 0;
 		let reappliedSubTotal = 0;
 		let reshownTotal = 0;
+		const skipped: DbEvent[] = [];
 		for (const ev of targeted) {
-			const result = await EventUtils.syncEventQueues(inter.store, ev);
+			const result = await EventSyncLock.tryWithLock(inter.store.guild.id, ev.id, () =>
+				EventUtils.syncEventQueues(inter.store, ev)
+			);
+			if (result === "skipped") {
+				skipped.push(ev);
+				continue;
+			}
 			recreatedTotal += result.recreatedCount;
 			reappliedRoomTotal += result.reappliedRoomCount;
 			reappliedSubTotal += result.reappliedSubCount;
 			reshownTotal += result.reshownCount;
 		}
 
+		const syncedCount = targeted.length - skipped.length;
+		const skippedSuffix = skipped.length > 0
+			? `, skipped ${skipped.length} event(s) already in progress: ${skipped.map(e => inlineCode(e.name)).join(", ")}`
+			: "";
 		await inter.respond(
-			`Synced queues for ${targeted.length} event(s): recreated ${recreatedTotal} queue(s), ` +
+			`Synced queues for ${syncedCount} event(s): recreated ${recreatedTotal} queue(s), ` +
 			`re-applied defaults to ${reappliedRoomTotal} room + ${reappliedSubTotal} sub queue(s), ` +
-			`re-posted ${reshownTotal} display(s).`,
+			`re-posted ${reshownTotal} display(s)${skippedSuffix}.`,
 			true,
 		);
 	}
