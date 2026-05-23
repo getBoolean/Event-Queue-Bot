@@ -50,9 +50,15 @@ DO_PROJECT_PURPOSE="${DO_PROJECT_PURPOSE:-Service or API}"
 DO_PROJECT_ENVIRONMENT="${DO_PROJECT_ENVIRONMENT:-Production}"
 DO_PROJECT_DESCRIPTION="${DO_PROJECT_DESCRIPTION:-}"
 APP_PATH="${APP_PATH:-/opt/event-queue-bot}"
+DO_SWAP_SIZE="${DO_SWAP_SIZE:-1G}"
 
 if [[ ! "$APP_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
   echo "APP_PATH must be an absolute path containing only letters, numbers, dots, underscores, dashes, and slashes" >&2
+  exit 1
+fi
+
+if [[ ! "$DO_SWAP_SIZE" =~ ^(0|[1-9][0-9]*[KMG]?)$ ]]; then
+  echo "DO_SWAP_SIZE must match ^(0|[1-9][0-9]*[KMG]?)$ (e.g. 0 to disable, 512M, 1G)" >&2
   exit 1
 fi
 
@@ -75,11 +81,13 @@ SSH_PUBLIC_KEY_YAML="$ssh_public_key_yaml" \
 APP_PATH_SHELL="$app_path_shell" \
 SSH_HOST_PRIVATE_KEY_B64="$ssh_host_private_key_b64" \
 SSH_HOST_PUBLIC_KEY="$SSH_HOST_PUBLIC_KEY" \
+DO_SWAP_SIZE="$DO_SWAP_SIZE" \
 perl -0pe '
   s/\{\{SSH_PUBLIC_KEY_YAML\}\}/$ENV{SSH_PUBLIC_KEY_YAML}/g;
   s/\{\{APP_PATH_SHELL\}\}/$ENV{APP_PATH_SHELL}/g;
   s/\{\{SSH_HOST_PRIVATE_KEY_B64\}\}/$ENV{SSH_HOST_PRIVATE_KEY_B64}/g;
-  s/\{\{SSH_HOST_PUBLIC_KEY\}\}/$ENV{SSH_HOST_PUBLIC_KEY}/g
+  s/\{\{SSH_HOST_PUBLIC_KEY\}\}/$ENV{SSH_HOST_PUBLIC_KEY}/g;
+  s/\{\{DO_SWAP_SIZE\}\}/$ENV{DO_SWAP_SIZE}/g;
 ' infra/digitalocean/cloud-init.yml > "$cloud_init_file"
 
 echo "Provisioning DigitalOcean resources for ${DO_DROPLET_NAME}"

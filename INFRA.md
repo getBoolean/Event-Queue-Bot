@@ -114,6 +114,7 @@ the default below.
 | `DO_IMAGE` | `ubuntu-24-04-x64` |
 | `DO_DROPLET_NAME` | `event-queue-bot` |
 | `DO_ENABLE_BACKUPS` | `false` |
+| `DO_SWAP_SIZE` | `1G` |
 | `APP_PATH` | `/opt/event-queue-bot` |
 | `BOT_TOP_GG_TOKEN` | empty |
 | `BOT_PATCH_NOTES_CHANNEL_ID` | empty |
@@ -122,6 +123,15 @@ the default below.
 | `BOT_ENABLE_LEGACY_MIGRATION` | `false` |
 | `BOT_FORCE_SEND_PATCH_NOTES` | `false` |
 | `BOT_SILENT` | `false` |
+
+`DO_SWAP_SIZE` accepts a positive integer optionally suffixed `K`/`M`/`G`, or `0` to disable.
+Applied only at first boot via cloud-init — changing it doesn't affect existing droplets.
+
+- **Prod (`s-1vcpu-1gb`)**: leave at `1G` default — gives node-gyp/`better-sqlite3` headroom
+  during `docker compose up --build` and lets the kernel evict idle anon pages in favor of FS
+  cache. Set to `0` to disable if you prefer prod to fail loudly on memory pressure rather than swap.
+- **Dev (`s-1vcpu-512mb-10gb`)**: leave at `1G` default — without swap, `npm ci` OOMs during
+  native compile.
 
 Set `DO_ENABLE_BACKUPS` to `true` before the first deploy if you want DigitalOcean
 Droplet backups. Backups add 20% to the droplet cost. You can also back up the
@@ -166,6 +176,9 @@ Maintainer's dev bot invite:
    | `DO_PROJECT_NAME` | `Event Queue Bot Dev` |
    | `DO_PROJECT_ENVIRONMENT` | `Development` |
    | `DO_SIZE` | `s-1vcpu-512mb-10gb` (cheapest Basic droplet, ~$4/mo; the bot fits in 512MB for dev) |
+
+   At the 512 MB dev size, leave `DO_SWAP_SIZE` at its `1G` default — without swap,
+   `npm ci` OOMs during `better-sqlite3`'s native compile and the build wedges silently.
 
    Leave `BOT_PATCH_NOTES_CHANNEL_ID`, `BOT_TOP_GG_TOKEN`, etc. empty or point
    at a test channel.
