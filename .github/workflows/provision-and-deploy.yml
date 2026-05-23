@@ -4,17 +4,17 @@ on:
   push:
     branches:
       - master
+      - dev
   workflow_dispatch:
 
 concurrency:
-  group: provision-and-deploy-bot
+  group: provision-and-deploy-bot-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   discover:
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ github.ref_name == 'master' && 'prod-gate' || 'dev-gate' }}
     permissions:
       contents: read
 
@@ -72,13 +72,14 @@ jobs:
   # re-run this workflow.
   provision:
     needs: discover
-    if: github.ref == 'refs/heads/master' && needs.discover.outputs.droplet_exists != 'true'
+    if: needs.discover.outputs.droplet_exists != 'true'
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'master' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
     env:
-      DEPLOY_BRANCH: master
+      DEPLOY_BRANCH: ${{ github.ref_name }}
       DO_REGION: ${{ vars.DO_REGION || 'nyc3' }}
       DO_SIZE: ${{ vars.DO_SIZE || 's-1vcpu-1gb' }}
       DO_IMAGE: ${{ vars.DO_IMAGE || 'ubuntu-24-04-x64' }}
@@ -132,15 +133,15 @@ jobs:
     needs: [discover, provision]
     if: |
       always()
-      && github.ref == 'refs/heads/master'
       && needs.discover.result == 'success'
       && (needs.provision.result == 'success' || needs.provision.result == 'skipped')
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'master' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
     env:
-      DEPLOY_BRANCH: master
+      DEPLOY_BRANCH: ${{ github.ref_name }}
       APP_PATH: ${{ vars.APP_PATH || '/opt/event-queue-bot' }}
       # Coalesce: fresh-provision output wins; otherwise discover's lookup.
       BOT_HOST: ${{ needs.provision.outputs.bot_host || needs.discover.outputs.bot_host }}

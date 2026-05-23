@@ -2,15 +2,34 @@ name: Restart Bot
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to restart
+        type: choice
+        required: true
+        default: prod
+        options:
+          - prod
+          - dev
 
 concurrency:
-  group: provision-and-deploy-bot
+  group: provision-and-deploy-bot-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
-  restart:
+  gate:
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}-gate
+    permissions:
+      contents: read
+    steps:
+      - name: Await reviewer approval
+        run: echo "Approved for ${{ inputs.environment }}."
+
+  restart:
+    needs: gate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     permissions:
       contents: read
 

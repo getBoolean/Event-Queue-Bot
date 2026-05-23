@@ -3,12 +3,22 @@
 GitHub Actions provisions a DigitalOcean VPS with the official `doctl` CLI and
 deploys the bot from `master`. No local Terraform or server setup is required.
 
-Store the secrets and variables below at the **repository** level
-(`Settings → Secrets and variables → Actions`).
+Each environment is split into a **gate** env (required reviewers, no secrets;
+attached to the `discover` job) and a **secrets** env (no reviewers; attached to
+`provision` and `deploy`). Approval is requested once per run.
 
-Create a GitHub environment named `production` with required reviewers — it
-gates the `discover` job (and therefore the whole pipeline) but does **not**
-hold any secrets or variables.
+Shared infra secrets (DO token, SSH keys) live at the **repository** level and
+fall through from any environment. Bot identity (`BOT_APP_ID`, `BOT_TOKEN`)
+lives per-environment so prod and dev can target different Discord applications.
+
+Create before first deploy:
+
+- `prod-gate` — required reviewers, no secrets/vars.
+- `prod` — no reviewers; holds secrets `BOT_APP_ID`, `BOT_TOKEN`, and any per-env vars
+  from [Optional GitHub Variables](#5-optional-github-variables).
+
+A `dev` environment is optional — see
+[Optional: setting up a dev environment](#optional-setting-up-a-dev-environment).
 
 ## 1. Create DigitalOcean Token
 
@@ -76,7 +86,8 @@ for the rotation path.
 
 ## 4. Add Bot Secrets
 
-Save these required GitHub repository secrets:
+Save these on the **`prod` environment** (not at repo level, so dev can hold a
+different application's credentials):
 
 ```text
 BOT_APP_ID
@@ -92,7 +103,9 @@ The workflow generates the server `.env` file from these secrets during deploy.
 
 ## 5. Optional GitHub Variables
 
-These are repository variables (not secrets).
+GitHub variables (not secrets). Set at repo level for shared values, or on a
+specific environment (`prod`, `dev`) to override. Unset → falls back to
+the default below.
 
 | Variable | Default |
 | --- | --- |
@@ -126,6 +139,39 @@ The workflow creates or reuses the VPS, writes `.env`, syncs the repo, and runs
 Docker Compose.
 
 Future pushes to `master` deploy automatically.
+
+## Optional: setting up a dev environment
+
+Optional. Adds a parallel droplet running a second Discord bot from the `dev`
+branch, for testing risky changes (migrations, refactors, patch notes) before
+prod. The dev side activates only on pushes to `dev`; if the branch and
+environments don't exist, prod is unaffected.
+
+Maintainer's dev bot invite:
+<https://discord.com/oauth2/authorize?client_id=1507641818907672688>
+
+1. Create a second Discord application; note its Application ID and bot token.
+2. Create two GitHub environments:
+   - `dev-gate` — required reviewers, no secrets/vars.
+   - `dev` — no reviewers.
+3. On `dev`, add `BOT_APP_ID` and `BOT_TOKEN` from step 1.
+4. On `dev`, add these vars (shared infra secrets stay at repo level):
+
+   | Variable | Value |
+   | --- | --- |
+   | `DO_DROPLET_NAME` | `event-queue-bot-dev` |
+   | `APP_PATH` | `/opt/event-queue-bot-dev` |
+   | `DO_PROJECT_NAME` | `Event Queue Bot Dev` |
+   | `DO_PROJECT_ENVIRONMENT` | `Development` |
+   | `DO_SIZE` | `s-1vcpu-512mb-10gb` (cheapest Basic droplet, ~$4/mo; the bot fits in 512MB for dev) |
+
+   Leave `BOT_PATCH_NOTES_CHANNEL_ID`, `BOT_TOP_GG_TOKEN`, etc. empty or point
+   at a test channel.
+5. Create the `dev` branch from `master` and push. `discover` requests approval
+   via `dev-gate`; `provision`/`deploy` then spin up `event-queue-bot-dev`.
+
+Subsequent pushes to `dev` deploy automatically. Prod and dev share no state:
+separate droplets, separate `data/main.sqlite`, separate Discord applications.
 
 ## Connect to the Droplet
 
@@ -165,4 +211,15 @@ Droplet:  event-queue-bot
 Firewall: event-queue-bot-ssh
 SSH key:  event-queue-bot-deploy
 Tag:      event-queue-bot
+```
+
+If dev is configured, the same names with a `-dev` suffix (derived from
+`DO_DROPLET_NAME` in `scripts/provision-digitalocean.sh`):
+
+```text
+Database: /opt/event-queue-bot-dev/data/main.sqlite
+Droplet:  event-queue-bot-dev
+Firewall: event-queue-bot-dev-ssh
+SSH key:  event-queue-bot-dev-deploy
+Tag:      event-queue-bot-dev
 ```
