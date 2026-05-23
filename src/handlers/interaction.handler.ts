@@ -77,8 +77,10 @@ export class InteractionHandler implements Handler {
 					embed.setFooter({ text: "This error has been logged and will be investigated by the developers." });
 				}
 
+				const isButton = (this.inter as any).isButton?.() === true;
 				await this.inter.respond({
 					embeds: compact(concat(embeds, embed)),
+					...(isButton ? { ephemeral: true } : {}),
 				});
 			}
 		}
