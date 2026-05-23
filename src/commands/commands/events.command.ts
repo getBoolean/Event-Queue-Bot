@@ -88,6 +88,7 @@ export class EventsCommand extends AdminCommand {
 	events_add_room_channel = EventsCommand.events_add_room_channel;
 	events_remove_room_channel = EventsCommand.events_remove_room_channel;
 	events_sync_room_channels = EventsCommand.events_sync_room_channels;
+	events_sync_queues = EventsCommand.events_sync_queues;
 	events_reset = EventsCommand.events_reset;
 	events_reset_room_defaults = EventsCommand.events_reset_room_defaults;
 	events_reset_sub_defaults = EventsCommand.events_reset_sub_defaults;
@@ -153,6 +154,13 @@ export class EventsCommand extends AdminCommand {
 				.setName("sync-room-channels")
 				.setDescription("Recreate missing room channels, fix perms + order");
 			Object.values(EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("sync-queues")
+				.setDescription("Recreate missing queues, re-apply defaults, fix display order");
+			Object.values(EventsCommand.SYNC_QUEUES_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
@@ -637,6 +645,61 @@ export class EventsCommand extends AdminCommand {
 	}
 
 	// ====================================================================
+	//                       /events sync-queues
+	// ====================================================================
+
+	static readonly SYNC_QUEUES_OPTIONS = {
+		event: new EventOption({ description: "Event to sync (omit = all)" }),
+	};
+
+	static async events_sync_queues(inter: SlashInteraction) {
+		await inter.deferReply();
+		const event = await EventsCommand.SYNC_QUEUES_OPTIONS.event.get(inter).catch((e: unknown) => {
+			if (e instanceof EventNotFoundError) return undefined;
+			throw e;
+		});
+
+		if (event) {
+			EventUtils.assertHasRoomCategory(event);
+			const result = await EventUtils.syncEventQueues(inter.store, event);
+			await inter.respond(
+				`Synced queues for ${eventMention(event)}: recreated ${result.recreatedCount} queue(s), ` +
+				`re-applied defaults to ${result.reappliedRoomCount} room + ${result.reappliedSubCount} sub queue(s), ` +
+				`re-posted ${result.reshownCount} display(s).`,
+				true,
+			);
+			return;
+		}
+
+		const allEvents = [...inter.store.dbEvents().values()];
+		const targeted = allEvents.filter(e => !!e.roomCategoryId);
+
+		if (targeted.length === 0) {
+			await inter.respond(`No events have a ${inlineCode("room_category")} configured. Set one with ${commandMention("events", "set")}.`);
+			return;
+		}
+
+		let recreatedTotal = 0;
+		let reappliedRoomTotal = 0;
+		let reappliedSubTotal = 0;
+		let reshownTotal = 0;
+		for (const ev of targeted) {
+			const result = await EventUtils.syncEventQueues(inter.store, ev);
+			recreatedTotal += result.recreatedCount;
+			reappliedRoomTotal += result.reappliedRoomCount;
+			reappliedSubTotal += result.reappliedSubCount;
+			reshownTotal += result.reshownCount;
+		}
+
+		await inter.respond(
+			`Synced queues for ${targeted.length} event(s): recreated ${recreatedTotal} queue(s), ` +
+			`re-applied defaults to ${reappliedRoomTotal} room + ${reappliedSubTotal} sub queue(s), ` +
+			`re-posted ${reshownTotal} display(s).`,
+			true,
+		);
+	}
+
+	// ====================================================================
 	//                           /events reset
 	// ====================================================================
 
@@ -890,7 +953,8 @@ export class EventsCommand extends AdminCommand {
 				"**Extra per-room channels:**\n" +
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
 				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +
-				`- ${commandMention("events", "sync-room-channels")} recreates any channels you accidentally deleted, re-applies permissions, and restores channel order.\n\n` +
+				`- ${commandMention("events", "sync-room-channels")} recreates any channels you accidentally deleted, re-applies permissions, and restores channel order.\n` +
+				`- ${commandMention("events", "sync-queues")} recreates any deleted queues, re-applies the room/sub defaults to every queue, and re-posts displays in queue-index order.\n\n` +
 				"**Announcement placeholders:** `{event_name}`, `{start_time}`, `{start_time_relative}`, `{room_queues_channel}`, `{sub_queues_channel}`\n" +
 				"**Ping placeholders:** `{room_role}`, `{room_name}`, `{room_index}`, `{room_queues_channel}`, `{ping_channel}`, `{start_time}`, `{start_time_relative}`",
 			)];

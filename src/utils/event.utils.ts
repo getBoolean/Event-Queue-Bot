@@ -242,6 +242,126 @@ export namespace EventUtils {
 		}
 	}
 
+	// Columns on EVENT_DEFAULT_TABLE that mirror queue-config columns on QUEUE_TABLE.
+	// Anything not in this set is junction/identity metadata that must not be applied to a queue.
+	const EVENT_DEFAULT_NON_QUEUE_KEYS = new Set(["id", "guildId", "eventId", "queueRole"]);
+
+	export async function syncEventQueues(store: Store, event: DbEvent) {
+		let recreatedCount = 0;
+		let reappliedRoomCount = 0;
+		let reappliedSubCount = 0;
+		let reshownCount = 0;
+
+		const roomCount = Number(event.roomCount);
+		const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
+
+		// Step A — recreate any missing (role, queueIndex) slots
+		for (const role of roles) {
+			const displayChannelId = role === EventQueueRole.Room
+				? event.roomQueuesChannelId
+				: event.subQueuesChannelId;
+			for (let i = 1; i <= roomCount; i++) {
+				const eqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id });
+				const match = eqs.find(eq => eq.queueRole === role && Number(eq.queueIndex) === i);
+				const existingQueue = match
+					? Queries.selectQueue({ guildId: store.guild.id, id: match.queueId })
+					: undefined;
+				if (!match || !existingQueue) {
+					await createEventQueue(store, event, role, i, displayChannelId);
+					recreatedCount++;
+				}
+			}
+		}
+
+		// Step B — reset queue-config columns to schema defaults, then overlay the stored event defaults
+		const defaultColumnKeys = Object.keys(EVENT_DEFAULT_TABLE)
+			.filter(k => !EVENT_DEFAULT_NON_QUEUE_KEYS.has(k));
+
+		for (const role of roles) {
+			const resetPatch: Record<string, unknown> = {};
+			for (const key of defaultColumnKeys) {
+				resetPatch[key] = (QUEUE_TABLE as any)[key]?.default ?? null;
+			}
+
+			const storedDefault = Queries.selectEventDefault({
+				guildId: store.guild.id,
+				eventId: event.id,
+				queueRole: role,
+			});
+			const overlay = storedDefault ? omitBy(storedDefault, isNil) : {};
+			delete overlay.id;
+			delete overlay.guildId;
+			delete overlay.eventId;
+			delete overlay.queueRole;
+
+			const update = { ...resetPatch, ...overlay } as Partial<DbQueue>;
+
+			const eventQueues = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+				.filter(eq => eq.queueRole === role);
+			const queues = compact(eventQueues.map(eq =>
+				Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId })
+			));
+
+			if (queues.length > 0) {
+				await QueueUtils.updateQueues(store, queues, update);
+				if (role === EventQueueRole.Room) {
+					reappliedRoomCount = queues.length;
+				}
+				else {
+					reappliedSubCount = queues.length;
+				}
+			}
+		}
+
+		// Step C — re-show every queue display in queue-index order in the event's display channels.
+		// Insert the row directly + `await updateDisplays` so per-queue posts are sequential
+		// (DisplayUtils.insertDisplays also fires a non-awaited update, which would race with the explicit await below).
+		for (const role of roles) {
+			const displayChannelId = role === EventQueueRole.Room
+				? event.roomQueuesChannelId
+				: event.subQueuesChannelId;
+			const orderedEqs = Queries.selectManyEventQueues({ guildId: store.guild.id, eventId: event.id })
+				.filter(eq => eq.queueRole === role)
+				.sort((a, b) => Number(a.queueIndex) - Number(b.queueIndex));
+
+			for (const eq of orderedEqs) {
+				const queue = Queries.selectQueue({ guildId: store.guild.id, id: eq.queueId });
+				if (!queue) continue;
+
+				const existingDisplayIds = [...store.dbDisplays().filter(d => d.queueId === queue.id).values()]
+					.map(d => d.id);
+				if (existingDisplayIds.length > 0) {
+					DisplayUtils.deleteDisplays(store, existingDisplayIds);
+				}
+
+				const newDisplay = store.insertDisplay({
+					guildId: store.guild.id,
+					queueId: queue.id,
+					displayChannelId,
+				});
+				if (!newDisplay) continue;
+
+				await DisplayUtils.updateDisplays({
+					store,
+					queueId: queue.id,
+					opts: {
+						displayIds: [newDisplay.id],
+						updateTypeOverride: DisplayUpdateType.Replace,
+					},
+				});
+
+				reshownCount++;
+			}
+		}
+
+		// Step D — reconcile channels + auto-created room roles
+		if (event.roomCategoryId) {
+			await EventChannelUtils.reconcileRoomChannels(store, event);
+		}
+
+		return { recreatedCount, reappliedRoomCount, reappliedSubCount, reshownCount };
+	}
+
 	export async function scheduleOccurrence(
 		store: Store,
 		event: DbEvent,
@@ -702,7 +822,7 @@ export namespace EventUtils {
 		}
 	}
 
-	async function createEventQueue(
+	export async function createEventQueue(
 		store: Store,
 		event: DbEvent,
 		role: EventQueueRole,
