@@ -9,7 +9,7 @@ import { DisplayUpdateType, MemberRemovalReason, ScheduleCommand } from "../type
 import { type ArrayOrCollection, LOWER_TIMEZONES } from "../types/misc.types.ts";
 import { ClientUtils } from "./client.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
-import { InvalidCronError } from "./error.utils.ts";
+import { InvalidCronWarning } from "./error.utils.ts";
 import { MemberUtils } from "./member.utils.ts";
 import { map } from "./misc.utils.ts";
 import { QueueUtils } from "./queue.utils.ts";
@@ -96,7 +96,7 @@ export namespace ScheduleUtils {
 
 	export function validateCron(cron: string) {
 		if (!validate(cron) || cron.split(" ").length !== 5) {
-			throw new InvalidCronError();
+			throw new InvalidCronWarning();
 		}
 	}
 

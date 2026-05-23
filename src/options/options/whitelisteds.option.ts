@@ -5,7 +5,7 @@ import { ListScope } from "../../types/db.types.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
 import { CHOICE_ALL, CHOICE_SOME } from "../../types/parsing.types.ts";
-import { WhitelistedNotFoundError } from "../../utils/error.utils.ts";
+import { WhitelistedNotFoundWarning } from "../../utils/error.utils.ts";
 import { CustomOption } from "../base-option.ts";
 import { buildScopeSuggestions, pickScopedEntries, resolveListScope } from "./_list-scope.utils.ts";
 
@@ -33,14 +33,14 @@ export class WhitelistedsOption extends CustomOption {
 		if (scope === ListScope.Queue) {
 			const queues = await inter.parser.getScopedQueues();
 			const entries = inter.parser.getScopedWhitelisted(queues);
-			return { scope, entries: await pickScopedEntries(inter, inputString, entries, WhitelistedsOption.ID, () => new WhitelistedNotFoundError()) };
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, WhitelistedsOption.ID, () => new WhitelistedNotFoundWarning()) };
 		}
 		if (scope === ListScope.Event) {
 			const entries = inter.store.dbEventWhitelisted();
-			return { scope, entries: await pickScopedEntries(inter, inputString, entries, WhitelistedsOption.ID, () => new WhitelistedNotFoundError()) };
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, WhitelistedsOption.ID, () => new WhitelistedNotFoundWarning()) };
 		}
 		const entries = inter.store.dbGuildWhitelisted();
-		return { scope, entries: await pickScopedEntries(inter, inputString, entries, WhitelistedsOption.ID, () => new WhitelistedNotFoundError()) };
+		return { scope, entries: await pickScopedEntries(inter, inputString, entries, WhitelistedsOption.ID, () => new WhitelistedNotFoundWarning()) };
 	}
 
 	static async getAutocompletions({ inter }: { inter: AutocompleteInteraction }): Promise<UIOption[]> {

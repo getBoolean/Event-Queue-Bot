@@ -5,7 +5,7 @@ import { lowerFirst } from "lodash-es";
 import type { DbSchedule } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { ScheduleNotFoundError } from "../../utils/error.utils.ts";
+import { ScheduleNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class ScheduleOption extends CustomOption {
@@ -42,7 +42,7 @@ export class ScheduleOption extends CustomOption {
 			return schedule;
 		}
 		else {
-			throw new ScheduleNotFoundError();
+			throw new ScheduleNotFoundWarning();
 		}
 	}
 

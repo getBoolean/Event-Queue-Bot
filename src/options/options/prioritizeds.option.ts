@@ -5,7 +5,7 @@ import { ListScope } from "../../types/db.types.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
 import { CHOICE_ALL, CHOICE_SOME } from "../../types/parsing.types.ts";
-import { PrioritizedNotFoundError } from "../../utils/error.utils.ts";
+import { PrioritizedNotFoundWarning } from "../../utils/error.utils.ts";
 import { CustomOption } from "../base-option.ts";
 import { buildScopeSuggestions, pickScopedEntries, resolveListScope } from "./_list-scope.utils.ts";
 
@@ -33,14 +33,14 @@ export class PrioritizedsOption extends CustomOption {
 		if (scope === ListScope.Queue) {
 			const queues = await inter.parser.getScopedQueues();
 			const entries = inter.parser.getScopedPrioritized(queues);
-			return { scope, entries: await pickScopedEntries(inter, inputString, entries, PrioritizedsOption.ID, () => new PrioritizedNotFoundError()) };
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, PrioritizedsOption.ID, () => new PrioritizedNotFoundWarning()) };
 		}
 		if (scope === ListScope.Event) {
 			const entries = inter.store.dbEventPrioritized();
-			return { scope, entries: await pickScopedEntries(inter, inputString, entries, PrioritizedsOption.ID, () => new PrioritizedNotFoundError()) };
+			return { scope, entries: await pickScopedEntries(inter, inputString, entries, PrioritizedsOption.ID, () => new PrioritizedNotFoundWarning()) };
 		}
 		const entries = inter.store.dbGuildPrioritized();
-		return { scope, entries: await pickScopedEntries(inter, inputString, entries, PrioritizedsOption.ID, () => new PrioritizedNotFoundError()) };
+		return { scope, entries: await pickScopedEntries(inter, inputString, entries, PrioritizedsOption.ID, () => new PrioritizedNotFoundWarning()) };
 	}
 
 	static async getAutocompletions({ inter }: { inter: AutocompleteInteraction }): Promise<UIOption[]> {

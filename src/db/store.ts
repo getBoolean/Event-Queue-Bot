@@ -5,14 +5,14 @@ import { compact, isNil, omitBy } from "lodash-es";
 import { type EventQueueRole, type GuildStat, MemberRemovalReason, type Scope } from "../types/db.types.ts";
 import type { AnyInteraction, ButtonInteraction, SlashInteraction } from "../types/interaction.types.ts";
 import {
-	AdminAlreadyExistsError,
-	BlacklistedAlreadyExistsError,
-	EventAlreadyExistsError,
-	OccurrenceAlreadyExistsError,
-	PrioritizedAlreadyExistsError,
-	QueueAlreadyExistsError,
-	ScheduleAlreadyExistsError,
-	WhitelistedAlreadyExistsError,
+	AdminAlreadyExistsWarning,
+	BlacklistedAlreadyExistsWarning,
+	EventAlreadyExistsWarning,
+	OccurrenceAlreadyExistsWarning,
+	PrioritizedAlreadyExistsWarning,
+	QueueAlreadyExistsWarning,
+	ScheduleAlreadyExistsWarning,
+	WhitelistedAlreadyExistsWarning,
 } from "../utils/error.utils.ts";
 import { toCollection } from "../utils/misc.utils.ts";
 import { db } from "./db.ts";
@@ -259,7 +259,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new QueueAlreadyExistsError();
+				throw new QueueAlreadyExistsWarning();
 			}
 			else {
 				console.error("Store.insertQueue: unexpected failure:", e);
@@ -321,7 +321,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new ScheduleAlreadyExistsError();
+				throw new ScheduleAlreadyExistsWarning();
 			}
 			else {
 				console.error("Store.insertSchedule: unexpected failure:", e);
@@ -341,7 +341,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new WhitelistedAlreadyExistsError();
+				throw new WhitelistedAlreadyExistsWarning();
 			}
 			else {
 				console.error("Store.insertWhitelisted: unexpected failure:", e);
@@ -361,7 +361,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new BlacklistedAlreadyExistsError();
+				throw new BlacklistedAlreadyExistsWarning();
 			}
 			else {
 				console.error("Store.insertBlacklisted: unexpected failure:", e);
@@ -381,7 +381,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new PrioritizedAlreadyExistsError();
+				throw new PrioritizedAlreadyExistsWarning();
 			}
 			else {
 				console.error("Store.insertPrioritized: unexpected failure:", e);
@@ -401,7 +401,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new BlacklistedAlreadyExistsError();
+				throw new BlacklistedAlreadyExistsWarning();
 			}
 			console.error("Store.insertEventBlacklisted: unexpected failure:", e);
 			throw e;
@@ -419,7 +419,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new WhitelistedAlreadyExistsError();
+				throw new WhitelistedAlreadyExistsWarning();
 			}
 			console.error("Store.insertEventWhitelisted: unexpected failure:", e);
 			throw e;
@@ -437,7 +437,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new PrioritizedAlreadyExistsError();
+				throw new PrioritizedAlreadyExistsWarning();
 			}
 			console.error("Store.insertEventPrioritized: unexpected failure:", e);
 			throw e;
@@ -455,7 +455,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new BlacklistedAlreadyExistsError();
+				throw new BlacklistedAlreadyExistsWarning();
 			}
 			console.error("Store.insertGuildBlacklisted: unexpected failure:", e);
 			throw e;
@@ -473,7 +473,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new WhitelistedAlreadyExistsError();
+				throw new WhitelistedAlreadyExistsWarning();
 			}
 			console.error("Store.insertGuildWhitelisted: unexpected failure:", e);
 			throw e;
@@ -491,7 +491,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new PrioritizedAlreadyExistsError();
+				throw new PrioritizedAlreadyExistsWarning();
 			}
 			console.error("Store.insertGuildPrioritized: unexpected failure:", e);
 			throw e;
@@ -509,7 +509,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new AdminAlreadyExistsError();
+				throw new AdminAlreadyExistsWarning();
 			}
 			else {
 				console.error("Store.insertAdmin: unexpected failure:", e);
@@ -542,7 +542,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new EventAlreadyExistsError();
+				throw new EventAlreadyExistsWarning();
 			}
 			console.error("Store.insertEvent: unexpected failure:", e);
 			throw e;
@@ -559,7 +559,7 @@ export class Store {
 		}
 		catch (e) {
 			if ((e as Error).message.includes("UNIQUE constraint failed")) {
-				throw new OccurrenceAlreadyExistsError();
+				throw new OccurrenceAlreadyExistsWarning();
 			}
 			console.error("Store.insertOccurrence: unexpected failure:", e);
 			throw e;

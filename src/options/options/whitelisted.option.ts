@@ -3,7 +3,7 @@ import type { Collection } from "discord.js";
 import type { DbWhitelisted } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { WhitelistedNotFoundError } from "../../utils/error.utils.ts";
+import { WhitelistedNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class WhitelistedOption extends CustomOption {
@@ -40,7 +40,7 @@ export class WhitelistedOption extends CustomOption {
 			return whitelisted;
 		}
 		else {
-			throw new WhitelistedNotFoundError();
+			throw new WhitelistedNotFoundWarning();
 		}
 	}
 
