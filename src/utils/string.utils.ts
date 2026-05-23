@@ -23,6 +23,7 @@ import { ClientUtils } from "./client.utils.ts";
 import { BigIntSafe, map } from "./misc.utils.ts";
 
 export const ERROR_HEADER_LINE = "⚠️    ERROR    ⚠️";
+export const WARNING_HEADER_LINE = "⚠️    WARNING    ⚠️";
 
 export function queueMention(queue: DbQueue): string {
 	const badges = [];

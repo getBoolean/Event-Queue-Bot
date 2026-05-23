@@ -3,7 +3,7 @@ import type { Collection } from "discord.js";
 import type { DbBlacklisted } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction } from "../../types/interaction.types.ts";
-import { BlacklistedNotFoundError } from "../../utils/error.utils.ts";
+import { BlacklistedNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class BlacklistedOption extends CustomOption {
@@ -40,7 +40,7 @@ export class BlacklistedOption extends CustomOption {
 			return blacklisted;
 		}
 		else {
-			throw new BlacklistedNotFoundError();
+			throw new BlacklistedNotFoundWarning();
 		}
 	}
 

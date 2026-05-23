@@ -22,15 +22,15 @@ import { NotificationAction } from "../types/notification.types.ts";
 import { BlacklistUtils } from "./blacklist.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
 import {
-	AlreadyInEventParentError,
-	AlreadyInQueueError,
+	AlreadyInEventParentWarning,
+	AlreadyInQueueWarning,
 	CustomError,
-	EventRoomLimitExceededError,
-	EventSubLimitExceededError,
-	NotOnQueueWhitelistError,
-	OnQueueBlacklistError,
-	QueueFullError,
-	QueueLockedError,
+	EventRoomLimitExceededWarning,
+	EventSubLimitExceededWarning,
+	NotOnQueueWhitelistWarning,
+	OnQueueBlacklistWarning,
+	QueueFullWarning,
+	QueueLockedWarning,
 } from "./error.utils.ts";
 import { LoggingUtils } from "./message-utils/logging.utils.ts";
 import { map } from "./misc.utils.ts";
@@ -68,7 +68,7 @@ export namespace MemberUtils {
 						}
 						catch (e) {
 							// Skip users already in this queue so the rest of the batch still goes through.
-							if (e instanceof AlreadyInQueueError) {
+							if (e instanceof AlreadyInQueueWarning) {
 								if (!skippedByQueue.has(queue.id)) skippedByQueue.set(queue.id, []);
 								skippedByQueue.get(queue.id).push({ userId: jsMember.id });
 								continue;
@@ -445,7 +445,7 @@ export namespace MemberUtils {
 			queueId: queue.id,
 			userId: jsMember.id,
 		});
-		if (existingMember) throw new AlreadyInQueueError();
+		if (existingMember) throw new AlreadyInQueueWarning();
 
 		const archivedMember = store.dbArchivedMembers().find(member =>
 			member.queueId === queue.id && member.userId === jsMember.id
@@ -493,19 +493,19 @@ export namespace MemberUtils {
 
 	function verifyMemberEligibility(store: Store, queue: DbQueue, jsMember: GuildMember, archivedMember: DbArchivedMember) {
 		if (queue.lockToggle) {
-			throw new QueueLockedError();
+			throw new QueueLockedWarning();
 		}
 		if (queue.size) {
 			const members = store.dbMembers().filter(member => member.queueId === queue.id);
 			if (members.size >= queue.size) {
-				throw new QueueFullError();
+				throw new QueueFullWarning();
 			}
 		}
 		if (WhitelistUtils.isBlockedByWhitelist(store, queue.id, jsMember)) {
-			throw new NotOnQueueWhitelistError();
+			throw new NotOnQueueWhitelistWarning();
 		}
 		if (BlacklistUtils.isBlockedByBlacklist(store, queue.id, jsMember)) {
-			throw new OnQueueBlacklistError();
+			throw new OnQueueBlacklistWarning();
 		}
 
 		verifyEventSignupPolicy(store, queue, jsMember);
@@ -570,7 +570,7 @@ export namespace MemberUtils {
 				queueRole: EventQueueRole.Room,
 			});
 			if (count >= event.maxRoomsPerUser) {
-				throw new EventRoomLimitExceededError(event.maxRoomsPerUser);
+				throw new EventRoomLimitExceededWarning(event.maxRoomsPerUser);
 			}
 		}
 		else if (role === EventQueueRole.Sub && event.maxSubsPerUser > 0) {
@@ -581,7 +581,7 @@ export namespace MemberUtils {
 				queueRole: EventQueueRole.Sub,
 			});
 			if (count >= event.maxSubsPerUser) {
-				throw new EventSubLimitExceededError(event.maxSubsPerUser);
+				throw new EventSubLimitExceededWarning(event.maxSubsPerUser);
 			}
 		}
 
@@ -595,7 +595,7 @@ export namespace MemberUtils {
 					userId: jsMember.id,
 				});
 				if (existing) {
-					throw new AlreadyInEventParentError(eventQueue.queueIndex);
+					throw new AlreadyInEventParentWarning(eventQueue.queueIndex);
 				}
 			}
 		}

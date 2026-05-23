@@ -3,7 +3,7 @@ import { Collection } from "discord.js";
 import { type DbQueue } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { QueueNotFoundError } from "../../utils/error.utils.ts";
+import { QueueNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class QueueOption extends CustomOption {
@@ -39,7 +39,7 @@ export class QueueOption extends CustomOption {
 			return queue;
 		}
 		else {
-			throw new QueueNotFoundError();
+			throw new QueueNotFoundWarning();
 		}
 	}
 

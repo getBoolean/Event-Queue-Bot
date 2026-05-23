@@ -3,7 +3,7 @@ import type { Collection } from "discord.js";
 import type { DbVoice } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { VoiceNotFoundError } from "../../utils/error.utils.ts";
+import { VoiceNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class VoiceOption extends CustomOption {
@@ -40,7 +40,7 @@ export class VoiceOption extends CustomOption {
 			return voice;
 		}
 		else {
-			throw new VoiceNotFoundError();
+			throw new VoiceNotFoundWarning();
 		}
 	}
 

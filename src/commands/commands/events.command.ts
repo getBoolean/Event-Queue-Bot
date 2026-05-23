@@ -58,7 +58,7 @@ import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.o
 import { AdminCommand } from "../../types/command.types.ts";
 import { Color, EventQueueRole, type RoomScheduling } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
-import { CustomError, EventNotFoundError } from "../../utils/error.utils.ts";
+import { CustomError, EventNotFoundWarning } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
@@ -617,7 +617,7 @@ export class EventsCommand extends AdminCommand {
 	static async events_sync_room_channels(inter: SlashInteraction) {
 		await inter.deferReply();
 		const event = await EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS.event.get(inter).catch((e: unknown) => {
-			if (e instanceof EventNotFoundError) return undefined;
+			if (e instanceof EventNotFoundWarning) return undefined;
 			throw e;
 		});
 
@@ -655,7 +655,7 @@ export class EventsCommand extends AdminCommand {
 	static async events_sync_queues(inter: SlashInteraction) {
 		await inter.deferReply();
 		const event = await EventsCommand.SYNC_QUEUES_OPTIONS.event.get(inter).catch((e: unknown) => {
-			if (e instanceof EventNotFoundError) return undefined;
+			if (e instanceof EventNotFoundWarning) return undefined;
 			throw e;
 		});
 

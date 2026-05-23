@@ -3,7 +3,7 @@ import { type Collection } from "discord.js";
 import type { DbEvent } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { EventNotFoundError } from "../../utils/error.utils.ts";
+import { EventNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class EventOption extends CustomOption {
@@ -37,7 +37,7 @@ export class EventOption extends CustomOption {
 			return event;
 		}
 		else {
-			throw new EventNotFoundError();
+			throw new EventNotFoundWarning();
 		}
 	}
 

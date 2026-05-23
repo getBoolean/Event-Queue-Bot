@@ -3,7 +3,7 @@ import type { Collection } from "discord.js";
 import type { DbMember } from "../../db/schema.ts";
 import type { UIOption } from "../../types/handler.types.ts";
 import type { AutocompleteInteraction, SlashInteraction } from "../../types/interaction.types.ts";
-import { MemberNotFoundError } from "../../utils/error.utils.ts";
+import { MemberNotFoundWarning } from "../../utils/error.utils.ts";
 import { type AutoCompleteOptions, CustomOption } from "../base-option.ts";
 
 export class MemberOption extends CustomOption {
@@ -40,7 +40,7 @@ export class MemberOption extends CustomOption {
 			return member;
 		}
 		else {
-			throw new MemberNotFoundError();
+			throw new MemberNotFoundWarning();
 		}
 	}
 
