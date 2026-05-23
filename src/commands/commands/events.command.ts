@@ -213,7 +213,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_get(inter: SlashInteraction, events?: Collection<bigint, DbEvent>) {
-		if (!inter.deferred) await inter.deferReply({ ephemeral: true });
+		if (!inter.deferred) await inter.deferReply();
 		events = events ?? await EventsCommand.GET_OPTIONS.events.get(inter);
 
 		if (!events || events.size === 0) {
@@ -291,7 +291,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_add(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const roomLengthMinutes = EventsCommand.ADD_OPTIONS.roomLengthMinutes.get(inter);
 		const createOffsetHours = EventsCommand.ADD_OPTIONS.createOffsetHours.get(inter);
 		const lockOffsetMinutes = EventsCommand.ADD_OPTIONS.lockOffsetMinutes.get(inter);
@@ -371,7 +371,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_set(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.SET_OPTIONS.event.get(inter);
 		const newRoomCategoryId = EventsCommand.SET_OPTIONS.roomCategory.get(inter)?.id;
 		if (!newRoomCategoryId) {
@@ -489,7 +489,7 @@ export class EventsCommand extends AdminCommand {
 	}
 
 	private static async setDefaults(inter: SlashInteraction, role: EventQueueRole, options: typeof EventsCommand.SET_ROOM_DEFAULTS_OPTIONS) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await options.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 
@@ -536,7 +536,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_add_room_channel(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 		const suffix = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
@@ -576,7 +576,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_remove_room_channel(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 		const suffix = EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
@@ -607,7 +607,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_sync_room_channels(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS.event.get(inter).catch((e: unknown) => {
 			if (e instanceof EventNotFoundError) return undefined;
 			throw e;
@@ -645,7 +645,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_reset(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.RESET_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 
@@ -725,7 +725,7 @@ export class EventsCommand extends AdminCommand {
 		role: EventQueueRole,
 		options: typeof EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS,
 	) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await options.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 
@@ -796,7 +796,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_cancel(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.CANCEL_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 		const occurrences = Queries.selectManyOccurrences({ guildId: inter.guildId, eventId: event.id });
@@ -839,7 +839,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_delete(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.DELETE_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategory(event);
 
@@ -861,7 +861,7 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static async events_help(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const embeds = [new EmbedBuilder()
 			.setTitle("Events")
 			.setColor(Color.Indigo)

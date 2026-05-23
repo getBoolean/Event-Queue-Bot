@@ -79,7 +79,6 @@ export class InteractionHandler implements Handler {
 
 				await this.inter.respond({
 					embeds: compact(concat(embeds, embed)),
-					ephemeral: true,
 				});
 			}
 		}

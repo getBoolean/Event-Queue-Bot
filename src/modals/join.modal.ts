@@ -40,7 +40,6 @@ export namespace JoinModal {
 		await inter.respond({
 			content: `Joined the ${queueMention(queue)} queue.`,
 			embeds: [await MemberUtils.getMemberDisplayLine(inter.store, queue, inter.member.id)],
-			ephemeral: true,
 		}, true);
 	}
 }
