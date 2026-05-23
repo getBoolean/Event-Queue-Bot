@@ -172,7 +172,7 @@ export const EVENT_TABLE = sqliteTable("event", ({
 	roomScheduling: text("room_scheduling").$type<RoomScheduling>().notNull().default(RoomScheduling.Parallel),
 	createOffsetMs: integer("create_offset_ms").$type<bigint>().notNull().default(86_400_000 as any),
 	lockOffsetMs: integer("lock_offset_ms").$type<bigint>().notNull().default(0 as any),
-	cleanupOffsetMs: integer("cleanup_offset_ms").$type<bigint>().notNull().default(86_400_000 as any),
+	cleanupOffsetMs: integer("cleanup_offset_ms").$type<bigint>().notNull().default(3_600_000 as any),
 	announcementChannelId: text("announcement_channel_id").$type<Snowflake>(),
 	announcementMessage: text("announcement_message"),
 	roomPingMessage: text("room_ping_message"),

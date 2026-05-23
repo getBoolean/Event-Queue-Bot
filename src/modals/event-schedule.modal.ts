@@ -101,7 +101,7 @@ export namespace EventScheduleModal {
 				`**Event:** ${eventMention(event)}\n` +
 				`**Opens:** ${time(new Date(Number(occurrence.startTime) - Number(event.createOffsetMs)), TimestampStyles.RelativeTime)}\n` +
 				`**Locks rooms:** ${time(new Date(Number(occurrence.startTime) + Number(event.lockOffsetMs)), TimestampStyles.RelativeTime)}\n` +
-				`**Cleans up:** ${time(new Date(Number(occurrence.startTime) + Number(event.cleanupOffsetMs)), TimestampStyles.RelativeTime)}`,
+				`**Cleans up:** ${time(new Date(EventUtils.getRoomsFinishMs(event, Number(occurrence.startTime)) + Number(event.cleanupOffsetMs)), TimestampStyles.RelativeTime)}`,
 			);
 
 		await inter.respond({ embeds: [embed] });

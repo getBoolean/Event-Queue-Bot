@@ -275,10 +275,10 @@ export class EventsCommand extends AdminCommand {
 		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Room length in minutes (sequential req)" }),
 		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open" }),
 		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock (neg=before)" }),
-		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after start to cleanup" }),
+		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after rooms finish to cleanup" }),
 		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template" }),
+		announcementMessage: new AnnouncementMessageOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
+		roomPingMessage: new RoomPingMessageOption({ description: "Use {room_role}, {room_name}, {event_name}, {start_time}, {ping_channel}, /events help for more" }),
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
@@ -287,7 +287,7 @@ export class EventsCommand extends AdminCommand {
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description template" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
 	};
 
 	static async events_add(inter: SlashInteraction) {
@@ -354,10 +354,10 @@ export class EventsCommand extends AdminCommand {
 		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Room length in minutes" }),
 		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open" }),
 		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock" }),
-		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after start to cleanup" }),
+		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after rooms finish to cleanup" }),
 		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Room ping template" }),
+		announcementMessage: new AnnouncementMessageOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
+		roomPingMessage: new RoomPingMessageOption({ description: "Use {room_role}, {room_name}, {event_name}, {start_time}, {ping_channel}, /events help for more" }),
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
@@ -367,7 +367,7 @@ export class EventsCommand extends AdminCommand {
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description template" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -875,7 +875,7 @@ export class EventsCommand extends AdminCommand {
 				"- **T − create_offset** (default 24h before): queues unlock, displays refresh, announcement posts\n" +
 				"- **T + lock_offset** (default 0): room queues lock (sub queues stay open)\n" +
 				"- **Per-room ping**: at each room's start time a ping posts in the room's channel\n" +
-				"- **T + cleanup_offset** (default 24h after): all members cleared, all queues locked\n" +
+				"- **rooms_finish + cleanup_offset** (default 1h after rooms finish): all members cleared, all queues locked\n" +
 				"- A native Discord scheduled event is created per occurrence when `create_discord_event` is on (default).\n\n" +
 				"**Missed actions** (bot was down): run automatically on next startup.\n\n" +
 				"**Signup policies** (set via `/events add` or `/events set`):\n" +

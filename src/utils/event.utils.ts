@@ -67,6 +67,18 @@ export namespace EventUtils {
 		}
 	}
 
+	const DEFAULT_ROOM_LENGTH_MS = 60 * 60 * 1000;
+
+	export function getRoomsFinishMs(event: DbEvent, startMs: number): number {
+		const perRoomMs = event.roomLengthMs != null
+			? Number(event.roomLengthMs)
+			: DEFAULT_ROOM_LENGTH_MS;
+		const totalRoomsDurationMs = event.roomScheduling === RoomScheduling.Sequential
+			? perRoomMs * Number(event.roomCount)
+			: perRoomMs;
+		return startMs + totalRoomsDurationMs;
+	}
+
 	export async function insertEvent(store: Store, newEvent: Omit<NewEvent, "guildId">) {
 		validateEventOffsets(
 			BigInt(newEvent.createOffsetMs ?? 86_400_000n),
@@ -236,7 +248,7 @@ export namespace EventUtils {
 		startTime: bigint,
 		timezone?: string,
 	) {
-		const cleanupAt = Number(startTime) + Number(event.cleanupOffsetMs);
+		const cleanupAt = getRoomsFinishMs(event, Number(startTime)) + Number(event.cleanupOffsetMs);
 		if (cleanupAt < Date.now()) {
 			throw new OccurrenceInPastError();
 		}
@@ -320,7 +332,7 @@ export namespace EventUtils {
 		const startMs = Number(occurrence.startTime);
 		const openAt = startMs - Number(event.createOffsetMs);
 		const lockAt = startMs + Number(event.lockOffsetMs);
-		const cleanupAt = startMs + Number(event.cleanupOffsetMs);
+		const cleanupAt = getRoomsFinishMs(event, startMs) + Number(event.cleanupOffsetMs);
 
 		const guild = await ClientUtils.getGuild(occurrence.guildId);
 		if (!guild) return;
@@ -620,7 +632,7 @@ export namespace EventUtils {
 		roomChannelName: string,
 	): GuildScheduledEventCreateOptions {
 		const startMs = Number(occurrence.startTime);
-		const endMs = startMs + Number(event.cleanupOffsetMs);
+		const endMs = getRoomsFinishMs(event, startMs) + Number(event.cleanupOffsetMs);
 		return {
 			name: event.name.substring(0, DISCORD_EVENT_NAME_LIMIT),
 			scheduledStartTime: new Date(startMs),
