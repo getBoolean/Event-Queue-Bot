@@ -257,50 +257,43 @@ export namespace EventChannelUtils {
 		const category = await store.jsChannel(event.roomCategoryId);
 		if (!category || category.type !== ChannelType.GuildCategory) return;
 
-		const rowByChannelId = new Map<Snowflake, DbEventRoomChannel>();
-		for (const row of rows) rowByChannelId.set(row.channelId, row);
-
-		// Partition category children into non-tracked (kept at the top of the category
-		// in their existing relative order) and tracked (sorted into desired order and
-		// placed below). Children are split by Discord channel type so text and voice
-		// channels stay within their own type-local position sequence.
-		const children = [...(category.children?.cache.values() ?? [])]
-			.sort((a, b) => (a as any).position - (b as any).position);
-
-		const byType = new Map<ChannelType, { untracked: Snowflake[], tracked: DbEventRoomChannel[] }>();
-		for (const ch of children) {
-			const bucket = byType.get(ch.type) ?? { untracked: [], tracked: [] };
-			const row = rowByChannelId.get(ch.id);
-			if (row) bucket.tracked.push(row);
-			else bucket.untracked.push(ch.id);
-			byType.set(ch.type, bucket);
-		}
-
 		const desiredOrder = (a: DbEventRoomChannel, b: DbEventRoomChannel) => {
 			const indexDiff = Number(a.roomIndex) - Number(b.roomIndex);
 			if (indexDiff !== 0) return indexDiff;
-			// null suffix (main channel) sorts LAST within each room
+			// null suffix (main channel) sorts LAST within each room — keeps `room-code-N` above `room-N`
 			if (a.suffix === null && b.suffix === null) return 0;
 			if (a.suffix === null) return 1;
 			if (b.suffix === null) return -1;
 			return a.suffix.localeCompare(b.suffix);
 		};
 
+		// Tracked sequence is driven from the DB, not the cache: newly created or
+		// not-yet-cached channels would otherwise be silently dropped, leaving them
+		// clumped at their creation-order positions.
+		const sortedTracked = [...rows].sort(desiredOrder);
+
+		// Untracked channels are anything in the category not in the tracked set.
+		// Preserve their current relative Discord-position order so user-owned channels
+		// are not shuffled.
+		const trackedIds = new Set<Snowflake>(rows.map(r => r.channelId));
+		const untrackedIds = [...(category.children?.cache.values() ?? [])]
+			.filter(ch => !trackedIds.has(ch.id))
+			.sort((a, b) => (a as any).position - (b as any).position)
+			.map(ch => ch.id);
+
 		const payload: { channel: Snowflake, position: number }[] = [];
-		for (const { untracked, tracked } of byType.values()) {
-			if (tracked.length === 0) continue;
-			const sortedTracked = [...tracked].sort(desiredOrder);
-			let position = 0;
-			for (const id of untracked) payload.push({ channel: id, position: position++ });
-			for (const row of sortedTracked) payload.push({ channel: row.channelId, position: position++ });
-		}
-		if (payload.length === 0) return;
+		let position = 0;
+		for (const id of untrackedIds) payload.push({ channel: id, position: position++ });
+		for (const row of sortedTracked) payload.push({ channel: row.channelId, position: position++ });
 
 		try {
 			await store.guild.channels.setPositions(payload);
 		}
 		catch (e) {
 			console.error(`EventChannelUtils.reorderRoomChannels: failed to set positions for event ${event.id}:`, e);
+			throw new CustomError({
+				message: "Failed to reorder room channels — check that the bot has the Manage Channels permission in the room category.",
+			});
 		}
 	}
 
