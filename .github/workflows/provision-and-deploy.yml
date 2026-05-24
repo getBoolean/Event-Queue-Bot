@@ -2,9 +2,6 @@ name: Provision and Deploy Bot
 
 on:
   push:
-    branches:
-      - master
-      - prod
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +9,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint:check
+      - run: npm run typecheck
+      - run: npm run test
+
   gate:
+    needs: ci
+    if: github.ref_name == 'master' || github.ref_name == 'prod'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'prod' && 'prod-gate' || 'dev-gate' }}
     permissions:
