@@ -6,6 +6,7 @@ import { Queries } from "../../db/queries.ts";
 import { type DbEvent, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
 import { AnnouncementChannelOption } from "../../options/options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
+import { AutoPullSubsAtRoomStartToggleOption } from "../../options/options/auto-pull-subs-at-room-start-toggle.option.ts";
 import { AutopullToggleOption } from "../../options/options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "../../options/options/badge-toggle.option.ts";
 import { ChannelSuffixOption } from "../../options/options/channel-suffix.option.ts";
@@ -49,10 +50,12 @@ import { RoomLengthMinutesOption } from "../../options/options/room-length-minut
 import { RoomPingMessageOption } from "../../options/options/room-ping-message.option.ts";
 import { RoomQueuesChannelOption } from "../../options/options/room-queues-channel.option.ts";
 import { RoomSchedulingOption } from "../../options/options/room-scheduling.option.ts";
+import { ShuffleSubsBeforeAutoPullToggleOption } from "../../options/options/shuffle-subs-before-auto-pull-toggle.option.ts";
 import { SizeOption } from "../../options/options/size.option.ts";
 import { SlowmodeOption } from "../../options/options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "../../options/options/slowmode-time.option.ts";
 import { StartTimeOption } from "../../options/options/start-time.option.ts";
+import { SubAutoPullModeOption } from "../../options/options/sub-auto-pull-mode.option.ts";
 import { SubQueuesChannelOption } from "../../options/options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "../../options/options/timestamp-type.option.ts";
 import { TimezoneOption } from "../../options/options/timezone.option.ts";
@@ -60,7 +63,7 @@ import { VoiceDestinationChannelOption } from "../../options/options/voice-desti
 import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.option.ts";
 import { YearOption } from "../../options/options/year.option.ts";
 import { AdminCommand } from "../../types/command.types.ts";
-import { Color, EventQueueRole, type RoomScheduling } from "../../types/db.types.ts";
+import { Color, EventQueueRole, type RoomScheduling, type SubAutoPullMode } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
 import { DateUtils } from "../../utils/date.utils.ts";
 import { CustomError, EventNotFoundWarning } from "../../utils/error.utils.ts";
@@ -333,6 +336,9 @@ export class EventsCommand extends AdminCommand {
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
+		autoPullSubsAtRoomStartToggle: new AutoPullSubsAtRoomStartToggleOption({ description: "Auto-pull subs at room start" }),
+		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
+		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
 		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
 	};
@@ -368,6 +374,9 @@ export class EventsCommand extends AdminCommand {
 				roleOnRoomPull: EventsCommand.ADD_OPTIONS.roleOnRoomPull.get(inter),
 				roleInSubQueue: EventsCommand.ADD_OPTIONS.roleInSubQueue.get(inter),
 				roleOnSubPull: EventsCommand.ADD_OPTIONS.roleOnSubPull.get(inter),
+				autoPullSubsAtRoomStartToggle: EventsCommand.ADD_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
+				shuffleSubsBeforeAutoPullToggle: EventsCommand.ADD_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
+				subAutoPullMode: EventsCommand.ADD_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
 				createDiscordEvent: EventsCommand.ADD_OPTIONS.createDiscordEvent.get(inter),
 				discordEventDescription: EventsCommand.ADD_OPTIONS.discordEventDescription.get(inter),
 			}, isNil),
@@ -413,6 +422,9 @@ export class EventsCommand extends AdminCommand {
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
+		autoPullSubsAtRoomStartToggle: new AutoPullSubsAtRoomStartToggleOption({ description: "Auto-pull subs at room start" }),
+		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
+		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
 		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
 	};
@@ -449,6 +461,9 @@ export class EventsCommand extends AdminCommand {
 			roleOnRoomPull: EventsCommand.SET_OPTIONS.roleOnRoomPull.get(inter),
 			roleInSubQueue: EventsCommand.SET_OPTIONS.roleInSubQueue.get(inter),
 			roleOnSubPull: EventsCommand.SET_OPTIONS.roleOnSubPull.get(inter),
+			autoPullSubsAtRoomStartToggle: EventsCommand.SET_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
+			shuffleSubsBeforeAutoPullToggle: EventsCommand.SET_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
+			subAutoPullMode: EventsCommand.SET_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
 			createDiscordEvent: EventsCommand.SET_OPTIONS.createDiscordEvent.get(inter),
 			discordEventDescription: EventsCommand.SET_OPTIONS.discordEventDescription.get(inter),
 		}, isNil);
@@ -794,6 +809,9 @@ export class EventsCommand extends AdminCommand {
 			{ name: RoleOnRoomPullOption.ID, value: EVENT_TABLE.roleOnRoomPull.name },
 			{ name: RoleInSubQueueOption.ID, value: EVENT_TABLE.roleInSubQueue.name },
 			{ name: RoleOnSubPullOption.ID, value: EVENT_TABLE.roleOnSubPull.name },
+			{ name: AutoPullSubsAtRoomStartToggleOption.ID, value: EVENT_TABLE.autoPullSubsAtRoomStartToggle.name },
+			{ name: ShuffleSubsBeforeAutoPullToggleOption.ID, value: EVENT_TABLE.shuffleSubsBeforeAutoPullToggle.name },
+			{ name: SubAutoPullModeOption.ID, value: EVENT_TABLE.subAutoPullMode.name },
 			{ name: CreateDiscordEventToggleOption.ID, value: EVENT_TABLE.createDiscordEvent.name },
 			{ name: DiscordEventDescriptionOption.ID, value: EVENT_TABLE.discordEventDescription.name },
 		];
@@ -1061,6 +1079,10 @@ export class EventsCommand extends AdminCommand {
 				"- `role_on_room_pull` (default `false`) — assign the role when a user is pulled from the room queue\n" +
 				"- `role_in_sub_queue` (default `false`) — assign the role while a user is in the sub queue\n" +
 				"- `role_on_sub_pull` (default `false`) — assign the role when a user is pulled from the sub queue\n\n" +
+				"**Auto-pull subs at room start:**\n" +
+				"- `auto_pull_subs_at_room_start_toggle` (default `false`) — at each room's start, lock paired sub and pull subs into the room. Forces room lock at exact `start_time` (ignores `lock_offset`).\n" +
+				"- `shuffle_subs_before_auto_pull_toggle` (default `false`) — shuffle the sub queue before the pull.\n" +
+				"- `sub_auto_pull_mode` (default `drain`) — `drain`: standard `/pull` side effects fire. `promote`: move into room queue (bypasses room lock), no sub-side pull effects.\n\n" +
 				"**Extra per-room channels:**\n" +
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
 				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +

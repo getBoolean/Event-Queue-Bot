@@ -30,6 +30,7 @@ import {
 	type DbEventBlacklisted,
 	type DbEventOccurrence,
 	type DbEventOccurrenceRoomPing,
+	type DbEventOccurrenceRoomPull,
 	type DbEventPrioritized,
 	type DbEventQueue,
 	type DbEventRoomChannel,
@@ -48,6 +49,7 @@ import {
 	EVENT_BLACKLISTED_TABLE,
 	EVENT_DEFAULT_TABLE,
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
+	EVENT_OCCURRENCE_ROOM_PULL_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_PRIORITIZED_TABLE,
 	EVENT_QUEUE_TABLE,
@@ -69,6 +71,7 @@ import {
 	type NewEventDefault,
 	type NewEventOccurrence,
 	type NewEventOccurrenceRoomPing,
+	type NewEventOccurrenceRoomPull,
 	type NewEventPrioritized,
 	type NewEventQueue,
 	type NewEventRoomChannel,
@@ -577,6 +580,15 @@ export class Store {
 	insertOccurrenceRoomPing(row: NewEventOccurrenceRoomPing): DbEventOccurrenceRoomPing {
 		return db
 			.insert(EVENT_OCCURRENCE_ROOM_PING_TABLE)
+			.values(row)
+			.onConflictDoNothing()
+			.returning().get();
+	}
+
+	// idempotent: composite PK conflict is a no-op
+	insertOccurrenceRoomPull(row: NewEventOccurrenceRoomPull): DbEventOccurrenceRoomPull {
+		return db
+			.insert(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
 			.values(row)
 			.onConflictDoNothing()
 			.returning().get();

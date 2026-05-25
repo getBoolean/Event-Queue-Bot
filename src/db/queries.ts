@@ -10,6 +10,7 @@ import {
 	EVENT_BLACKLISTED_TABLE,
 	EVENT_DEFAULT_TABLE,
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
+	EVENT_OCCURRENCE_ROOM_PULL_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_PRIORITIZED_TABLE,
 	EVENT_QUEUE_TABLE,
@@ -470,6 +471,12 @@ export namespace Queries {
 
 	export function selectOccurrenceRoomPings(by: { occurrenceId: bigint }) {
 		return selectOccurrenceRoomPingsByOccurrenceId.all(by);
+	}
+
+	// Event Occurrence Room Pulls
+
+	export function selectOccurrenceRoomPulls(by: { occurrenceId: bigint }) {
+		return selectOccurrenceRoomPullsByOccurrenceId.all(by);
 	}
 
 	// Event Queues
@@ -1189,6 +1196,16 @@ export namespace Queries {
 		.from(EVENT_OCCURRENCE_ROOM_PING_TABLE)
 		.where(
 			eq(EVENT_OCCURRENCE_ROOM_PING_TABLE.occurrenceId, sql.placeholder("occurrenceId"))
+		)
+		.prepare();
+
+	// Event Occurrence Room Pulls
+
+	const selectOccurrenceRoomPullsByOccurrenceId = db
+		.select()
+		.from(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
+		.where(
+			eq(EVENT_OCCURRENCE_ROOM_PULL_TABLE.occurrenceId, sql.placeholder("occurrenceId"))
 		)
 		.prepare();
 

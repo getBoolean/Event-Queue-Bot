@@ -85,6 +85,13 @@
       "when": 1779518043928,
       "tag": "0011_complete_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1779693989600,
+      "tag": "0012_powerful_songbird",
+      "breakpoints": true
     }
   ]
 }

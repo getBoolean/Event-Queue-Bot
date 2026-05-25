@@ -12,6 +12,7 @@ import {
 	RoomScheduling,
 	ScheduleCommand,
 	Scope,
+	SubAutoPullMode,
 	TimestampType,
 } from "../types/db.types.ts";
 
@@ -184,6 +185,9 @@ export const EVENT_TABLE = sqliteTable("event", ({
 	roleOnRoomPull: integer("role_on_room_pull", { mode: "boolean" }).notNull().default(false),
 	roleInSubQueue: integer("role_in_sub_queue", { mode: "boolean" }).notNull().default(false),
 	roleOnSubPull: integer("role_on_sub_pull", { mode: "boolean" }).notNull().default(false),
+	autoPullSubsAtRoomStartToggle: integer("auto_pull_subs_at_room_start_toggle", { mode: "boolean" }).notNull().default(false),
+	shuffleSubsBeforeAutoPullToggle: integer("shuffle_subs_before_auto_pull_toggle", { mode: "boolean" }).notNull().default(false),
+	subAutoPullMode: text("sub_auto_pull_mode").$type<SubAutoPullMode>().notNull().default(SubAutoPullMode.Drain),
 	createDiscordEvent: integer("create_discord_event", { mode: "boolean" }).notNull().default(true),
 	discordEventDescription: text("discord_event_description"),
 }),
@@ -231,6 +235,22 @@ export const EVENT_OCCURRENCE_ROOM_PING_TABLE = sqliteTable("event_occurrence_ro
 
 export type NewEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.$inferInsert;
 export type DbEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.$inferSelect;
+
+
+export const EVENT_OCCURRENCE_ROOM_PULL_TABLE = sqliteTable("event_occurrence_room_pull", ({
+	occurrenceId: integer("occurrence_id").$type<bigint>().notNull()
+		.references(() => EVENT_OCCURRENCE_TABLE.id, { onDelete: "cascade" }),
+	eventQueueId: integer("event_queue_id").$type<bigint>().notNull()
+		.references(() => EVENT_QUEUE_TABLE.id, { onDelete: "cascade" }),
+	handledAt: integer("handled_at").$type<bigint>().notNull(),
+}),
+(table) => ({
+	pk: primaryKey({ columns: [table.occurrenceId, table.eventQueueId] }),
+	occurrenceIdIndex: index("event_occurrence_room_pull_occurrence_id_index").on(table.occurrenceId),
+}));
+
+export type NewEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferInsert;
+export type DbEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferSelect;
 
 
 export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
