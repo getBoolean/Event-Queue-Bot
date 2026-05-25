@@ -31,9 +31,10 @@ export class MembersOption extends CustomOption {
 				return members;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, members);
-			default:
+			default: {
 				const member = MemberOption.findMember(members, inputString);
 				return member ? new Collection([[member.id, member]]) : null;
+			}
 		}
 	}
 

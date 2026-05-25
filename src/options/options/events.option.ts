@@ -29,9 +29,10 @@ export class EventsOption extends CustomOption {
 				return events;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, events);
-			default:
+			default: {
 				const event = EventOption.findEvent(events, inputString);
 				return event ? new Collection([[event.id, event]]) : null;
+			}
 		}
 	}
 

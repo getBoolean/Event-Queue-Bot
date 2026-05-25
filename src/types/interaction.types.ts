@@ -19,13 +19,13 @@ interface BaseProperties {
 
 type AutocompleteProperties = BaseProperties & {
 	parser: Parser<AutocompleteInteraction>;
-}
+};
 
 type RespondableProperties = BaseProperties & {
 	parser: Parser<SlashInteraction>;
 	promptConfirmOrCancel?: (message: string) => Promise<boolean>;
 	respond: (message: InteractionReplyOptions | string, log?: boolean) => Promise<Message>;
-}
+};
 
 type DiscordResponseFn = "send" | "reply" | "followUp";
 

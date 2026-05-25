@@ -342,7 +342,7 @@ export namespace Queries {
 	// Guild Blacklisted
 
 	export function selectManyGuildBlacklisted(by:
-		{ guildId: Snowflake, subjectId?: Snowflake }
+	{ guildId: Snowflake, subjectId?: Snowflake }
 	) {
 		if ("subjectId" in by) {
 			return selectManyGuildBlacklistedByGuildIdAndSubjectId.all(by);
@@ -355,7 +355,7 @@ export namespace Queries {
 	// Guild Whitelisted
 
 	export function selectManyGuildWhitelisted(by:
-		{ guildId: Snowflake, subjectId?: Snowflake }
+	{ guildId: Snowflake, subjectId?: Snowflake }
 	) {
 		if ("subjectId" in by) {
 			return selectManyGuildWhitelistedByGuildIdAndSubjectId.all(by);
@@ -368,7 +368,7 @@ export namespace Queries {
 	// Guild Prioritized
 
 	export function selectManyGuildPrioritized(by:
-		{ guildId: Snowflake, subjectId?: Snowflake }
+	{ guildId: Snowflake, subjectId?: Snowflake }
 	) {
 		if ("subjectId" in by) {
 			return selectManyGuildPrioritizedByGuildIdAndSubjectId.all(by);

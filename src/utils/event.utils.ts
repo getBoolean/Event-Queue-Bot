@@ -252,7 +252,6 @@ export namespace EventUtils {
 			let recreatedCount = 0;
 			let reappliedRoomCount = 0;
 			let reappliedSubCount = 0;
-			let reshownCount = 0;
 
 			const roomCount = Number(event.roomCount);
 			const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
@@ -338,7 +337,7 @@ export namespace EventUtils {
 			}
 
 			// Step C — re-show every queue display in queue-index order in the event's display channels.
-			reshownCount = await reshowEventQueueDisplays(store, event);
+			const reshownCount = await reshowEventQueueDisplays(store, event);
 
 			// Step D — reconcile channels + auto-created room roles
 			if (event.roomCategoryId) {

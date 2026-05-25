@@ -31,9 +31,10 @@ export class VoicesOption extends CustomOption {
 				return voices;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, voices);
-			default:
+			default: {
 				const voice = VoiceOption.findVoice(voices, inputString);
 				return voice ? new Collection([[voice.id, voice]]) : null;
+			}
 		}
 	}
 

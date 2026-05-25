@@ -27,6 +27,6 @@ export type PendingGuildUpdates = {
 	[K in Snowflake]?: {
 		[P in GuildStat]?: number;
 	};
-}
+};
 
 export type ArrayOrCollection<K, V> = V[] | Collection<K, V>;

@@ -31,9 +31,10 @@ export class SchedulesOption extends CustomOption {
 				return schedules;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, schedules);
-			default:
+			default: {
 				const schedule = ScheduleOption.findSchedule(schedules, inputString);
 				return schedule ? new Collection([[schedule.id, schedule]]) : null;
+			}
 		}
 	}
 
