@@ -69,7 +69,6 @@ import { RoleOnRoomPullOption } from "./options/role-on-room-pull.option.ts";
 import { RoleOnSubPullOption } from "./options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "./options/room-category.option.ts";
 import { RoomCountOption } from "./options/room-count.option.ts";
-import { RoomIndexOption } from "./options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "./options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "./options/room-ping-message.option.ts";
 import { RoomQueuesChannelOption } from "./options/room-queues-channel.option.ts";
@@ -162,7 +161,6 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[RoleOnSubPullOption.ID, new RoleOnSubPullOption()],
 	[RoomCategoryOption.ID, new RoomCategoryOption()],
 	[RoomCountOption.ID, new RoomCountOption()],
-	[RoomIndexOption.ID, new RoomIndexOption()],
 	[RoomLengthMinutesOption.ID, new RoomLengthMinutesOption()],
 	[RoomPingMessageOption.ID, new RoomPingMessageOption()],
 	[RoomQueuesChannelOption.ID, new RoomQueuesChannelOption()],

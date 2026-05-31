@@ -630,7 +630,7 @@ export class Store {
 			.returning().get();
 	}
 
-	// idempotent additive declare: (eventId, roomIndex, userId) conflict is a no-op
+	// idempotent additive declare: (eventId, userId) conflict is a no-op
 	insertEventWinner(row: NewEventWinner): DbEventWinner {
 		return db
 			.insert(EVENT_WINNER_TABLE)
@@ -1212,14 +1212,11 @@ export class Store {
 			.returning().all();
 	}
 
-	deleteManyEventWinners(by: { eventId: bigint, roomIndex?: bigint }) {
+	deleteManyEventWinners(by: { eventId: bigint }) {
 		const conds = [
 			eq(EVENT_WINNER_TABLE.guildId, this.guild.id),
 			eq(EVENT_WINNER_TABLE.eventId, by.eventId),
 		];
-		if (by.roomIndex !== undefined) {
-			conds.push(eq(EVENT_WINNER_TABLE.roomIndex, by.roomIndex));
-		}
 		return db
 			.delete(EVENT_WINNER_TABLE)
 			.where(and(...conds))

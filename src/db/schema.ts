@@ -281,13 +281,12 @@ export const EVENT_WINNER_TABLE = sqliteTable("event_winner", ({
 
 	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
 	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
-	roomIndex: integer("room_index").$type<bigint>().notNull(),
 	userId: text("user_id").$type<Snowflake>().notNull(),
 	roleId: text("role_id").$type<Snowflake>().notNull(),
 	declaredAt: integer("declared_at").$type<bigint>().notNull().$defaultFn(() => BigInt(Date.now())),
 }),
 (table) => ({
-	unq: unique().on(table.eventId, table.roomIndex, table.userId),
+	unq: unique().on(table.eventId, table.userId),
 	guildIdIndex: index("event_winner_guild_id_index").on(table.guildId),
 	eventIdIndex: index("event_winner_event_id_index").on(table.eventId),
 }));

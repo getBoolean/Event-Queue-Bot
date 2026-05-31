@@ -47,7 +47,6 @@ import { RoleOnRoomPullOption } from "../../options/options/role-on-room-pull.op
 import { RoleOnSubPullOption } from "../../options/options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "../../options/options/room-category.option.ts";
 import { RoomCountOption } from "../../options/options/room-count.option.ts";
-import { RoomIndexOption } from "../../options/options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "../../options/options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "../../options/options/room-ping-message.option.ts";
 import { RoomQueuesChannelOption } from "../../options/options/room-queues-channel.option.ts";
@@ -69,14 +68,13 @@ import { AdminCommand } from "../../types/command.types.ts";
 import { Color, EventQueueRole, type RoomScheduling, type SubAutoPullMode } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
 import { DateUtils } from "../../utils/date.utils.ts";
-import { CustomError, EventNotFoundWarning, RoomIndexNotFoundWarning, WinnerRoleNotSetWarning } from "../../utils/error.utils.ts";
+import { CustomError, EventNotFoundWarning, WinnerRoleNotSetWarning } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
 import { EventSyncLock } from "../../utils/event-sync-lock.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
 import { commandMention, describeTable, eventMention, queuesMention } from "../../utils/string.utils.ts";
-import { groupWinnersByRoom } from "../../utils/winner.logic.ts";
 import { WinnerUtils } from "../../utils/winner.utils.ts";
 
 const HOURS_TO_MS = 3_600_000n;
@@ -258,21 +256,21 @@ export class EventsCommand extends AdminCommand {
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("declare-winners")
-				.setDescription("Grant the winner role to a room's winner(s)");
+				.setDescription("Grant the winner role to the event's winner(s)");
 			Object.values(EventsCommand.DECLARE_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("winners")
-				.setDescription("List declared winners per room");
+				.setDescription("List declared winners");
 			Object.values(EventsCommand.WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("clear-winners")
-				.setDescription("Revoke winner role(s) for a room or the whole event");
+				.setDescription("Revoke the winner role for the event");
 			Object.values(EventsCommand.CLEAR_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
@@ -457,7 +455,7 @@ export class EventsCommand extends AdminCommand {
 		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
 		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
-		winnerRole: new WinnerRoleOption({ description: "Role granted to declared room winners" }),
+		winnerRole: new WinnerRoleOption({ description: "Role granted to declared winners" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -1087,12 +1085,11 @@ export class EventsCommand extends AdminCommand {
 
 	static readonly DECLARE_WINNERS_OPTIONS = {
 		event: new EventOption({ required: true, description: "Target event" }),
-		roomIndex: new RoomIndexOption({ required: true, description: "Room number (1..room count)" }),
-		winner1: new UserOption({ required: true, id: "winner_1", description: "A room winner" }),
-		winner2: new UserOption({ id: "winner_2", description: "A room winner" }),
-		winner3: new UserOption({ id: "winner_3", description: "A room winner" }),
-		winner4: new UserOption({ id: "winner_4", description: "A room winner" }),
-		winner5: new UserOption({ id: "winner_5", description: "A room winner" }),
+		winner1: new UserOption({ required: true, id: "winner_1", description: "A winner" }),
+		winner2: new UserOption({ id: "winner_2", description: "A winner" }),
+		winner3: new UserOption({ id: "winner_3", description: "A winner" }),
+		winner4: new UserOption({ id: "winner_4", description: "A winner" }),
+		winner5: new UserOption({ id: "winner_5", description: "A winner" }),
 	};
 
 	static async events_declare_winners(inter: SlashInteraction) {
@@ -1100,10 +1097,6 @@ export class EventsCommand extends AdminCommand {
 		const event = await EventsCommand.DECLARE_WINNERS_OPTIONS.event.get(inter);
 		if (!event.winnerRoleId) {
 			throw new WinnerRoleNotSetWarning();
-		}
-		const roomIndex = EventsCommand.DECLARE_WINNERS_OPTIONS.roomIndex.get(inter);
-		if (roomIndex < 1 || BigInt(roomIndex) > event.roomCount) {
-			throw new RoomIndexNotFoundWarning(Number(event.roomCount));
 		}
 
 		const userIds = new Set(compact([
@@ -1114,16 +1107,16 @@ export class EventsCommand extends AdminCommand {
 			EventsCommand.DECLARE_WINNERS_OPTIONS.winner5.get(inter),
 		]).map(user => user.id));
 
-		const added = await WinnerUtils.declareRoomWinners(inter.store, event, BigInt(roomIndex), userIds);
+		const added = await WinnerUtils.declareWinners(inter.store, event, userIds);
 
 		if (added.length === 0) {
-			await inter.respond(`No new winners added to room ${roomIndex} of ${eventMention(event)} — all selected users already win that room.`, true);
+			await inter.respond(`No new winners added to ${eventMention(event)} — all selected users are already winners.`, true);
 			return;
 		}
 
 		const mentions = added.map(userMention).join(", ");
 		await inter.respond(
-			`Granted ${roleMention(event.winnerRoleId)} to ${mentions} as winner(s) of room ${roomIndex} in ${eventMention(event)}.`,
+			`Granted ${roleMention(event.winnerRoleId)} to ${mentions} as winner(s) of ${eventMention(event)}.`,
 			true,
 		);
 	}
@@ -1140,22 +1133,20 @@ export class EventsCommand extends AdminCommand {
 		await inter.deferReply();
 		const event = await EventsCommand.WINNERS_OPTIONS.event.get(inter);
 
-		const grouped = groupWinnersByRoom(Queries.selectManyEventWinners({ guildId: inter.guildId, eventId: event.id }));
+		const rows = Queries.selectManyEventWinners({ guildId: inter.guildId, eventId: event.id });
 		const roleLine = `Winner role: ${event.winnerRoleId ? roleMention(event.winnerRoleId) : "not set"}`;
 
-		if (grouped.size === 0) {
+		if (rows.length === 0) {
 			await inter.respond(`No winners declared yet for ${eventMention(event)}.\n${roleLine}`);
 			return;
 		}
 
-		const roomLines = [...grouped.entries()].map(([roomIndex, userIds]) =>
-			`Room ${roomIndex}: ${userIds.map(userMention).join(", ")}`
-		);
+		const winnerList = rows.map(r => userMention(r.userId)).join(", ");
 
 		const embed = new EmbedBuilder()
 			.setTitle(`Winners — ${event.name}`)
 			.setColor(Color.Gold)
-			.setDescription(`${roomLines.join("\n")}\n\n${roleLine}`);
+			.setDescription(`${winnerList}\n\n${roleLine}`);
 
 		await inter.respond({ embeds: [embed] });
 	}
@@ -1166,26 +1157,16 @@ export class EventsCommand extends AdminCommand {
 
 	static readonly CLEAR_WINNERS_OPTIONS = {
 		event: new EventOption({ required: true, description: "Target event" }),
-		roomIndex: new RoomIndexOption({ description: "Room number to clear (omit = all rooms)" }),
 	};
 
 	static async events_clear_winners(inter: SlashInteraction) {
 		await inter.deferReply();
 		const event = await EventsCommand.CLEAR_WINNERS_OPTIONS.event.get(inter);
-		const roomIndex = EventsCommand.CLEAR_WINNERS_OPTIONS.roomIndex.get(inter);
-		if (roomIndex != null && (roomIndex < 1 || BigInt(roomIndex) > event.roomCount)) {
-			throw new RoomIndexNotFoundWarning(Number(event.roomCount));
-		}
 
-		const removals = await WinnerUtils.clearEventWinners(
-			inter.store,
-			event,
-			roomIndex != null ? BigInt(roomIndex) : undefined,
-		);
+		const removals = await WinnerUtils.clearEventWinners(inter.store, event);
 
-		const scope = roomIndex != null ? `room ${roomIndex}` : "all rooms";
 		await inter.respond(
-			`Cleared winners for ${scope} of ${eventMention(event)}. Revoked the role from ${removals.length} member(s).`,
+			`Cleared winners for ${eventMention(event)}. Revoked the role from ${removals.length} member(s).`,
 			true,
 		);
 	}
@@ -1221,10 +1202,10 @@ export class EventsCommand extends AdminCommand {
 				"- `role_on_room_pull` (default `false`) — assign the role when a user is pulled from the room queue\n" +
 				"- `role_in_sub_queue` (default `false`) — assign the role while a user is in the sub queue\n" +
 				"- `role_on_sub_pull` (default `false`) — assign the role when a user is pulled from the sub queue\n\n" +
-				"**Declaring winners** — crown a room's winner(s) with one shared role that auto-revokes when the event's next occurrence opens:\n" +
+				"**Declaring winners** — crown the event's winner(s) with one shared role that auto-revokes when the event's next occurrence opens:\n" +
 				`- Configure the role once via \`winner_role\` on ${commandMention("events", "set")}.\n` +
-				`- ${commandMention("events", "declare-winners")} (\`room_index\`, \`winner_1\`..\`winner_5\`) grants it — additive, ties allowed; call again for >5 winners.\n` +
-				`- ${commandMention("events", "winners")} lists winners per room; ${commandMention("events", "clear-winners")} (optional \`room_index\`) revokes early.\n` +
+				`- ${commandMention("events", "declare-winners")} (\`winner_1\`..\`winner_5\`) grants it — additive, ties allowed; call again for >5 winners.\n` +
+				`- ${commandMention("events", "winners")} lists current winners; ${commandMention("events", "clear-winners")} revokes early.\n` +
 				"- With multiple occurrences scheduled, the **earliest** one to open revokes the role.\n\n" +
 				"**Auto-pull subs at room start:**\n" +
 				"- `auto_pull_subs_at_room_start_toggle` (default `false`) — at each room's start, lock paired sub and pull subs into the room. Forces room lock at exact `start_time` (ignores `lock_offset`).\n" +

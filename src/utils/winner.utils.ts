@@ -4,7 +4,7 @@ import { Queries } from "../db/queries.ts";
 import type { DbEvent } from "../db/schema.ts";
 import type { Store } from "../db/store.ts";
 import { MemberUtils } from "./member.utils.ts";
-import { computeRoleRemovals, computeWinnersToAdd } from "./winner.logic.ts";
+import { computeWinnersToAdd } from "./winner.logic.ts";
 
 /**
  * `WinnerUtils` orchestrates the event-winner Store/Queries writes and the Discord role
@@ -27,24 +27,22 @@ export namespace WinnerUtils {
 	}
 
 	/**
-	 * Additive declaration: grants the event's winner role to the requested users for `roomIndex`,
-	 * skipping any who already win that room. Returns the userIds newly added.
+	 * Additive declaration: grants the event's winner role to the requested users, skipping any who
+	 * are already winners of the event. Returns the userIds newly added.
 	 */
-	export async function declareRoomWinners(
+	export async function declareWinners(
 		store: Store,
 		event: DbEvent,
-		roomIndex: bigint,
 		requested: Set<Snowflake>,
 	): Promise<string[]> {
 		const rows = Queries.selectManyEventWinners({ guildId: store.guild.id, eventId: event.id });
-		const existingForRoom = new Set(rows.filter(row => row.roomIndex === roomIndex).map(row => row.userId));
-		const toAdd = computeWinnersToAdd(existingForRoom, requested);
+		const existing = new Set(rows.map(row => row.userId));
+		const toAdd = computeWinnersToAdd(existing, requested);
 
 		for (const userId of toAdd) {
 			store.insertEventWinner({
 				guildId: store.guild.id,
 				eventId: event.id,
-				roomIndex,
 				userId,
 				roleId: event.winnerRoleId,
 			});
@@ -55,22 +53,19 @@ export namespace WinnerUtils {
 	}
 
 	/**
-	 * Clears winner rows for the whole event (or a single `roomIndex`), revoking the role only
-	 * from users who no longer hold any winning row. Uses each row's snapshotted `roleId`, so it
-	 * works even if `event.winnerRoleId` was later changed or cleared. Returns the role removals.
+	 * Clears all of the event's winner rows, revoking the role from each winner. Uses each row's
+	 * snapshotted `roleId`, so it works even if `event.winnerRoleId` was later changed or cleared.
+	 * With one row per winner there is nothing to dedup. Returns the role removals.
 	 */
 	export async function clearEventWinners(
 		store: Store,
 		event: DbEvent,
-		roomIndex?: bigint,
 	): Promise<{ userId: string, roleId: string }[]> {
-		const rows = Queries.selectManyEventWinners({ guildId: store.guild.id, eventId: event.id });
-		const deleted = roomIndex != null ? rows.filter(row => row.roomIndex === roomIndex) : rows;
-		const remaining = roomIndex != null ? rows.filter(row => row.roomIndex !== roomIndex) : [];
+		const deleted = Queries.selectManyEventWinners({ guildId: store.guild.id, eventId: event.id });
 
-		store.deleteManyEventWinners(roomIndex != null ? { eventId: event.id, roomIndex } : { eventId: event.id });
+		store.deleteManyEventWinners({ eventId: event.id });
 
-		const removals = computeRoleRemovals(deleted, remaining);
+		const removals = deleted.map(row => ({ userId: row.userId, roleId: row.roleId }));
 		for (const { userId, roleId } of removals) {
 			await applyRole(store, userId, roleId, "remove");
 		}
