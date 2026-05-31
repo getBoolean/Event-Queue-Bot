@@ -30,7 +30,7 @@ export function computeRoleRemovals(
 	const removals: { userId: string, roleId: string }[] = [];
 	for (const { userId, roleId } of deleted) {
 		if (remainingUserIds.has(userId)) continue;
-		const key = JSON.stringify([userId, roleId]);
+		const key = `${userId}:${roleId}`;
 		if (seen.has(key)) continue;
 		seen.add(key);
 		removals.push({ userId, roleId });

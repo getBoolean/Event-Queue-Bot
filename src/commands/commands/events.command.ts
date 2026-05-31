@@ -1137,7 +1137,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_winners(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
+		await inter.deferReply();
 		const event = await EventsCommand.WINNERS_OPTIONS.event.get(inter);
 
 		const grouped = groupWinnersByRoom(Queries.selectManyEventWinners({ guildId: inter.guildId, eventId: event.id }));
@@ -1224,7 +1224,8 @@ export class EventsCommand extends AdminCommand {
 				"**Declaring winners** — crown a room's winner(s) with one shared role that auto-revokes when the event's next occurrence opens:\n" +
 				`- Configure the role once via \`winner_role\` on ${commandMention("events", "set")}.\n` +
 				`- ${commandMention("events", "declare-winners")} (\`room_index\`, \`winner_1\`..\`winner_5\`) grants it — additive, ties allowed; call again for >5 winners.\n` +
-				`- ${commandMention("events", "winners")} lists winners per room; ${commandMention("events", "clear-winners")} (optional \`room_index\`) revokes early.\n\n` +
+				`- ${commandMention("events", "winners")} lists winners per room; ${commandMention("events", "clear-winners")} (optional \`room_index\`) revokes early.\n` +
+				"- With multiple occurrences scheduled, the **earliest** one to open revokes the role.\n\n" +
 				"**Auto-pull subs at room start:**\n" +
 				"- `auto_pull_subs_at_room_start_toggle` (default `false`) — at each room's start, lock paired sub and pull subs into the room. Forces room lock at exact `start_time` (ignores `lock_offset`).\n" +
 				"- `shuffle_subs_before_auto_pull_toggle` (default `false`) — shuffle the sub queue before the pull.\n" +
