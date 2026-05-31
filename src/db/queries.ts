@@ -18,6 +18,7 @@ import {
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
 	EVENT_WHITELISTED_TABLE,
+	EVENT_WINNER_TABLE,
 	GUILD_BLACKLISTED_TABLE,
 	GUILD_PRIORITIZED_TABLE,
 	GUILD_TABLE,
@@ -497,6 +498,12 @@ export namespace Queries {
 	}): number {
 		const row = selectEventMembershipCountQuery.get(by) as { count: number | bigint } | undefined;
 		return row ? Number(row.count) : 0;
+	}
+
+	// Event Winners
+
+	export function selectManyEventWinners(by: { guildId: Snowflake, eventId: bigint }) {
+		return selectManyEventWinnersByGuildIdAndEventId.all(by);
 	}
 
 	// Event Defaults
@@ -1238,6 +1245,17 @@ export namespace Queries {
 			eq(EVENT_QUEUE_TABLE.eventId, sql.placeholder("eventId")),
 			eq(MEMBER_TABLE.userId, sql.placeholder("userId")),
 			eq(EVENT_QUEUE_TABLE.queueRole, sql.placeholder("queueRole"))
+		))
+		.prepare();
+
+	// Event Winners
+
+	const selectManyEventWinnersByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_WINNER_TABLE)
+		.where(and(
+			eq(EVENT_WINNER_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_WINNER_TABLE.eventId, sql.placeholder("eventId"))
 		))
 		.prepare();
 

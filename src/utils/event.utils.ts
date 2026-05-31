@@ -40,6 +40,7 @@ import { EventChannelUtils } from "./event-channel.utils.ts";
 import { EventSyncLock } from "./event-sync-lock.utils.ts";
 import { MemberUtils } from "./member.utils.ts";
 import { QueueUtils } from "./queue.utils.ts";
+import { WinnerUtils } from "./winner.utils.ts";
 
 export namespace EventUtils {
 
@@ -689,6 +690,9 @@ export namespace EventUtils {
 		const ctx = await getEventContext(occurrenceId);
 		if (!ctx) return;
 		const { occurrence, event, store, queues } = ctx;
+
+		// Revoke the previous occurrence's winner roles — the badge lasts only until the next opens.
+		await WinnerUtils.revokeEventWinners(store, event);
 
 		// Unlock all event queues
 		if (queues.length > 0) {

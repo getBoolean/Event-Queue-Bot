@@ -36,6 +36,7 @@ import {
 	type DbEventRoomChannel,
 	type DbEventRoomChannelTemplate,
 	type DbEventWhitelisted,
+	type DbEventWinner,
 	type DbGuildBlacklisted,
 	type DbGuildPrioritized,
 	type DbGuildWhitelisted,
@@ -57,6 +58,7 @@ import {
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
 	EVENT_WHITELISTED_TABLE,
+	EVENT_WINNER_TABLE,
 	GUILD_BLACKLISTED_TABLE,
 	GUILD_PRIORITIZED_TABLE,
 	GUILD_TABLE,
@@ -77,6 +79,7 @@ import {
 	type NewEventRoomChannel,
 	type NewEventRoomChannelTemplate,
 	type NewEventWhitelisted,
+	type NewEventWinner,
 	type NewGuild,
 	type NewGuildBlacklisted,
 	type NewGuildPrioritized,
@@ -624,6 +627,15 @@ export class Store {
 		return db
 			.insert(EVENT_ROOM_CHANNEL_TABLE)
 			.values(omitBy(row, isNil) as NewEventRoomChannel)
+			.returning().get();
+	}
+
+	// idempotent additive declare: (eventId, roomIndex, userId) conflict is a no-op
+	insertEventWinner(row: NewEventWinner): DbEventWinner {
+		return db
+			.insert(EVENT_WINNER_TABLE)
+			.values(omitBy(row, isNil) as NewEventWinner)
+			.onConflictDoNothing()
 			.returning().get();
 	}
 
@@ -1196,6 +1208,20 @@ export class Store {
 		}
 		return db
 			.delete(EVENT_ROOM_CHANNEL_TABLE)
+			.where(and(...conds))
+			.returning().all();
+	}
+
+	deleteManyEventWinners(by: { eventId: bigint, roomIndex?: bigint }) {
+		const conds = [
+			eq(EVENT_WINNER_TABLE.guildId, this.guild.id),
+			eq(EVENT_WINNER_TABLE.eventId, by.eventId),
+		];
+		if (by.roomIndex !== undefined) {
+			conds.push(eq(EVENT_WINNER_TABLE.roomIndex, by.roomIndex));
+		}
+		return db
+			.delete(EVENT_WINNER_TABLE)
 			.where(and(...conds))
 			.returning().all();
 	}

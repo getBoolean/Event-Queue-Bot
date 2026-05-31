@@ -69,6 +69,7 @@ import { RoleOnRoomPullOption } from "./options/role-on-room-pull.option.ts";
 import { RoleOnSubPullOption } from "./options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "./options/room-category.option.ts";
 import { RoomCountOption } from "./options/room-count.option.ts";
+import { RoomIndexOption } from "./options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "./options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "./options/room-ping-message.option.ts";
 import { RoomQueuesChannelOption } from "./options/room-queues-channel.option.ts";
@@ -92,6 +93,7 @@ import { VoiceSourceChannelOption } from "./options/voice-source-channel.option.
 import { VoicesOption } from "./options/voices.option.ts";
 import { WhitelistedOption } from "./options/whitelisted.option.ts";
 import { WhitelistedsOption } from "./options/whitelisteds.option.ts";
+import { WinnerRoleOption } from "./options/winner-role.option.ts";
 import { YearOption } from "./options/year.option.ts";
 
 export const OPTIONS = new Collection<string, BaseOption>([
@@ -160,6 +162,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[RoleOnSubPullOption.ID, new RoleOnSubPullOption()],
 	[RoomCategoryOption.ID, new RoomCategoryOption()],
 	[RoomCountOption.ID, new RoomCountOption()],
+	[RoomIndexOption.ID, new RoomIndexOption()],
 	[RoomLengthMinutesOption.ID, new RoomLengthMinutesOption()],
 	[RoomPingMessageOption.ID, new RoomPingMessageOption()],
 	[RoomQueuesChannelOption.ID, new RoomQueuesChannelOption()],
@@ -187,5 +190,6 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[VoiceOnlyToggleOption.ID, new VoiceOnlyToggleOption()],
 	[WhitelistedOption.ID, new WhitelistedOption()],
 	[WhitelistedsOption.ID, new WhitelistedsOption()],
+	[WinnerRoleOption.ID, new WinnerRoleOption()],
 	[YearOption.ID, new YearOption()],
 ]);
