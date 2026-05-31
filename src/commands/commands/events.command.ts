@@ -1,11 +1,13 @@
-import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, SlashCommandBuilder, time, TimestampStyles } from "discord.js";
+import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, roleMention, SlashCommandBuilder, time, TimestampStyles, userMention } from "discord.js";
 import { SQLiteColumn } from "drizzle-orm/sqlite-core";
-import { findKey, isNil, omitBy } from "lodash-es";
+import { compact, findKey, isNil, omitBy } from "lodash-es";
 
 import { Queries } from "../../db/queries.ts";
 import { type DbEvent, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
+import { UserOption } from "../../options/base-option.ts";
 import { AnnouncementChannelOption } from "../../options/options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
+import { AutoPullSubsAtRoomStartToggleOption } from "../../options/options/auto-pull-subs-at-room-start-toggle.option.ts";
 import { AutopullToggleOption } from "../../options/options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "../../options/options/badge-toggle.option.ts";
 import { ChannelSuffixOption } from "../../options/options/channel-suffix.option.ts";
@@ -45,31 +47,37 @@ import { RoleOnRoomPullOption } from "../../options/options/role-on-room-pull.op
 import { RoleOnSubPullOption } from "../../options/options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "../../options/options/room-category.option.ts";
 import { RoomCountOption } from "../../options/options/room-count.option.ts";
+import { RoomIndexOption } from "../../options/options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "../../options/options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "../../options/options/room-ping-message.option.ts";
 import { RoomQueuesChannelOption } from "../../options/options/room-queues-channel.option.ts";
 import { RoomSchedulingOption } from "../../options/options/room-scheduling.option.ts";
+import { ShuffleSubsBeforeAutoPullToggleOption } from "../../options/options/shuffle-subs-before-auto-pull-toggle.option.ts";
 import { SizeOption } from "../../options/options/size.option.ts";
 import { SlowmodeOption } from "../../options/options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "../../options/options/slowmode-time.option.ts";
 import { StartTimeOption } from "../../options/options/start-time.option.ts";
+import { SubAutoPullModeOption } from "../../options/options/sub-auto-pull-mode.option.ts";
 import { SubQueuesChannelOption } from "../../options/options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "../../options/options/timestamp-type.option.ts";
 import { TimezoneOption } from "../../options/options/timezone.option.ts";
 import { VoiceDestinationChannelOption } from "../../options/options/voice-destination-channel.option.ts";
 import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.option.ts";
+import { WinnerRoleOption } from "../../options/options/winner-role.option.ts";
 import { YearOption } from "../../options/options/year.option.ts";
 import { AdminCommand } from "../../types/command.types.ts";
-import { Color, EventQueueRole, type RoomScheduling } from "../../types/db.types.ts";
+import { Color, EventQueueRole, type RoomScheduling, type SubAutoPullMode } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
 import { DateUtils } from "../../utils/date.utils.ts";
-import { CustomError, EventNotFoundWarning } from "../../utils/error.utils.ts";
+import { CustomError, EventNotFoundWarning, RoomIndexNotFoundWarning, WinnerRoleNotSetWarning } from "../../utils/error.utils.ts";
 import { EventUtils } from "../../utils/event.utils.ts";
 import { EventChannelUtils } from "../../utils/event-channel.utils.ts";
 import { EventSyncLock } from "../../utils/event-sync-lock.utils.ts";
 import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-transactor.ts";
 import { toCollection } from "../../utils/misc.utils.ts";
 import { commandMention, describeTable, eventMention, queuesMention } from "../../utils/string.utils.ts";
+import { groupWinnersByRoom } from "../../utils/winner.logic.ts";
+import { WinnerUtils } from "../../utils/winner.utils.ts";
 
 const HOURS_TO_MS = 3_600_000n;
 const MINUTES_TO_MS = 60_000n;
@@ -134,6 +142,9 @@ export class EventsCommand extends AdminCommand {
 	events_schedule = EventsCommand.events_schedule;
 	events_cancel = EventsCommand.events_cancel;
 	events_delete = EventsCommand.events_delete;
+	events_declare_winners = EventsCommand.events_declare_winners;
+	events_winners = EventsCommand.events_winners;
+	events_clear_winners = EventsCommand.events_clear_winners;
 	events_help = EventsCommand.events_help;
 
 	data = new SlashCommandBuilder()
@@ -246,6 +257,27 @@ export class EventsCommand extends AdminCommand {
 		})
 		.addSubcommand(subcommand => {
 			subcommand
+				.setName("declare-winners")
+				.setDescription("Grant the winner role to a room's winner(s)");
+			Object.values(EventsCommand.DECLARE_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("winners")
+				.setDescription("List declared winners per room");
+			Object.values(EventsCommand.WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
+				.setName("clear-winners")
+				.setDescription("Revoke winner role(s) for a room or the whole event");
+			Object.values(EventsCommand.CLEAR_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			return subcommand;
+		})
+		.addSubcommand(subcommand => {
+			subcommand
 				.setName("help")
 				.setDescription("Event command help");
 			return subcommand;
@@ -292,6 +324,7 @@ export class EventsCommand extends AdminCommand {
 				announcementChannelId: event.announcementChannelId ? channelMention(event.announcementChannelId) : null,
 				roomCategoryId: event.roomCategoryId ? channelMention(event.roomCategoryId) : null,
 				roomChannelTemplates: templateSummary,
+				winnerRoleId: event.winnerRoleId ? roleMention(event.winnerRoleId) : null,
 			};
 		});
 
@@ -333,6 +366,9 @@ export class EventsCommand extends AdminCommand {
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
+		autoPullSubsAtRoomStartToggle: new AutoPullSubsAtRoomStartToggleOption({ description: "Auto-pull subs at room start" }),
+		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
+		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
 		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
 	};
@@ -368,6 +404,9 @@ export class EventsCommand extends AdminCommand {
 				roleOnRoomPull: EventsCommand.ADD_OPTIONS.roleOnRoomPull.get(inter),
 				roleInSubQueue: EventsCommand.ADD_OPTIONS.roleInSubQueue.get(inter),
 				roleOnSubPull: EventsCommand.ADD_OPTIONS.roleOnSubPull.get(inter),
+				autoPullSubsAtRoomStartToggle: EventsCommand.ADD_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
+				shuffleSubsBeforeAutoPullToggle: EventsCommand.ADD_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
+				subAutoPullMode: EventsCommand.ADD_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
 				createDiscordEvent: EventsCommand.ADD_OPTIONS.createDiscordEvent.get(inter),
 				discordEventDescription: EventsCommand.ADD_OPTIONS.discordEventDescription.get(inter),
 			}, isNil),
@@ -413,8 +452,12 @@ export class EventsCommand extends AdminCommand {
 		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
 		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
 		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
+		autoPullSubsAtRoomStartToggle: new AutoPullSubsAtRoomStartToggleOption({ description: "Auto-pull subs at room start" }),
+		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
+		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
 		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
+		winnerRole: new WinnerRoleOption({ description: "Role granted to declared room winners" }),
 	};
 
 	static async events_set(inter: SlashInteraction) {
@@ -449,8 +492,12 @@ export class EventsCommand extends AdminCommand {
 			roleOnRoomPull: EventsCommand.SET_OPTIONS.roleOnRoomPull.get(inter),
 			roleInSubQueue: EventsCommand.SET_OPTIONS.roleInSubQueue.get(inter),
 			roleOnSubPull: EventsCommand.SET_OPTIONS.roleOnSubPull.get(inter),
+			autoPullSubsAtRoomStartToggle: EventsCommand.SET_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
+			shuffleSubsBeforeAutoPullToggle: EventsCommand.SET_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
+			subAutoPullMode: EventsCommand.SET_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
 			createDiscordEvent: EventsCommand.SET_OPTIONS.createDiscordEvent.get(inter),
 			discordEventDescription: EventsCommand.SET_OPTIONS.discordEventDescription.get(inter),
+			winnerRoleId: EventsCommand.SET_OPTIONS.winnerRole.get(inter)?.id,
 		}, isNil);
 
 		const effectiveMessage = announcementMessage ?? event.announcementMessage;
@@ -794,8 +841,12 @@ export class EventsCommand extends AdminCommand {
 			{ name: RoleOnRoomPullOption.ID, value: EVENT_TABLE.roleOnRoomPull.name },
 			{ name: RoleInSubQueueOption.ID, value: EVENT_TABLE.roleInSubQueue.name },
 			{ name: RoleOnSubPullOption.ID, value: EVENT_TABLE.roleOnSubPull.name },
+			{ name: AutoPullSubsAtRoomStartToggleOption.ID, value: EVENT_TABLE.autoPullSubsAtRoomStartToggle.name },
+			{ name: ShuffleSubsBeforeAutoPullToggleOption.ID, value: EVENT_TABLE.shuffleSubsBeforeAutoPullToggle.name },
+			{ name: SubAutoPullModeOption.ID, value: EVENT_TABLE.subAutoPullMode.name },
 			{ name: CreateDiscordEventToggleOption.ID, value: EVENT_TABLE.createDiscordEvent.name },
 			{ name: DiscordEventDescriptionOption.ID, value: EVENT_TABLE.discordEventDescription.name },
+			{ name: `${WinnerRoleOption.ID} (does not revoke already-granted roles)`, value: EVENT_TABLE.winnerRoleId.name },
 		];
 		const selectMenuTransactor = new SelectMenuTransactor(inter);
 		const propertiesToReset = await selectMenuTransactor.sendAndReceive("Event properties to reset", selectMenuOptions) ?? [];
@@ -1031,6 +1082,115 @@ export class EventsCommand extends AdminCommand {
 	}
 
 	// ====================================================================
+	//                       /events declare-winners
+	// ====================================================================
+
+	static readonly DECLARE_WINNERS_OPTIONS = {
+		event: new EventOption({ required: true, description: "Target event" }),
+		roomIndex: new RoomIndexOption({ required: true, description: "Room number (1..room count)" }),
+		winner1: new UserOption({ required: true, id: "winner_1", description: "A room winner" }),
+		winner2: new UserOption({ id: "winner_2", description: "A room winner" }),
+		winner3: new UserOption({ id: "winner_3", description: "A room winner" }),
+		winner4: new UserOption({ id: "winner_4", description: "A room winner" }),
+		winner5: new UserOption({ id: "winner_5", description: "A room winner" }),
+	};
+
+	static async events_declare_winners(inter: SlashInteraction) {
+		await inter.deferReply();
+		const event = await EventsCommand.DECLARE_WINNERS_OPTIONS.event.get(inter);
+		if (!event.winnerRoleId) {
+			throw new WinnerRoleNotSetWarning();
+		}
+		const roomIndex = EventsCommand.DECLARE_WINNERS_OPTIONS.roomIndex.get(inter);
+		if (roomIndex < 1 || BigInt(roomIndex) > event.roomCount) {
+			throw new RoomIndexNotFoundWarning(Number(event.roomCount));
+		}
+
+		const userIds = new Set(compact([
+			EventsCommand.DECLARE_WINNERS_OPTIONS.winner1.get(inter),
+			EventsCommand.DECLARE_WINNERS_OPTIONS.winner2.get(inter),
+			EventsCommand.DECLARE_WINNERS_OPTIONS.winner3.get(inter),
+			EventsCommand.DECLARE_WINNERS_OPTIONS.winner4.get(inter),
+			EventsCommand.DECLARE_WINNERS_OPTIONS.winner5.get(inter),
+		]).map(user => user.id));
+
+		const added = await WinnerUtils.declareRoomWinners(inter.store, event, BigInt(roomIndex), userIds);
+
+		if (added.length === 0) {
+			await inter.respond(`No new winners added to room ${roomIndex} of ${eventMention(event)} — all selected users already win that room.`, true);
+			return;
+		}
+
+		const mentions = added.map(userMention).join(", ");
+		await inter.respond(
+			`Granted ${roleMention(event.winnerRoleId)} to ${mentions} as winner(s) of room ${roomIndex} in ${eventMention(event)}.`,
+			true,
+		);
+	}
+
+	// ====================================================================
+	//                           /events winners
+	// ====================================================================
+
+	static readonly WINNERS_OPTIONS = {
+		event: new EventOption({ required: true, description: "Target event" }),
+	};
+
+	static async events_winners(inter: SlashInteraction) {
+		await inter.deferReply({ ephemeral: true });
+		const event = await EventsCommand.WINNERS_OPTIONS.event.get(inter);
+
+		const grouped = groupWinnersByRoom(Queries.selectManyEventWinners({ guildId: inter.guildId, eventId: event.id }));
+		const roleLine = `Winner role: ${event.winnerRoleId ? roleMention(event.winnerRoleId) : "not set"}`;
+
+		if (grouped.size === 0) {
+			await inter.respond(`No winners declared yet for ${eventMention(event)}.\n${roleLine}`);
+			return;
+		}
+
+		const roomLines = [...grouped.entries()].map(([roomIndex, userIds]) =>
+			`Room ${roomIndex}: ${userIds.map(userMention).join(", ")}`
+		);
+
+		const embed = new EmbedBuilder()
+			.setTitle(`Winners — ${event.name}`)
+			.setColor(Color.Gold)
+			.setDescription(`${roomLines.join("\n")}\n\n${roleLine}`);
+
+		await inter.respond({ embeds: [embed] });
+	}
+
+	// ====================================================================
+	//                        /events clear-winners
+	// ====================================================================
+
+	static readonly CLEAR_WINNERS_OPTIONS = {
+		event: new EventOption({ required: true, description: "Target event" }),
+		roomIndex: new RoomIndexOption({ description: "Room number to clear (omit = all rooms)" }),
+	};
+
+	static async events_clear_winners(inter: SlashInteraction) {
+		await inter.deferReply();
+		const event = await EventsCommand.CLEAR_WINNERS_OPTIONS.event.get(inter);
+		const roomIndex = EventsCommand.CLEAR_WINNERS_OPTIONS.roomIndex.get(inter);
+		if (roomIndex != null && (roomIndex < 1 || BigInt(roomIndex) > event.roomCount)) {
+			throw new RoomIndexNotFoundWarning(Number(event.roomCount));
+		}
+
+		const removals = await WinnerUtils.clearEventWinners(
+			inter.store,
+			event,
+			roomIndex != null ? BigInt(roomIndex) : undefined,
+		);
+
+		const scope = roomIndex != null ? `room ${roomIndex}` : "all rooms";
+		await inter.respond(
+			`Cleared winners for ${scope} of ${eventMention(event)}. Revoked the role from ${removals.length} member(s).`,
+			true,
+		);
+	}
+
+	// ====================================================================
 	//                           /events help
 	// ====================================================================
 
@@ -1061,6 +1221,14 @@ export class EventsCommand extends AdminCommand {
 				"- `role_on_room_pull` (default `false`) — assign the role when a user is pulled from the room queue\n" +
 				"- `role_in_sub_queue` (default `false`) — assign the role while a user is in the sub queue\n" +
 				"- `role_on_sub_pull` (default `false`) — assign the role when a user is pulled from the sub queue\n\n" +
+				"**Declaring winners** — crown a room's winner(s) with one shared role that auto-revokes when the event's next occurrence opens:\n" +
+				`- Configure the role once via \`winner_role\` on ${commandMention("events", "set")}.\n` +
+				`- ${commandMention("events", "declare-winners")} (\`room_index\`, \`winner_1\`..\`winner_5\`) grants it — additive, ties allowed; call again for >5 winners.\n` +
+				`- ${commandMention("events", "winners")} lists winners per room; ${commandMention("events", "clear-winners")} (optional \`room_index\`) revokes early.\n\n` +
+				"**Auto-pull subs at room start:**\n" +
+				"- `auto_pull_subs_at_room_start_toggle` (default `false`) — at each room's start, lock paired sub and pull subs into the room. Forces room lock at exact `start_time` (ignores `lock_offset`).\n" +
+				"- `shuffle_subs_before_auto_pull_toggle` (default `false`) — shuffle the sub queue before the pull.\n" +
+				"- `sub_auto_pull_mode` (default `drain`) — `drain`: standard `/pull` side effects fire. `promote`: move into room queue (bypasses room lock), no sub-side pull effects.\n\n" +
 				"**Extra per-room channels:**\n" +
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
 				`- ${commandMention("events", "remove-room-channel")} removes one of those templates and its channels.\n` +

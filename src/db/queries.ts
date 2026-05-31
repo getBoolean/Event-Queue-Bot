@@ -10,6 +10,7 @@ import {
 	EVENT_BLACKLISTED_TABLE,
 	EVENT_DEFAULT_TABLE,
 	EVENT_OCCURRENCE_ROOM_PING_TABLE,
+	EVENT_OCCURRENCE_ROOM_PULL_TABLE,
 	EVENT_OCCURRENCE_TABLE,
 	EVENT_PRIORITIZED_TABLE,
 	EVENT_QUEUE_TABLE,
@@ -17,6 +18,7 @@ import {
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
 	EVENT_TABLE,
 	EVENT_WHITELISTED_TABLE,
+	EVENT_WINNER_TABLE,
 	GUILD_BLACKLISTED_TABLE,
 	GUILD_PRIORITIZED_TABLE,
 	GUILD_TABLE,
@@ -342,7 +344,7 @@ export namespace Queries {
 	// Guild Blacklisted
 
 	export function selectManyGuildBlacklisted(by:
-		{ guildId: Snowflake, subjectId?: Snowflake }
+	{ guildId: Snowflake, subjectId?: Snowflake }
 	) {
 		if ("subjectId" in by) {
 			return selectManyGuildBlacklistedByGuildIdAndSubjectId.all(by);
@@ -355,7 +357,7 @@ export namespace Queries {
 	// Guild Whitelisted
 
 	export function selectManyGuildWhitelisted(by:
-		{ guildId: Snowflake, subjectId?: Snowflake }
+	{ guildId: Snowflake, subjectId?: Snowflake }
 	) {
 		if ("subjectId" in by) {
 			return selectManyGuildWhitelistedByGuildIdAndSubjectId.all(by);
@@ -368,7 +370,7 @@ export namespace Queries {
 	// Guild Prioritized
 
 	export function selectManyGuildPrioritized(by:
-		{ guildId: Snowflake, subjectId?: Snowflake }
+	{ guildId: Snowflake, subjectId?: Snowflake }
 	) {
 		if ("subjectId" in by) {
 			return selectManyGuildPrioritizedByGuildIdAndSubjectId.all(by);
@@ -472,6 +474,12 @@ export namespace Queries {
 		return selectOccurrenceRoomPingsByOccurrenceId.all(by);
 	}
 
+	// Event Occurrence Room Pulls
+
+	export function selectOccurrenceRoomPulls(by: { occurrenceId: bigint }) {
+		return selectOccurrenceRoomPullsByOccurrenceId.all(by);
+	}
+
 	// Event Queues
 
 	export function selectManyEventQueues(by: { guildId: Snowflake, eventId: bigint }) {
@@ -490,6 +498,12 @@ export namespace Queries {
 	}): number {
 		const row = selectEventMembershipCountQuery.get(by) as { count: number | bigint } | undefined;
 		return row ? Number(row.count) : 0;
+	}
+
+	// Event Winners
+
+	export function selectManyEventWinners(by: { guildId: Snowflake, eventId: bigint }) {
+		return selectManyEventWinnersByGuildIdAndEventId.all(by);
 	}
 
 	// Event Defaults
@@ -1192,6 +1206,16 @@ export namespace Queries {
 		)
 		.prepare();
 
+	// Event Occurrence Room Pulls
+
+	const selectOccurrenceRoomPullsByOccurrenceId = db
+		.select()
+		.from(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
+		.where(
+			eq(EVENT_OCCURRENCE_ROOM_PULL_TABLE.occurrenceId, sql.placeholder("occurrenceId"))
+		)
+		.prepare();
+
 	// Event Queues
 
 	const selectManyEventQueuesByGuildIdAndEventId = db
@@ -1221,6 +1245,17 @@ export namespace Queries {
 			eq(EVENT_QUEUE_TABLE.eventId, sql.placeholder("eventId")),
 			eq(MEMBER_TABLE.userId, sql.placeholder("userId")),
 			eq(EVENT_QUEUE_TABLE.queueRole, sql.placeholder("queueRole"))
+		))
+		.prepare();
+
+	// Event Winners
+
+	const selectManyEventWinnersByGuildIdAndEventId = db
+		.select()
+		.from(EVENT_WINNER_TABLE)
+		.where(and(
+			eq(EVENT_WINNER_TABLE.guildId, sql.placeholder("guildId")),
+			eq(EVENT_WINNER_TABLE.eventId, sql.placeholder("eventId"))
 		))
 		.prepare();
 

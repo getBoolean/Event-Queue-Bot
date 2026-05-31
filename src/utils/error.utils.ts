@@ -154,6 +154,13 @@ export class EventAlreadyExistsWarning extends AbstractWarning {
 	message = "An event with that name already exists in this server";
 }
 
+export class WinnerRoleNotSetWarning extends AbstractWarning {
+	message = "No winner role is configured for this event";
+	embeds = [
+		new EmbedBuilder().setDescription(`Set one with ${commandMention("events", "set")} (the \`winner_role\` option) before declaring winners.`),
+	];
+}
+
 export class OccurrenceAlreadyExistsWarning extends AbstractWarning {
 	message = "An occurrence with that start time already exists for this event";
 }

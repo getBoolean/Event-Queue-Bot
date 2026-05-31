@@ -25,7 +25,7 @@ import {
 	QUEUE_TABLE,
 } from "../db/schema.ts";
 import { Store } from "../db/store.ts";
-import { DisplayUpdateType, EventQueueRole, MemberRemovalReason, RoomScheduling } from "../types/db.types.ts";
+import { DisplayUpdateType, EventQueueRole, MemberRemovalReason, RoomScheduling, SubAutoPullMode } from "../types/db.types.ts";
 import { ClientUtils } from "./client.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
 import {
@@ -40,6 +40,7 @@ import { EventChannelUtils } from "./event-channel.utils.ts";
 import { EventSyncLock } from "./event-sync-lock.utils.ts";
 import { MemberUtils } from "./member.utils.ts";
 import { QueueUtils } from "./queue.utils.ts";
+import { WinnerUtils } from "./winner.utils.ts";
 
 export namespace EventUtils {
 
@@ -52,6 +53,7 @@ export namespace EventUtils {
 		lock?: Job;
 		cleanup?: Job;
 		roomPings: Map<bigint, Job>;
+		roomPulls: Map<bigint, Job>;
 	}
 
 	const occurrenceIdToJobs = new Map<bigint, OccurrenceJobs>();
@@ -142,7 +144,10 @@ export namespace EventUtils {
 			|| update.cleanupOffsetMs !== undefined
 			|| update.roomScheduling !== undefined
 			|| update.roomLengthMs !== undefined
-			|| update.roomCount !== undefined;
+			|| update.roomCount !== undefined
+			|| update.autoPullSubsAtRoomStartToggle !== undefined
+			|| update.shuffleSubsBeforeAutoPullToggle !== undefined
+			|| update.subAutoPullMode !== undefined;
 
 		if (timingChanged) {
 			await rearmAllOccurrences(store, updatedEvent);
@@ -252,7 +257,6 @@ export namespace EventUtils {
 			let recreatedCount = 0;
 			let reappliedRoomCount = 0;
 			let reappliedSubCount = 0;
-			let reshownCount = 0;
 
 			const roomCount = Number(event.roomCount);
 			const roles: EventQueueRole[] = [EventQueueRole.Room, EventQueueRole.Sub];
@@ -338,7 +342,7 @@ export namespace EventUtils {
 			}
 
 			// Step C — re-show every queue display in queue-index order in the event's display channels.
-			reshownCount = await reshowEventQueueDisplays(store, event);
+			const reshownCount = await reshowEventQueueDisplays(store, event);
 
 			// Step D — reconcile channels + auto-created room roles
 			if (event.roomCategoryId) {
@@ -450,6 +454,7 @@ export namespace EventUtils {
 
 	// True iff any of the event's occurrences has a window (role-dependent) that contains `nowMs`.
 	// Room window: [start − createOffsetMs, start + lockOffsetMs). Sub window extends to cleanup.
+	// When autoPullSubsAtRoomStartToggle is on, the room lock fires at exact start (lockOffsetMs is ignored).
 	// Empty occurrence list → false (covers `/events add` before any occurrence is scheduled).
 	function shouldEventQueueBeUnlocked(
 		event: DbEvent,
@@ -461,10 +466,17 @@ export namespace EventUtils {
 			const start = Number(occ.startTime);
 			const openAt = start - Number(event.createOffsetMs);
 			const closeAt = role === EventQueueRole.Room
-				? start + Number(event.lockOffsetMs)
+				? (event.autoPullSubsAtRoomStartToggle ? start : start + Number(event.lockOffsetMs))
 				: getRoomsFinishMs(event, start) + Number(event.cleanupOffsetMs);
 			return nowMs >= openAt && nowMs < closeAt;
 		});
+	}
+
+	function computeRoomPingAt(event: DbEvent, startMs: number, queueIndex: bigint): number {
+		if (event.roomScheduling === RoomScheduling.Sequential && event.roomLengthMs) {
+			return startMs + (Number(queueIndex) - 1) * Number(event.roomLengthMs);
+		}
+		return startMs;
 	}
 
 	async function armOccurrence(event: DbEvent, occurrence: DbEventOccurrence) {
@@ -473,7 +485,12 @@ export namespace EventUtils {
 		const now = Date.now();
 		const startMs = Number(occurrence.startTime);
 		const openAt = startMs - Number(event.createOffsetMs);
-		const lockAt = startMs + Number(event.lockOffsetMs);
+		// When autoPullSubsAtRoomStartToggle is on, the room queue must lock at exact startTime so the
+		// per-room auto-pull (which locks the paired sub queue) sees a consistent snapshot. lockOffsetMs
+		// is preserved on the schema for the legacy path but ignored here.
+		const lockAt = event.autoPullSubsAtRoomStartToggle
+			? startMs
+			: startMs + Number(event.lockOffsetMs);
 		const cleanupAt = getRoomsFinishMs(event, startMs) + Number(event.cleanupOffsetMs);
 
 		const guild = await ClientUtils.getGuild(occurrence.guildId);
@@ -483,8 +500,11 @@ export namespace EventUtils {
 		const pingedQueueIds = new Set(
 			Queries.selectOccurrenceRoomPings({ occurrenceId: occurrence.id }).map(r => r.eventQueueId)
 		);
+		const pulledRoomIds = new Set(
+			Queries.selectOccurrenceRoomPulls({ occurrenceId: occurrence.id }).map(r => r.eventQueueId)
+		);
 
-		const jobs: OccurrenceJobs = { roomPings: new Map() };
+		const jobs: OccurrenceJobs = { roomPings: new Map(), roomPulls: new Map() };
 
 		// Open action
 		jobs.open = await armPhase(
@@ -506,18 +526,12 @@ export namespace EventUtils {
 			"lock",
 		);
 
-		// Room pings
-		const eventQueues = Queries.selectManyEventQueues({ guildId: event.guildId, eventId: event.id })
+		// Room pings (and optional room-start auto-pulls)
+		const roomEventQueues = Queries.selectManyEventQueues({ guildId: event.guildId, eventId: event.id })
 			.filter(eq => eq.queueRole === EventQueueRole.Room);
 
-		for (const eq of eventQueues) {
-			let pingAt: number;
-			if (event.roomScheduling === RoomScheduling.Sequential && event.roomLengthMs) {
-				pingAt = startMs + (Number(eq.queueIndex) - 1) * Number(event.roomLengthMs);
-			}
-			else {
-				pingAt = startMs;
-			}
+		for (const eq of roomEventQueues) {
+			const pingAt = computeRoomPingAt(event, startMs, eq.queueIndex);
 
 			const pingJob = await armPhase(
 				pingAt,
@@ -532,6 +546,26 @@ export namespace EventUtils {
 				"room ping",
 			);
 			if (pingJob) jobs.roomPings.set(eq.id, pingJob);
+		}
+
+		if (event.autoPullSubsAtRoomStartToggle) {
+			for (const eq of roomEventQueues) {
+				const pullAt = computeRoomPingAt(event, startMs, eq.queueIndex);
+
+				const pullJob = await armPhase(
+					pullAt,
+					now,
+					pulledRoomIds.has(eq.id),
+					() => runRoomPullAction(occurrence.id, eq),
+					() => store.insertOccurrenceRoomPull({
+						occurrenceId: occurrence.id,
+						eventQueueId: eq.id,
+						handledAt: BigInt(Date.now()),
+					}),
+					"room pull",
+				);
+				if (pullJob) jobs.roomPulls.set(eq.id, pullJob);
+			}
 		}
 
 		// Cleanup action — no flag needed; cleanup deletes the row (cascades the junction)
@@ -555,6 +589,7 @@ export namespace EventUtils {
 		jobs.lock?.cancel();
 		jobs.cleanup?.cancel();
 		jobs.roomPings.forEach(job => job.cancel());
+		jobs.roomPulls.forEach(job => job.cancel());
 		occurrenceIdToJobs.delete(occurrenceId);
 	}
 
@@ -656,6 +691,9 @@ export namespace EventUtils {
 		if (!ctx) return;
 		const { occurrence, event, store, queues } = ctx;
 
+		// Revoke the previous occurrence's winner roles — the badge lasts only until the next opens.
+		await WinnerUtils.revokeEventWinners(store, event);
+
 		// Unlock all event queues
 		if (queues.length > 0) {
 			await QueueUtils.updateQueues(store, queues, { lockToggle: false } as Partial<DbQueue>);
@@ -733,6 +771,93 @@ export namespace EventUtils {
 		}
 		catch (e) {
 			console.error("Failed to send room ping:", (e as Error).message);
+		}
+	}
+
+	async function runRoomPullAction(occurrenceId: bigint, roomEventQueue: DbEventQueue) {
+		const ctx = await getEventContext(occurrenceId);
+		if (!ctx) return;
+		const { event, store, eventQueues } = ctx;
+
+		const subEventQueue = eventQueues.find(eq =>
+			eq.queueRole === EventQueueRole.Sub && eq.queueIndex === roomEventQueue.queueIndex
+		);
+		if (!subEventQueue) {
+			console.warn(`EventUtils.runRoomPullAction: no paired sub event-queue for room index ${roomEventQueue.queueIndex} of event ${event.id} — skipping`);
+			return;
+		}
+
+		const roomQueue = Queries.selectQueue({ guildId: store.guild.id, id: roomEventQueue.queueId });
+		const subQueue = Queries.selectQueue({ guildId: store.guild.id, id: subEventQueue.queueId });
+		if (!roomQueue || !subQueue) {
+			console.warn(`EventUtils.runRoomPullAction: missing queue rows for event ${event.id} room index ${roomEventQueue.queueIndex} — skipping`);
+			return;
+		}
+
+		// Always lock the paired sub queue first — auto-pull bundles sub-lock atomically.
+		await QueueUtils.updateQueues(store, [subQueue], { lockToggle: true } as Partial<DbQueue>);
+
+		if (event.shuffleSubsBeforeAutoPullToggle) {
+			await MemberUtils.shuffleMembers(store, subQueue, undefined);
+		}
+
+		const currentRoomCount = Queries.selectManyMembers({ guildId: store.guild.id, queueId: roomQueue.id }).length;
+		const subAvailable = Queries.selectManyMembers({ guildId: store.guild.id, queueId: subQueue.id }).length;
+		const count = roomQueue.size == null
+			? subAvailable
+			: Math.min(Number(roomQueue.size) - currentRoomCount, subAvailable);
+
+		if (count <= 0) {
+			console.log(`EventUtils.runRoomPullAction: nothing to pull for event ${event.id} room index ${roomEventQueue.queueIndex} (currentRoomCount=${currentRoomCount}, subAvailable=${subAvailable}, size=${roomQueue.size}) — skipping pull`);
+			return;
+		}
+
+		if (event.subAutoPullMode === SubAutoPullMode.Promote) {
+			const subMembers = Queries.selectManyMembers({
+				guildId: store.guild.id,
+				queueId: subQueue.id,
+				count,
+			});
+			for (const subMember of subMembers) {
+				const jsMember = await store.jsMember(subMember.userId);
+				if (!jsMember) continue;
+
+				// Delete from sub queue directly via store (skips MemberUtils.deleteMembers messaging,
+				// DM-on-pull, voice destination, and role-on-pull side effects — we promote silently).
+				store.deleteMember({ id: subMember.id }, MemberRemovalReason.Pulled);
+
+				if (subQueue.roleInQueueId) {
+					await MemberUtils.modifyMemberRoles(store, subMember.userId, subQueue.roleInQueueId, "remove")
+						.catch(e => console.error(`EventUtils.runRoomPullAction: failed to remove sub roleInQueueId from user ${subMember.userId}:`, e));
+				}
+
+				try {
+					// force:true bypasses verifyMemberEligibility so the room queue's lockToggle=true
+					// (set by runLockAction) does not block this system insert.
+					await MemberUtils.insertMember({
+						store,
+						queue: roomQueue,
+						jsMember,
+						message: subMember.message ?? undefined,
+						force: true,
+					});
+				}
+				catch (e) {
+					console.error(`EventUtils.runRoomPullAction: failed to promote user ${subMember.userId} into room queue ${roomQueue.id}:`, e);
+				}
+			}
+			await DisplayUtils.requestDisplayUpdate({ store, queueId: subQueue.id });
+			await DisplayUtils.requestDisplayUpdate({ store, queueId: roomQueue.id });
+		}
+		else {
+			await MemberUtils.deleteMembers({
+				store,
+				queues: [subQueue],
+				reason: MemberRemovalReason.Pulled,
+				by: { count },
+				force: true,
+			});
+			await DisplayUtils.requestDisplayUpdate({ store, queueId: roomQueue.id });
 		}
 	}
 

@@ -5,6 +5,7 @@ import { AdminOption } from "./options/admin.option.ts";
 import { AdminsOption } from "./options/admins.option.ts";
 import { AnnouncementChannelOption } from "./options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "./options/announcement-message.option.ts";
+import { AutoPullSubsAtRoomStartToggleOption } from "./options/auto-pull-subs-at-room-start-toggle.option.ts";
 import { AutopullToggleOption } from "./options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "./options/badge-toggle.option.ts";
 import { BlacklistedOption } from "./options/blacklisted.option.ts";
@@ -68,6 +69,7 @@ import { RoleOnRoomPullOption } from "./options/role-on-room-pull.option.ts";
 import { RoleOnSubPullOption } from "./options/role-on-sub-pull.option.ts";
 import { RoomCategoryOption } from "./options/room-category.option.ts";
 import { RoomCountOption } from "./options/room-count.option.ts";
+import { RoomIndexOption } from "./options/room-index.option.ts";
 import { RoomLengthMinutesOption } from "./options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "./options/room-ping-message.option.ts";
 import { RoomQueuesChannelOption } from "./options/room-queues-channel.option.ts";
@@ -75,10 +77,12 @@ import { RoomSchedulingOption } from "./options/room-scheduling.option.ts";
 import { ScheduleOption } from "./options/schedule.option.ts";
 import { SchedulesOption } from "./options/schedules.option.ts";
 import { ScopeOption } from "./options/scope.option.ts";
+import { ShuffleSubsBeforeAutoPullToggleOption } from "./options/shuffle-subs-before-auto-pull-toggle.option.ts";
 import { SizeOption } from "./options/size.option.ts";
 import { SlowmodeOption } from "./options/slowmode.option.ts";
 import { SlowmodeTimeOption } from "./options/slowmode-time.option.ts";
 import { StartTimeOption } from "./options/start-time.option.ts";
+import { SubAutoPullModeOption } from "./options/sub-auto-pull-mode.option.ts";
 import { SubQueuesChannelOption } from "./options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "./options/timestamp-type.option.ts";
 import { TimezoneOption } from "./options/timezone.option.ts";
@@ -89,6 +93,7 @@ import { VoiceSourceChannelOption } from "./options/voice-source-channel.option.
 import { VoicesOption } from "./options/voices.option.ts";
 import { WhitelistedOption } from "./options/whitelisted.option.ts";
 import { WhitelistedsOption } from "./options/whitelisteds.option.ts";
+import { WinnerRoleOption } from "./options/winner-role.option.ts";
 import { YearOption } from "./options/year.option.ts";
 
 export const OPTIONS = new Collection<string, BaseOption>([
@@ -96,6 +101,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[AdminsOption.ID, new AdminsOption()],
 	[AnnouncementChannelOption.ID, new AnnouncementChannelOption()],
 	[AnnouncementMessageOption.ID, new AnnouncementMessageOption()],
+	[AutoPullSubsAtRoomStartToggleOption.ID, new AutoPullSubsAtRoomStartToggleOption()],
 	[AutopullToggleOption.ID, new AutopullToggleOption()],
 	[BadgeToggleOption.ID, new BadgeToggleOption()],
 	[BlacklistedOption.ID, new BlacklistedOption()],
@@ -156,6 +162,7 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[RoleOnSubPullOption.ID, new RoleOnSubPullOption()],
 	[RoomCategoryOption.ID, new RoomCategoryOption()],
 	[RoomCountOption.ID, new RoomCountOption()],
+	[RoomIndexOption.ID, new RoomIndexOption()],
 	[RoomLengthMinutesOption.ID, new RoomLengthMinutesOption()],
 	[RoomPingMessageOption.ID, new RoomPingMessageOption()],
 	[RoomQueuesChannelOption.ID, new RoomQueuesChannelOption()],
@@ -166,10 +173,12 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[ScheduleOption.ID, new ScheduleOption()],
 	[SchedulesOption.ID, new SchedulesOption()],
 	[ScopeOption.ID, new ScopeOption()],
+	[ShuffleSubsBeforeAutoPullToggleOption.ID, new ShuffleSubsBeforeAutoPullToggleOption()],
 	[SizeOption.ID, new SizeOption()],
 	[SlowmodeOption.ID, new SlowmodeOption()],
 	[SlowmodeTimeOption.ID, new SlowmodeTimeOption()],
 	[StartTimeOption.ID, new StartTimeOption()],
+	[SubAutoPullModeOption.ID, new SubAutoPullModeOption()],
 	[SubQueuesChannelOption.ID, new SubQueuesChannelOption()],
 	[TimestampTypeOption.ID, new TimestampTypeOption()],
 	[TimezoneOption.ID, new TimezoneOption()],
@@ -181,5 +190,6 @@ export const OPTIONS = new Collection<string, BaseOption>([
 	[VoiceOnlyToggleOption.ID, new VoiceOnlyToggleOption()],
 	[WhitelistedOption.ID, new WhitelistedOption()],
 	[WhitelistedsOption.ID, new WhitelistedsOption()],
+	[WinnerRoleOption.ID, new WinnerRoleOption()],
 	[YearOption.ID, new YearOption()],
 ]);

@@ -12,6 +12,7 @@ import {
 	RoomScheduling,
 	ScheduleCommand,
 	Scope,
+	SubAutoPullMode,
 	TimestampType,
 } from "../types/db.types.ts";
 
@@ -184,8 +185,12 @@ export const EVENT_TABLE = sqliteTable("event", ({
 	roleOnRoomPull: integer("role_on_room_pull", { mode: "boolean" }).notNull().default(false),
 	roleInSubQueue: integer("role_in_sub_queue", { mode: "boolean" }).notNull().default(false),
 	roleOnSubPull: integer("role_on_sub_pull", { mode: "boolean" }).notNull().default(false),
+	autoPullSubsAtRoomStartToggle: integer("auto_pull_subs_at_room_start_toggle", { mode: "boolean" }).notNull().default(false),
+	shuffleSubsBeforeAutoPullToggle: integer("shuffle_subs_before_auto_pull_toggle", { mode: "boolean" }).notNull().default(false),
+	subAutoPullMode: text("sub_auto_pull_mode").$type<SubAutoPullMode>().notNull().default(SubAutoPullMode.Drain),
 	createDiscordEvent: integer("create_discord_event", { mode: "boolean" }).notNull().default(true),
 	discordEventDescription: text("discord_event_description"),
+	winnerRoleId: text("winner_role_id").$type<Snowflake>(),
 }),
 (table) => ({
 	unq: unique().on(table.name, table.guildId),
@@ -233,6 +238,22 @@ export type NewEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE
 export type DbEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.$inferSelect;
 
 
+export const EVENT_OCCURRENCE_ROOM_PULL_TABLE = sqliteTable("event_occurrence_room_pull", ({
+	occurrenceId: integer("occurrence_id").$type<bigint>().notNull()
+		.references(() => EVENT_OCCURRENCE_TABLE.id, { onDelete: "cascade" }),
+	eventQueueId: integer("event_queue_id").$type<bigint>().notNull()
+		.references(() => EVENT_QUEUE_TABLE.id, { onDelete: "cascade" }),
+	handledAt: integer("handled_at").$type<bigint>().notNull(),
+}),
+(table) => ({
+	pk: primaryKey({ columns: [table.occurrenceId, table.eventQueueId] }),
+	occurrenceIdIndex: index("event_occurrence_room_pull_occurrence_id_index").on(table.occurrenceId),
+}));
+
+export type NewEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferInsert;
+export type DbEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferSelect;
+
+
 export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
 	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
 
@@ -253,6 +274,26 @@ export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
 
 export type NewEventQueue = typeof EVENT_QUEUE_TABLE.$inferInsert;
 export type DbEventQueue = typeof EVENT_QUEUE_TABLE.$inferSelect;
+
+
+export const EVENT_WINNER_TABLE = sqliteTable("event_winner", ({
+	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
+
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
+	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
+	roomIndex: integer("room_index").$type<bigint>().notNull(),
+	userId: text("user_id").$type<Snowflake>().notNull(),
+	roleId: text("role_id").$type<Snowflake>().notNull(),
+	declaredAt: integer("declared_at").$type<bigint>().notNull().$defaultFn(() => BigInt(Date.now())),
+}),
+(table) => ({
+	unq: unique().on(table.eventId, table.roomIndex, table.userId),
+	guildIdIndex: index("event_winner_guild_id_index").on(table.guildId),
+	eventIdIndex: index("event_winner_event_id_index").on(table.eventId),
+}));
+
+export type NewEventWinner = typeof EVENT_WINNER_TABLE.$inferInsert;
+export type DbEventWinner = typeof EVENT_WINNER_TABLE.$inferSelect;
 
 
 export const EVENT_DEFAULT_TABLE = sqliteTable("event_default", ({

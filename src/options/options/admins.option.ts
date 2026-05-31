@@ -30,9 +30,10 @@ export class AdminsOption extends CustomOption {
 				return admins;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, admins);
-			default:
+			default: {
 				const admin = AdminOption.findAdmin(admins, inputString);
 				return admin ? new Collection([[admin.id, admin]]) : null;
+			}
 		}
 	}
 

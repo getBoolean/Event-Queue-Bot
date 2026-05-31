@@ -1,22 +1,16 @@
-# ---- Base ----
-FROM node:24-alpine AS base
+# syntax=docker/dockerfile:1.7
 
+# ---- deps (install + prebuild verification) ----
+FROM node:24-alpine AS deps
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --prefer-offline --no-audit --no-fund \
+ && node -e "require('better-sqlite3'); require.resolve('@swc-node/register'); require.resolve('@swc/core'); console.log('native + loader prebuild OK')"
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
-
-# ---- Dependencies ----
-FROM base AS dependencies
-
-# Install npm dependencies
-RUN npm ci
-
-# ---- Production ----
-FROM dependencies AS production
-
-# Copy all source files
+# ---- runtime ----
+FROM node:24-alpine AS runtime
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Default command to start the application
 ENTRYPOINT ["npm", "start"]

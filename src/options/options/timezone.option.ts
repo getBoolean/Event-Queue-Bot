@@ -28,7 +28,7 @@ export class TimezoneOption extends CustomOption {
 		if (filtered.length < MAX_SELECT_MENU_OPTIONS) {
 			sampled = filtered;
 		}
- 		else {
+		else {
 			const groups = groupBy(filtered, tz => tz.split("/")[0]);
 			for (let i = 0; sampled.length < MAX_SELECT_MENU_OPTIONS; i++) {
 				for (const group of Object.values(groups)) {

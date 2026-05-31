@@ -29,9 +29,10 @@ export class QueuesOption extends CustomOption {
 				return scopedQueues;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, scopedQueues);
-			default:
+			default: {
 				const queue = QueueOption.findQueue(scopedQueues, inputString);
 				return queue ? new Collection([[queue.id, queue]]) : null;
+			}
 		}
 	}
 

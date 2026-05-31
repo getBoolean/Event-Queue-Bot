@@ -31,9 +31,10 @@ export class DisplaysOption extends CustomOption {
 				return displays;
 			case CHOICE_SOME.value:
 				return await this.getViaSelectMenu(inter as SlashInteraction, displays);
-			default:
+			default: {
 				const display = DisplayOption.findDisplay(displays, inputString);
 				return display ? new Collection([[display.id, display]]) : null;
+			}
 		}
 	}
 

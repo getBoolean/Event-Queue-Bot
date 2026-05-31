@@ -50,7 +50,7 @@ write_files:
       fi
 
       docker compose up -d --build
-      docker image prune -f
+      docker image prune -f --filter "until=72h"
       docker logs --tail 100 queue-bot
 
   - path: /etc/sudoers.d/event-queue-bot-deploy

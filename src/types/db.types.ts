@@ -93,4 +93,9 @@ export enum RoomScheduling {
 	Sequential = "sequential",
 }
 
+export enum SubAutoPullMode {
+	Drain = "drain",
+	Promote = "promote",
+}
+
 export type GuildStat = keyof Omit<DbGuild, "guildId" | "joinTime" | "lastUpdateTime">;
