@@ -1257,6 +1257,7 @@ export namespace Queries {
 			eq(EVENT_WINNER_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_WINNER_TABLE.eventId, sql.placeholder("eventId"))
 		))
+		.orderBy(EVENT_WINNER_TABLE.id)
 		.prepare();
 
 	// Event Defaults
