@@ -1,0 +1,16 @@
+services:
+  app:
+    image: ghcr.io/getboolean/event-queue-bot:${IMAGE_TAG:-master}
+    container_name: ${CONTAINER_NAME:-queue-bot}
+    restart: always
+    env_file: .env
+    volumes:
+      - ./data:/app/data # Bind mount for database
+      - ./.env:/app/.env # Bind mount for .env file
+    stdin_open: true # Allow stdin to be open
+    tty: true # Allocate a pseudo-TTY
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
