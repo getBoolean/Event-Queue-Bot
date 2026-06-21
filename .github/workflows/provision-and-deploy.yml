@@ -227,12 +227,6 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_BRANCH }}
 
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2.5.2
-        with:
-          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          version: 1.159.0
-
       - name: Configure SSH
         env:
           SSH_DEPLOY_PRIVATE_KEY: ${{ secrets.SSH_DEPLOY_PRIVATE_KEY }}
@@ -270,57 +264,6 @@ jobs:
 
           echo "Timed out waiting for cloud-init" >&2
           exit 1
-
-      # One-time, idempotent migration of the legacy dev droplet's database onto
-      # the shared droplet's nightly app dir. No-op once the nightly database
-      # exists or after the legacy event-queue-bot-dev droplet is deleted.
-      - name: Migrate legacy dev database (one-time)
-        if: github.ref_name != 'prod'
-        env:
-          SSH_HOST_PUBLIC_KEY: ${{ secrets.SSH_HOST_PUBLIC_KEY }}
-        run: |
-          set -euo pipefail
-
-          if ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "test -s /opt/event-queue-bot-nightly/data/main.sqlite"; then
-            echo "Nightly database already present — skipping migration."
-            exit 0
-          fi
-
-          old_ip=$(doctl compute droplet list \
-            --format Name,Status,PublicIPv4 \
-            --no-header \
-            | awk '$1 == "event-queue-bot-dev" && $2 == "active" && $3 != "" { print $3; exit }')
-          if [ -z "${old_ip}" ]; then
-            echo "No active event-queue-bot-dev droplet found — nothing to migrate."
-            exit 0
-          fi
-
-          echo "Migrating database from legacy dev droplet ${old_ip}"
-          printf '%s %s\n' "${old_ip}" "${SSH_HOST_PUBLIC_KEY}" >> ~/.ssh/known_hosts
-
-          # Stop the legacy container so the SQLite files are a consistent snapshot.
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${old_ip}" \
-            "cd /opt/event-queue-bot-dev && (docker compose down || docker stop queue-bot || true)" || true
-
-          tmpdir="$(mktemp -d)"
-          rsync -az -e "ssh -i ~/.ssh/bot_deploy_key" \
-            --include='main.sqlite' \
-            --include='main.sqlite-wal' \
-            --include='main.sqlite-shm' \
-            --exclude='*' \
-            deploy@"${old_ip}":/opt/event-queue-bot-dev/data/ "${tmpdir}/"
-
-          if [ ! -s "${tmpdir}/main.sqlite" ]; then
-            echo "Legacy main.sqlite missing or empty — nothing to migrate."
-            exit 0
-          fi
-
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "mkdir -p /opt/event-queue-bot-nightly/data"
-          rsync -az -e "ssh -i ~/.ssh/bot_deploy_key" \
-            "${tmpdir}/" deploy@"${BOT_HOST}":/opt/event-queue-bot-nightly/data/
-
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "test -s /opt/event-queue-bot-nightly/data/main.sqlite"
-          echo "Migration complete. Delete the legacy event-queue-bot-dev droplet manually once verified."
 
       - name: Build bot environment
         env:

@@ -275,24 +275,3 @@ Firewall: event-queue-bot-ssh
 SSH key:  event-queue-bot-deploy
 Tag:      event-queue-bot
 ```
-
-## Migrating from the old dual-droplet setup
-
-If you previously ran separate `event-queue-bot` (prod) and `event-queue-bot-dev`
-(dev) droplets, the shared droplet reuses the existing prod droplet, so prod data
-stays in place. The `deploy` job migrates the old dev database automatically: on
-the first dev (`master`) deploy it detects an active `event-queue-bot-dev`
-droplet, stops its container for a consistent snapshot, and copies
-`main.sqlite` (plus any `-wal`/`-shm`) into `/opt/event-queue-bot-nightly/data`
-on the shared droplet. The step is idempotent — it is a no-op once the nightly
-database exists or the old droplet is gone.
-
-After confirming the `queue-bot-nightly` container is healthy on the shared
-droplet, delete the now-orphaned dev resources manually:
-
-```text
-Droplet:  event-queue-bot-dev
-Firewall: event-queue-bot-dev-ssh
-SSH key:  event-queue-bot-dev-deploy
-Tag:      event-queue-bot-dev
-```
