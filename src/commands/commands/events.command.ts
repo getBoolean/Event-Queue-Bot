@@ -1208,8 +1208,8 @@ export class EventsCommand extends AdminCommand {
 				`- ${commandMention("events", "winners")} lists current winners; ${commandMention("events", "clear-winners")} revokes early.\n` +
 				"- With multiple occurrences scheduled, the **earliest** one to open revokes the role.\n\n" +
 				"**Auto-pull subs at room start:**\n" +
-				"- `auto_pull_subs_at_room_start_toggle` (default `false`) — at each room's start, lock paired sub and pull subs into the room. Forces room lock at exact `start_time` (ignores `lock_offset`).\n" +
-				"- `shuffle_subs_before_auto_pull_toggle` (default `false`) — shuffle the sub queue before the pull.\n" +
+				"- `auto_pull_subs_room_start_toggle` (default `false`) — at each room's start, lock paired sub and pull subs into the room. Forces room lock at exact `start_time` (ignores `lock_offset`).\n" +
+				"- `shuffle_subs_before_pull_toggle` (default `false`) — shuffle the sub queue before the pull.\n" +
 				"- `sub_auto_pull_mode` (default `drain`) — `drain`: standard `/pull` side effects fire. `promote`: move into room queue (bypasses room lock), no sub-side pull effects.\n\n" +
 				"**Extra per-room channels:**\n" +
 				`- ${commandMention("events", "add-room-channel")} adds an extra per-room channel like \`room-code-{N}\`, with optional slowmode.\n` +
