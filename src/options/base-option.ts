@@ -73,6 +73,10 @@ export abstract class BaseOption<BuilderType extends ApplicationCommandOptionBas
 		const minValue = this.config?.minValue ?? this.minValue;
 		const required = this.config?.required ?? this.required;
 
+		if (id.length > 32) {
+			throw new Error(`Error creating option ${id}. name length must be <= 32 (attempted: ${id.length})`);
+		}
+
 		optionBuilder.setName(id).setDescription(this.buildDescription());
 
 		if (required) {
