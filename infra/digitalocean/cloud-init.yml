@@ -25,44 +25,69 @@ users:
       - {{SSH_PUBLIC_KEY_YAML}}
 
 write_files:
-  # Thin root wrappers. They exec the repo-synced scripts under
-  # /opt/event-queue-bot-bin so the prepare/deploy logic can be updated on every
-  # deploy without re-provisioning. The deploy user is already in the docker
-  # group (root-equivalent), so running the deploy-owned scripts as root via
-  # sudo adds no extra privilege. Only these wrappers, the sudoers entry, and
-  # the cloud-init runcmd require a re-provision to change.
-  - path: /usr/local/bin/prepare-event-queue-bot-dir
-    owner: root:root
-    permissions: "0755"
-    content: |
-      #!/usr/bin/env bash
-      set -euo pipefail
-      SCRIPT=/opt/event-queue-bot-bin/prepare-event-queue-bot-dir.sh
-      if [ ! -x "$SCRIPT" ]; then
-        echo "Missing $SCRIPT; the deploy workflow syncs it before use." >&2
-        exit 1
-      fi
-      exec "$SCRIPT" "$@"
-
   - path: /usr/local/bin/deploy-event-queue-bot
     owner: root:root
     permissions: "0755"
     content: |
       #!/usr/bin/env bash
       set -euo pipefail
-      SCRIPT=/opt/event-queue-bot-bin/deploy-event-queue-bot.sh
-      if [ ! -x "$SCRIPT" ]; then
-        echo "Missing $SCRIPT; the deploy workflow syncs it before use." >&2
+
+      if [ "$#" -ne 1 ]; then
+        echo "Usage: deploy-event-queue-bot <app-path>" >&2
         exit 1
       fi
-      exec "$SCRIPT" "$@"
+
+      APP_DIR="$1"
+
+      mkdir -p "$APP_DIR/data"
+      chown -R deploy:deploy "$APP_DIR"
+
+      cd "$APP_DIR"
+
+      if [ ! -f docker-compose.app.yml ]; then
+        echo "Missing $APP_DIR/docker-compose.app.yml; sync deploy artifacts before deploying." >&2
+        exit 1
+      fi
+
+      if [ ! -s .env ]; then
+        echo "Missing $APP_DIR/.env; refusing to start the bot." >&2
+        exit 1
+      fi
+
+      # shellcheck disable=SC1091
+      set -a
+      source .env
+      set +a
+
+      if [ -z "${CONTAINER_NAME:-}" ]; then
+        echo "CONTAINER_NAME is required in $APP_DIR/.env" >&2
+        exit 1
+      fi
+
+      docker compose -f docker-compose.app.yml pull
+      docker compose -f docker-compose.app.yml up -d
+      docker image prune -f --filter "until=72h"
+
+      for attempt in {1..12}; do
+        if docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null | grep -qx true; then
+          break
+        fi
+        if [ "$attempt" -eq 12 ]; then
+          echo "Bot container did not start after deploy" >&2
+          docker ps -a --filter "name=$CONTAINER_NAME" || true
+          docker logs --tail 200 "$CONTAINER_NAME" 2>&1 || true
+          exit 1
+        fi
+        sleep 2
+      done
+
+      docker logs --tail 100 "$CONTAINER_NAME"
 
   - path: /etc/sudoers.d/event-queue-bot-deploy
     owner: root:root
     permissions: "0440"
     content: |
       deploy ALL=(root) NOPASSWD: /usr/local/bin/deploy-event-queue-bot
-      deploy ALL=(root) NOPASSWD: /usr/local/bin/prepare-event-queue-bot-dir
 
   - path: /etc/ssh/ssh_host_ed25519_key
     owner: root:root
@@ -86,5 +111,5 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now docker
-  - mkdir -p /opt/event-queue-bot-bin /opt/event-queue-bot/data /opt/event-queue-bot/logs /opt/event-queue-bot-nightly/data /opt/event-queue-bot-nightly/logs
-  - chown -R deploy:deploy /opt/event-queue-bot-bin /opt/event-queue-bot /opt/event-queue-bot-nightly
+  - mkdir -p /opt/event-queue-bot/data /opt/event-queue-bot-nightly/data
+  - chown -R deploy:deploy /opt/event-queue-bot /opt/event-queue-bot-nightly

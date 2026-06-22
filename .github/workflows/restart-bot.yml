@@ -35,7 +35,7 @@ jobs:
 
     env:
       DO_DROPLET_NAME: ${{ vars.DO_DROPLET_NAME || 'event-queue-bot' }}
-      APP_PATH: ${{ inputs.environment == 'prod' && '/opt/event-queue-bot' || '/opt/event-queue-bot-nightly' }}
+      APP_PATH: ${{ vars.APP_PATH || (inputs.environment == 'prod' && '/opt/event-queue-bot' || '/opt/event-queue-bot-nightly') }}
       CONTAINER_NAME: ${{ inputs.environment == 'prod' && 'queue-bot' || 'queue-bot-nightly' }}
 
     steps:

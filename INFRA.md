@@ -35,11 +35,15 @@ A `prod` environment and `prod` branch are required for prod deploys — see
 
 Create a DigitalOcean API token with these custom scopes:
 
-- `droplet:read`, `droplet:create`
+- `droplet:read`, `droplet:create`, `droplet:delete`
 - `ssh_key:read`, `ssh_key:create`
 - `firewall:read`, `firewall:create`, `firewall:update`
 - `tag:read`, `tag:create`
 - `project:read`, `project:create`, `project:update`
+
+`droplet:delete` is required only when tearing down the droplet for a
+re-provision (see [Re-provisioning via the CLI](#re-provisioning-via-the-cli));
+CI day-to-day deploys use the read/create scopes.
 
 Save it as this GitHub repository secret:
 
@@ -143,6 +147,7 @@ default below.
 | `DO_DROPLET_NAME` | repo | `event-queue-bot` |
 | `DO_ENABLE_BACKUPS` | repo | `false` |
 | `DO_SWAP_SIZE` | repo | `1G` |
+| `APP_PATH` | env | branch-derived (see above) |
 | `BOT_TOP_GG_TOKEN` | env | empty |
 | `BOT_PATCH_NOTES_CHANNEL_ID` | env | empty |
 | `BOT_DEFAULT_COLOR` | env | `Random` |
@@ -153,8 +158,8 @@ default below.
 
 The app path, container name, and image tag are derived from the branch by the
 `deploy` job (prod → `/opt/event-queue-bot` / `queue-bot` / `prod`; dev →
-`/opt/event-queue-bot-nightly` / `queue-bot-nightly` / `master`) and are not
-configurable via variables.
+`/opt/event-queue-bot-nightly` / `queue-bot-nightly` / `master`). Override the
+app path per environment with the optional `APP_PATH` variable.
 
 `DO_SWAP_SIZE` accepts a positive integer optionally suffixed `K`/`M`/`G`, or `0` to disable.
 Applied only at first boot via cloud-init — changing it doesn't affect existing droplets.
@@ -177,11 +182,12 @@ In GitHub:
 3. Run the workflow.
 
 The workflow builds and pushes the image to GHCR, creates or reuses the VPS,
-syncs the deploy scripts and `docker-compose.app.yml`, writes `.env`, pulls the
-image, and runs Docker Compose. The droplet's deploy logic lives in
-`infra/digitalocean/*.sh` and is rsynced on every deploy (cloud-init installs
-thin root wrappers that exec them), so logic changes roll out without
-re-provisioning.
+syncs `docker-compose.app.yml`, writes `.env`, pulls the image, and runs Docker
+Compose via `/usr/local/bin/deploy-event-queue-bot` (installed by cloud-init).
+The deploy script and sudoers entry live in cloud-init — changing them requires
+a re-provision. Firewall rules are reconciled by `scripts/ensure-firewall.sh`
+in both the `provision` and `deploy` jobs, so firewall changes apply even when
+provision is skipped.
 
 Future pushes to `master` deploy to dev automatically; each run pauses at
 `gate` for `dev-gate` reviewer approval before `build-and-push`, `discover`,
@@ -235,6 +241,28 @@ protection confirms the head SHA succeeded on dev → merge → prod deploys
 Prod and dev share one droplet but no state: separate containers
 (`queue-bot` vs `queue-bot-nightly`), separate app dirs and `data/main.sqlite`,
 separate Discord applications.
+
+## Re-provisioning via the CLI
+
+When cloud-init changes (deploy script, sudoers, swap size, etc.), delete the
+droplet and re-run the workflow so provision creates a fresh one. The same
+`DIGITALOCEAN_TOKEN` secret CI uses works locally with `doctl`:
+
+```bash
+export DIGITALOCEAN_TOKEN=<your-token>
+doctl auth init -t "$DIGITALOCEAN_TOKEN"
+```
+
+The token needs the scopes listed in [§1](#1-create-digitalocean-token),
+including **`droplet:delete`** for teardown. Typical sequence:
+
+1. Back up both databases (see [Backup Before Deleting](#backup-before-deleting)).
+2. Delete the droplet: `doctl compute droplet delete event-queue-bot` (or the
+   DO console).
+3. Push the updated cloud-init and run `Provision and Deploy Bot` — provision
+   recreates the droplet, then deploy starts the containers.
+4. Restore each database if needed (stop container, copy `main.sqlite` back,
+   restart).
 
 ## Connect to the Droplet
 

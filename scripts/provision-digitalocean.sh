@@ -49,13 +49,7 @@ DO_PROJECT_NAME="${DO_PROJECT_NAME:-Event Queue Bot}"
 DO_PROJECT_PURPOSE="${DO_PROJECT_PURPOSE:-Service or API}"
 DO_PROJECT_ENVIRONMENT="${DO_PROJECT_ENVIRONMENT:-Production}"
 DO_PROJECT_DESCRIPTION="${DO_PROJECT_DESCRIPTION:-}"
-APP_PATH="${APP_PATH:-/opt/event-queue-bot}"
 DO_SWAP_SIZE="${DO_SWAP_SIZE:-1G}"
-
-if [[ ! "$APP_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
-  echo "APP_PATH must be an absolute path containing only letters, numbers, dots, underscores, dashes, and slashes" >&2
-  exit 1
-fi
 
 if [[ ! "$DO_SWAP_SIZE" =~ ^(0|[1-9][0-9]*[KMG]?)$ ]]; then
   echo "DO_SWAP_SIZE must match ^(0|[1-9][0-9]*[KMG]?)$ (e.g. 0 to disable, 512M, 1G)" >&2
@@ -74,17 +68,14 @@ printf '%s\n' "$SSH_DEPLOY_PUBLIC_KEY" > "$public_key_file"
 
 ssh_key_fingerprint="$(ssh-keygen -E md5 -lf "$public_key_file" | awk '{print $2}' | sed 's/^MD5://')"
 ssh_public_key_yaml="$(yaml_quote "$SSH_DEPLOY_PUBLIC_KEY")"
-app_path_shell="'$APP_PATH'"
 ssh_host_private_key_b64="$(printf '%s' "$SSH_HOST_PRIVATE_KEY" | base64 -w0)"
 
 SSH_PUBLIC_KEY_YAML="$ssh_public_key_yaml" \
-APP_PATH_SHELL="$app_path_shell" \
 SSH_HOST_PRIVATE_KEY_B64="$ssh_host_private_key_b64" \
 SSH_HOST_PUBLIC_KEY="$SSH_HOST_PUBLIC_KEY" \
 DO_SWAP_SIZE="$DO_SWAP_SIZE" \
 perl -0pe '
   s/\{\{SSH_PUBLIC_KEY_YAML\}\}/$ENV{SSH_PUBLIC_KEY_YAML}/g;
-  s/\{\{APP_PATH_SHELL\}\}/$ENV{APP_PATH_SHELL}/g;
   s/\{\{SSH_HOST_PRIVATE_KEY_B64\}\}/$ENV{SSH_HOST_PRIVATE_KEY_B64}/g;
   s/\{\{SSH_HOST_PUBLIC_KEY\}\}/$ENV{SSH_HOST_PUBLIC_KEY}/g;
   s/\{\{DO_SWAP_SIZE\}\}/$ENV{DO_SWAP_SIZE}/g;
@@ -247,36 +238,8 @@ if [ -n "$DO_PROJECT_NAME" ]; then
   doctl projects resources assign "$project_id" --resource="do:droplet:${droplet_id}" >/dev/null
 fi
 
-echo "Listing Firewalls"
-firewalls_json="$(doctl compute firewall list --output json)"
-firewall_count="$(
-  jq -r --arg name "$DO_FIREWALL_NAME" '[.[] | select(.name == $name)] | length' <<< "$firewalls_json"
-)"
-
-if [ "$firewall_count" -gt 1 ]; then
-  echo "Found multiple DigitalOcean Firewalls named ${DO_FIREWALL_NAME}" >&2
-  exit 1
-fi
-
-inbound_rules="protocol:tcp,ports:22,address:0.0.0.0/0,address:::/0"
-outbound_rules="protocol:icmp,address:0.0.0.0/0,address:::/0 protocol:tcp,ports:all,address:0.0.0.0/0,address:::/0 protocol:udp,ports:all,address:0.0.0.0/0,address:::/0"
-
-if [ "$firewall_count" -eq 1 ]; then
-  firewall_id="$(jq -r --arg name "$DO_FIREWALL_NAME" '.[] | select(.name == $name) | .id' <<< "$firewalls_json")"
-  echo "Updating Firewall ${DO_FIREWALL_NAME}"
-  doctl compute firewall update "$firewall_id" \
-    --name "$DO_FIREWALL_NAME" \
-    --inbound-rules "$inbound_rules" \
-    --outbound-rules "$outbound_rules" \
-    --droplet-ids "$droplet_id"
-else
-  echo "Creating Firewall ${DO_FIREWALL_NAME}"
-  doctl compute firewall create \
-    --name "$DO_FIREWALL_NAME" \
-    --inbound-rules "$inbound_rules" \
-    --outbound-rules "$outbound_rules" \
-    --droplet-ids "$droplet_id"
-fi
+DO_DROPLET_NAME="$DO_DROPLET_NAME" DO_FIREWALL_NAME="$DO_FIREWALL_NAME" \
+  bash "$(dirname "$0")/ensure-firewall.sh"
 
 for attempt in {1..60}; do
   droplet_json="$(doctl compute droplet get "$droplet_id" --output json)"
