@@ -36,10 +36,43 @@ jobs:
       - name: Await reviewer approval
         run: echo "Approved for ${{ github.ref_name }}."
 
-  discover:
+  build-and-push:
     needs: gate
+    if: github.ref_name == 'master' || github.ref_name == 'prod'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: type=ref,event=branch
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  discover:
+    needs: build-and-push
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 
@@ -99,13 +132,11 @@ jobs:
     needs: discover
     if: needs.discover.outputs.droplet_exists != 'true'
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
     permissions:
       contents: read
 
     env:
       DEPLOY_BRANCH: ${{ github.ref_name }}
-      APP_PATH: ${{ vars.APP_PATH || '/opt/event-queue-bot' }}
       DO_REGION: ${{ vars.DO_REGION || 'nyc3' }}
       DO_SIZE: ${{ vars.DO_SIZE || 's-1vcpu-1gb' }}
       DO_IMAGE: ${{ vars.DO_IMAGE || 'ubuntu-24-04-x64' }}
@@ -164,12 +195,17 @@ jobs:
       && (needs.provision.result == 'success' || needs.provision.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'prod' && 'prod' || 'dev' }}
+    concurrency:
+      group: provision-and-deploy-bot-droplet
+      cancel-in-progress: false
     permissions:
       contents: read
 
     env:
       DEPLOY_BRANCH: ${{ github.ref_name }}
-      APP_PATH: ${{ vars.APP_PATH || '/opt/event-queue-bot' }}
+      APP_PATH: ${{ vars.APP_PATH || (github.ref_name == 'prod' && '/opt/event-queue-bot' || '/opt/event-queue-bot-nightly') }}
+      CONTAINER_NAME: ${{ github.ref_name == 'prod' && 'queue-bot' || 'queue-bot-nightly' }}
+      IMAGE_TAG: ${{ github.ref_name }}
       # Coalesce: fresh-provision output wins; otherwise discover's lookup.
       BOT_HOST: ${{ needs.provision.outputs.bot_host || needs.discover.outputs.bot_host }}
 
@@ -190,6 +226,17 @@ jobs:
         uses: actions/checkout@v6.0.2
         with:
           ref: ${{ env.DEPLOY_BRANCH }}
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2.5.2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+          version: 1.159.0
+
+      - name: Ensure firewall allows bot ports
+        env:
+          DO_DROPLET_NAME: ${{ vars.DO_DROPLET_NAME || 'event-queue-bot' }}
+        run: bash scripts/ensure-firewall.sh
 
       - name: Configure SSH
         env:
@@ -218,7 +265,8 @@ jobs:
       - name: Wait for cloud-init
         run: |
           for attempt in {1..30}; do
-            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" "cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot"; then
+            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" \
+              "cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot"; then
               exit 0
             fi
 
@@ -252,26 +300,35 @@ jobs:
             printf 'ENABLE_LEGACY_MIGRATION=%s\n' "${BOT_ENABLE_LEGACY_MIGRATION:-false}"
             printf 'FORCE_SEND_PATCH_NOTES=%s\n' "${BOT_FORCE_SEND_PATCH_NOTES:-false}"
             printf 'SILENT=%s\n' "${BOT_SILENT:-false}"
+            printf 'CONTAINER_NAME=%s\n' "${CONTAINER_NAME}"
+            printf 'IMAGE_TAG=%s\n' "${IMAGE_TAG}"
           } > "${RUNNER_TEMP}/bot.env"
 
-      - name: Sync repository to VPS
+      - name: Sync deploy artifacts to VPS
         run: |
-          rsync -az --delete \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude 'node_modules' \
-            --exclude 'data/main.sqlite' \
-            --exclude 'data/backups' \
-            --exclude 'data/migrations/legacy-export' \
-            --exclude 'logs' \
-            --exclude '.env' \
+          # Pre-create the bind-mount targets so Docker mounts a file/dir, not a
+          # new directory in place of the sqlite file. The compose file mounts
+          # data/main.sqlite and data/backups individually (not the whole data
+          # dir) so the image's data/migrations is not shadowed.
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" \
+            "mkdir -p '${APP_PATH}/data/backups' && touch '${APP_PATH}/data/main.sqlite'"
+          rsync -az \
             -e "ssh -i ~/.ssh/bot_deploy_key" \
-            ./ deploy@"${BOT_HOST}":"${APP_PATH}/"
+            docker-compose.app.yml deploy@"${BOT_HOST}":"${APP_PATH}/"
 
       - name: Write bot environment
         run: |
           ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "umask 077 && cat > '${APP_PATH}/.env.tmp' && mv '${APP_PATH}/.env.tmp' '${APP_PATH}/.env'" < "${RUNNER_TEMP}/bot.env"
 
+      - name: Log in to GHCR on VPS
+        env:
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+        run: |
+          if [ -n "${GHCR_PULL_TOKEN}" ]; then
+            ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" \
+              "echo '${GHCR_PULL_TOKEN}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          fi
+
       - name: Deploy bot
         run: |
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "sudo /usr/local/bin/deploy-event-queue-bot"
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "sudo /usr/local/bin/deploy-event-queue-bot '${APP_PATH}'"

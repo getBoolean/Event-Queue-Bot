@@ -1,0 +1,19 @@
+services:
+  app:
+    image: ghcr.io/getboolean/event-queue-bot:${IMAGE_TAG:-master}
+    container_name: ${CONTAINER_NAME:-queue-bot}
+    restart: always
+    env_file: .env
+    volumes:
+      # Mount only persistent state, not the whole data dir, so the
+      # data/migrations baked into the image is not shadowed by the host mount.
+      - ./data/main.sqlite:/app/data/main.sqlite # Bind mount for database
+      - ./data/backups:/app/data/backups # Bind mount for DB backups
+      - ./.env:/app/.env # Bind mount for .env file
+    stdin_open: true # Allow stdin to be open
+    tty: true # Allocate a pseudo-TTY
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

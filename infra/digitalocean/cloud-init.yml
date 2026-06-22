@@ -32,15 +32,25 @@ write_files:
       #!/usr/bin/env bash
       set -euo pipefail
 
-      APP_DIR={{APP_PATH_SHELL}}
+      if [ "$#" -ne 1 ]; then
+        echo "Usage: deploy-event-queue-bot <app-path>" >&2
+        exit 1
+      fi
 
-      mkdir -p "$APP_DIR/data" "$APP_DIR/logs"
+      APP_DIR="$1"
+
+      # The compose file mounts data/main.sqlite and data/backups individually
+      # (not the whole data dir) so the image's data/migrations is not shadowed.
+      # Pre-create both so Docker mounts a file/dir rather than creating a new
+      # directory in place of the sqlite file.
+      mkdir -p "$APP_DIR/data/backups"
+      touch "$APP_DIR/data/main.sqlite"
       chown -R deploy:deploy "$APP_DIR"
 
       cd "$APP_DIR"
 
-      if [ ! -f docker-compose.yml ]; then
-        echo "Missing $APP_DIR/docker-compose.yml; sync the repository before deploying." >&2
+      if [ ! -f docker-compose.app.yml ]; then
+        echo "Missing $APP_DIR/docker-compose.app.yml; sync deploy artifacts before deploying." >&2
         exit 1
       fi
 
@@ -49,9 +59,34 @@ write_files:
         exit 1
       fi
 
-      docker compose up -d --build
+      # shellcheck disable=SC1091
+      set -a
+      source .env
+      set +a
+
+      if [ -z "${CONTAINER_NAME:-}" ]; then
+        echo "CONTAINER_NAME is required in $APP_DIR/.env" >&2
+        exit 1
+      fi
+
+      docker compose -f docker-compose.app.yml pull
+      docker compose -f docker-compose.app.yml up -d
       docker image prune -f --filter "until=72h"
-      docker logs --tail 100 queue-bot
+
+      for attempt in {1..12}; do
+        if docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null | grep -qx true; then
+          break
+        fi
+        if [ "$attempt" -eq 12 ]; then
+          echo "Bot container did not start after deploy" >&2
+          docker ps -a --filter "name=$CONTAINER_NAME" || true
+          docker logs --tail 200 "$CONTAINER_NAME" 2>&1 || true
+          exit 1
+        fi
+        sleep 2
+      done
+
+      docker logs --tail 100 "$CONTAINER_NAME"
 
   - path: /etc/sudoers.d/event-queue-bot-deploy
     owner: root:root
@@ -81,5 +116,5 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   - systemctl enable --now docker
-  - mkdir -p {{APP_PATH_SHELL}}/data {{APP_PATH_SHELL}}/logs
-  - chown -R deploy:deploy {{APP_PATH_SHELL}}
+  - mkdir -p /opt/event-queue-bot/data /opt/event-queue-bot-nightly/data
+  - chown -R deploy:deploy /opt/event-queue-bot /opt/event-queue-bot-nightly

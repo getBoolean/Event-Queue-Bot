@@ -92,11 +92,16 @@ npm start
 
 ## Deploying via GitHub Actions
 
-Pushes to `master` trigger `.github/workflows/provision-and-deploy.yml`, which runs three jobs:
+Pushes to `master` trigger `.github/workflows/provision-and-deploy.yml`, which runs:
 
-1. **`discover`** — looks up the DigitalOcean droplet by `DO_DROPLET_NAME`.
-2. **`provision`** — creates the droplet via cloud-init only if none exists.
-3. **`deploy`** — rsyncs the repo, writes `.env`, and runs `docker compose up -d --build` on the droplet. Pending Drizzle migrations apply automatically on container start.
+1. **`build-and-push`** — builds the Docker image and pushes it to GHCR (`ghcr.io/getboolean/event-queue-bot`) tagged with the branch name (`master` for dev, `prod` for prod).
+2. **`discover`** — looks up the single shared DigitalOcean droplet by `DO_DROPLET_NAME`.
+3. **`provision`** — creates the droplet via cloud-init only if none exists.
+4. **`deploy`** — syncs `docker-compose.app.yml`, writes `.env`, pulls the GHCR image, and runs `sudo /usr/local/bin/deploy-event-queue-bot` on the droplet. Pending Drizzle migrations apply automatically on container start.
+
+The deploy script is installed by cloud-init at `/usr/local/bin/deploy-event-queue-bot`. Changing it requires a re-provision. Firewall rules are reconciled by `scripts/ensure-firewall.sh` on every deploy.
+
+Both environments share one droplet: prod runs the `queue-bot` container from `/opt/event-queue-bot`, and dev runs the `queue-bot-nightly` container from `/opt/event-queue-bot-nightly`, each with its own `data/main.sqlite`. The `deploy` job derives the container name, app path, and image tag from the branch and serializes prod/dev deploys via a shared concurrency group.
 
 Secrets, variables, and SSH key setup live in [`INFRA.md`](INFRA.md). For SSH access to the droplet, see [`INFRA.md` → "Connect to the Droplet"](INFRA.md#connect-to-the-droplet).
 
