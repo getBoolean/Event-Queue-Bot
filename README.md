@@ -19,6 +19,15 @@ Built with [Discord.js](https://discord.js.org/).
 4. **Pull Members.** Members can be pulled by admins by clicking the 'Pull' button under beneath queue displays or via `/pull`.
 5. **Explore other commands.** `/help general` explains how to join and leave queues. `/help admin` explains how admins can manage queues.
 
+## Nightly build
+
+A separate nightly bot tracks the `master` branch and receives changes before they reach the stable bot above.
+
+> [!WARNING]
+> The nightly bot is **unstable** — it runs the latest unreleased code from `master` and may break, lose data, or change behavior without notice. Use it only on a test server.
+
+[Invite the nightly bot](https://discord.com/oauth2/authorize?client_id=1507641818907672688).
+
 ## Demo
 
 <div align="center">
