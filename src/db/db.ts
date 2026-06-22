@@ -4,7 +4,9 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 import * as schema from "./schema.ts";
 
-export const DB_FILEPATH = "data/main.sqlite";
+// Under Vitest, use a throwaway in-memory DB so importing the command/option
+// graph (which transitively connects here) never touches the real dev/prod DB.
+export const DB_FILEPATH = process.env.VITEST ? ":memory:" : "data/main.sqlite";
 export const DB_BACKUP_DIRECTORY = "data/backups";
 export const MIGRATIONS_FOLDER = "data/migrations";
 

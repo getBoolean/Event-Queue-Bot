@@ -355,8 +355,8 @@ export class EventsCommand extends AdminCommand {
 		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock (neg=before)" }),
 		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after rooms finish to cleanup" }),
 		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Use {room_role}, {room_name}, {event_name}, {start_time}, {ping_channel}, /events help for more" }),
+		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template — placeholders: /events help" }),
+		roomPingMessage: new RoomPingMessageOption({ description: "Per-room ping template — placeholders: /events help" }),
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
@@ -368,7 +368,7 @@ export class EventsCommand extends AdminCommand {
 		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
 		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description — placeholders: /events help" }),
 	};
 
 	static async events_add(inter: SlashInteraction) {
@@ -440,8 +440,8 @@ export class EventsCommand extends AdminCommand {
 		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock" }),
 		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after rooms finish to cleanup" }),
 		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Use {room_role}, {room_name}, {event_name}, {start_time}, {ping_channel}, /events help for more" }),
+		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template — placeholders: /events help" }),
+		roomPingMessage: new RoomPingMessageOption({ description: "Per-room ping template — placeholders: /events help" }),
 		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
 		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
 		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
@@ -454,7 +454,7 @@ export class EventsCommand extends AdminCommand {
 		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
 		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
 		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Use {event_name}, {start_time}, {start_time_relative}, {room_queues_channel}, {sub_queues_channel}" }),
+		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description — placeholders: /events help" }),
 		winnerRole: new WinnerRoleOption({ description: "Role granted to declared winners" }),
 	};
 
