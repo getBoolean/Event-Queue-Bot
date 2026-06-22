@@ -6,7 +6,7 @@ import * as schema from "./schema.ts";
 
 export const DB_FILEPATH = "data/main.sqlite";
 export const DB_BACKUP_DIRECTORY = "data/backups";
-export const MIGRATIONS_FOLDER = "migrations";
+export const MIGRATIONS_FOLDER = "data/migrations";
 
 function connect() {
 	const conn = drizzle(Database(DB_FILEPATH).defaultSafeIntegers(), { schema });

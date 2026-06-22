@@ -39,7 +39,12 @@ write_files:
 
       APP_DIR="$1"
 
-      mkdir -p "$APP_DIR/data"
+      # The compose file mounts data/main.sqlite and data/backups individually
+      # (not the whole data dir) so the image's data/migrations is not shadowed.
+      # Pre-create both so Docker mounts a file/dir rather than creating a new
+      # directory in place of the sqlite file.
+      mkdir -p "$APP_DIR/data/backups"
+      touch "$APP_DIR/data/main.sqlite"
       chown -R deploy:deploy "$APP_DIR"
 
       cd "$APP_DIR"

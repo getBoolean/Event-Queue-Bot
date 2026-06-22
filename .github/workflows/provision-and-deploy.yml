@@ -306,7 +306,12 @@ jobs:
 
       - name: Sync deploy artifacts to VPS
         run: |
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "mkdir -p '${APP_PATH}'"
+          # Pre-create the bind-mount targets so Docker mounts a file/dir, not a
+          # new directory in place of the sqlite file. The compose file mounts
+          # data/main.sqlite and data/backups individually (not the whole data
+          # dir) so the image's data/migrations is not shadowed.
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" \
+            "mkdir -p '${APP_PATH}/data/backups' && touch '${APP_PATH}/data/main.sqlite'"
           rsync -az \
             -e "ssh -i ~/.ssh/bot_deploy_key" \
             docker-compose.app.yml deploy@"${BOT_HOST}":"${APP_PATH}/"
