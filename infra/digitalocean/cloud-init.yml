@@ -25,6 +25,35 @@ users:
       - {{SSH_PUBLIC_KEY_YAML}}
 
 write_files:
+  - path: /usr/local/bin/prepare-event-queue-bot-dir
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Create an app directory (data + logs) owned by the deploy user. Runs as
+      # root via sudo so the deploy workflow never needs to mkdir under /opt
+      # itself, and so app dirs can be added to a living droplet without a
+      # re-provision.
+      set -euo pipefail
+
+      if [ "$#" -ne 1 ]; then
+        echo "Usage: prepare-event-queue-bot-dir <app-path>" >&2
+        exit 1
+      fi
+
+      APP_DIR="$1"
+
+      case "$APP_DIR" in
+        /opt/event-queue-bot|/opt/event-queue-bot-nightly) ;;
+        *)
+          echo "Refusing to prepare unexpected path: $APP_DIR" >&2
+          exit 1
+          ;;
+      esac
+
+      mkdir -p "$APP_DIR/data" "$APP_DIR/logs"
+      chown -R deploy:deploy "$APP_DIR"
+
   - path: /usr/local/bin/deploy-event-queue-bot
     owner: root:root
     permissions: "0755"
@@ -88,6 +117,7 @@ write_files:
     permissions: "0440"
     content: |
       deploy ALL=(root) NOPASSWD: /usr/local/bin/deploy-event-queue-bot
+      deploy ALL=(root) NOPASSWD: /usr/local/bin/prepare-event-queue-bot-dir
 
   - path: /etc/ssh/ssh_host_ed25519_key
     owner: root:root

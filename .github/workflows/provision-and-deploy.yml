@@ -254,7 +254,7 @@ jobs:
       - name: Wait for cloud-init
         run: |
           for attempt in {1..30}; do
-            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" "cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot"; then
+            if ssh -i ~/.ssh/bot_deploy_key -o ConnectTimeout=10 deploy@"${BOT_HOST}" "cloud-init status --wait && test -x /usr/local/bin/deploy-event-queue-bot && test -x /usr/local/bin/prepare-event-queue-bot-dir"; then
               exit 0
             fi
 
@@ -294,7 +294,7 @@ jobs:
 
       - name: Sync compose file to VPS
         run: |
-          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "mkdir -p '${APP_PATH}'"
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" "sudo /usr/local/bin/prepare-event-queue-bot-dir '${APP_PATH}'"
           rsync -az \
             -e "ssh -i ~/.ssh/bot_deploy_key" \
             docker-compose.app.yml deploy@"${BOT_HOST}":"${APP_PATH}/"
