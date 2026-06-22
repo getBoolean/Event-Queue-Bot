@@ -19,6 +19,7 @@ import { COMMANDS } from "../commands/commands.loader.ts";
 import { Queries } from "../db/queries.ts";
 import { Store } from "../db/store.ts";
 import { Color, DisplayUpdateType } from "../types/db.types.ts";
+import { DISCORD_COMMAND_SIZE_LIMIT, findOversizedCommands } from "./command-size.utils.ts";
 import { DisplayUtils } from "./display.utils.ts";
 
 export namespace ClientUtils {
@@ -30,6 +31,16 @@ export namespace ClientUtils {
 			console.time(`Registered ${COMMANDS.size} commands with server`);
 			const commandsPutRoute = Routes.applicationCommands(process.env.CLIENT_ID);
 			const commandsJSON = COMMANDS.map(c => c.data.toJSON());
+
+			const oversized = findOversizedCommands(commandsJSON);
+			if (oversized.length > 0) {
+				const details = oversized.map(o => `/${o.name} (${o.size}/${DISCORD_COMMAND_SIZE_LIMIT} chars)`).join(", ");
+				throw new Error(
+					`Aborting registration — command(s) exceed Discord's ${DISCORD_COMMAND_SIZE_LIMIT}-character limit: ${details}. ` +
+					"Shorten their subcommand/option names, descriptions, or choices.",
+				);
+			}
+
 			await new REST()
 				.setToken(process.env.TOKEN)
 				.put(commandsPutRoute, { body: commandsJSON });
