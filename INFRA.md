@@ -177,8 +177,11 @@ In GitHub:
 3. Run the workflow.
 
 The workflow builds and pushes the image to GHCR, creates or reuses the VPS,
-writes `.env`, syncs `docker-compose.app.yml`, pulls the image, and runs Docker
-Compose.
+syncs the deploy scripts and `docker-compose.app.yml`, writes `.env`, pulls the
+image, and runs Docker Compose. The droplet's deploy logic lives in
+`infra/digitalocean/*.sh` and is rsynced on every deploy (cloud-init installs
+thin root wrappers that exec them), so logic changes roll out without
+re-provisioning.
 
 Future pushes to `master` deploy to dev automatically; each run pauses at
 `gate` for `dev-gate` reviewer approval before `build-and-push`, `discover`,

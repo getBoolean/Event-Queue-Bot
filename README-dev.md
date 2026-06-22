@@ -97,7 +97,9 @@ Pushes to `master` trigger `.github/workflows/provision-and-deploy.yml`, which r
 1. **`build-and-push`** — builds the Docker image and pushes it to GHCR (`ghcr.io/getboolean/event-queue-bot`) tagged with the branch name (`master` for dev, `prod` for prod).
 2. **`discover`** — looks up the single shared DigitalOcean droplet by `DO_DROPLET_NAME`.
 3. **`provision`** — creates the droplet via cloud-init only if none exists.
-4. **`deploy`** — syncs `docker-compose.app.yml`, writes `.env`, pulls the GHCR image, and runs `docker compose -f docker-compose.app.yml up -d` on the droplet. Pending Drizzle migrations apply automatically on container start.
+4. **`deploy`** — syncs the deploy scripts (`infra/digitalocean/*.sh`) and `docker-compose.app.yml`, writes `.env`, pulls the GHCR image, and runs `docker compose -f docker-compose.app.yml up -d` on the droplet. Pending Drizzle migrations apply automatically on container start.
+
+The droplet's deploy logic lives in `infra/digitalocean/prepare-event-queue-bot-dir.sh` and `infra/digitalocean/deploy-event-queue-bot.sh`. cloud-init installs thin root wrappers (`/usr/local/bin/*`) that exec these scripts from `/opt/event-queue-bot-bin/`, and the `deploy` job rsyncs the latest copies on every run — so changes to that logic roll out without re-provisioning. Only the wrappers, the sudoers entry, and the cloud-init `runcmd` require a re-provision to change.
 
 Both environments share one droplet: prod runs the `queue-bot` container from `/opt/event-queue-bot`, and dev runs the `queue-bot-nightly` container from `/opt/event-queue-bot-nightly`, each with its own `data/main.sqlite`. The `deploy` job derives the container name, app path, and image tag from the branch and serializes prod/dev deploys via a shared concurrency group.
 

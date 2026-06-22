@@ -265,6 +265,16 @@ jobs:
           echo "Timed out waiting for cloud-init" >&2
           exit 1
 
+      - name: Sync deploy scripts to VPS
+        run: |
+          rsync -az \
+            -e "ssh -i ~/.ssh/bot_deploy_key" \
+            infra/digitalocean/prepare-event-queue-bot-dir.sh \
+            infra/digitalocean/deploy-event-queue-bot.sh \
+            deploy@"${BOT_HOST}":/opt/event-queue-bot-bin/
+          ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" \
+            "chmod +x /opt/event-queue-bot-bin/prepare-event-queue-bot-dir.sh /opt/event-queue-bot-bin/deploy-event-queue-bot.sh"
+
       - name: Build bot environment
         env:
           BOT_APP_ID: ${{ secrets.BOT_APP_ID }}
