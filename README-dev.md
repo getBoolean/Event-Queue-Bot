@@ -147,7 +147,7 @@ If you need to add or modify database tables or columns:
 
 1. Update `src/db/schema.ts`. Use plain numeric defaults (`.default(0)`) — `.default(0n)` trips a `drizzle-kit` BigInt-serialization bug. `$type<bigint>()` still types the column as `bigint`.
 2. For new tables or query patterns, update `src/db/store.ts` and `src/db/queries.ts`.
-3. Run `npx drizzle-kit generate`. Commit the new `data/migrations/*.sql` and `data/migrations/meta/*` files — the runtime migrator applies them on next startup.
+3. Run `npx drizzle-kit generate`. Commit the new `migrations/*.sql` and `migrations/meta/*` files — the runtime migrator applies them on next startup. Migrations live at the repo root (not under `data/`) so they ship inside the Docker image; the deploy bind-mounts only `data/`, which would otherwise shadow them.
 
 ## Misc
 
@@ -161,7 +161,7 @@ This project is designed to run without compiling thanks to `@swc-node/register/
 
 ## Migrating from the legacy project (pre June 2024)
 
-Open a terminal and navigate to the following directory in this project: `data/migrations/legacy-export`.
+Open a terminal and navigate to the following directory in this project: `data/legacy-export`.
 Export the old database tables to csv files.
 
 The following command will perform the export for Postgres:
@@ -178,6 +178,6 @@ Then in the `.env` file, set `ENABLE_LEGACY_MIGRATION` to true:
 ENABLE_LEGACY_MIGRATION=true
 ```
 
-When `ENABLE_LEGACY_MIGRATION` is true, the bot checks the `data/migrations/legacy-export` directory on startup. If it finds the csv files, it will prompt you via console input to confirm the import. If confirmed, it creates a dated backup of `data/main.sqlite`, then merges the legacy data into the database.
+When `ENABLE_LEGACY_MIGRATION` is true, the bot checks the `data/legacy-export` directory on startup. If it finds the csv files, it will prompt you via console input to confirm the import. If confirmed, it creates a dated backup of `data/main.sqlite`, then merges the legacy data into the database.
 
 Once the data is imported, set `ENABLE_LEGACY_MIGRATION` back to false.

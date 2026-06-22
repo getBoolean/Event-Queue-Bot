@@ -23,7 +23,7 @@ import type {
 	Schedules,
 } from "./migrate.types.ts";
 
-export const LEGACY_EXPORT_DIR = "data/migrations/legacy-export";
+export const LEGACY_EXPORT_DIR = "data/legacy-export";
 
 const legacyAdminPermission: AdminPermission[] = [];
 const legacyBlackWhiteList: BlackWhiteList[] = [];

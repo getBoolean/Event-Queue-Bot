@@ -179,7 +179,7 @@ dist
 
 data/manual/main.sqlite
 data/backups/
-data/migrations/legacy-export/
+data/legacy-export/
 
 # VS Code Workspace
 .vscode/
