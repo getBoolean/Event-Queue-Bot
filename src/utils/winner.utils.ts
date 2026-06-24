@@ -35,21 +35,32 @@ export namespace WinnerUtils {
 		event: DbEvent,
 		requested: Set<Snowflake>,
 	): Promise<string[]> {
+		if (!event.winnerRoleId) return [];
+
 		const rows = Queries.selectManyEventWinners({ guildId: store.guild.id, eventId: event.id });
 		const existing = new Set(rows.map(row => row.userId));
 		const toAdd = computeWinnersToAdd(existing, requested);
+		const roleId = event.winnerRoleId;
+		const added: string[] = [];
 
 		for (const userId of toAdd) {
-			store.insertEventWinner({
-				guildId: store.guild.id,
-				eventId: event.id,
-				userId,
-				roleId: event.winnerRoleId,
-			});
-			await applyRole(store, userId, event.winnerRoleId, "add");
+			await applyRole(store, userId, roleId, "add");
+			try {
+				store.insertEventWinner({
+					guildId: store.guild.id,
+					eventId: event.id,
+					userId,
+					roleId,
+				});
+				added.push(userId);
+			}
+			catch (e) {
+				console.error(`WinnerUtils.declareWinners: failed to insert winner row for user ${userId}:`, e);
+				await applyRole(store, userId, roleId, "remove");
+			}
 		}
 
-		return toAdd;
+		return added;
 	}
 
 	/**
@@ -62,22 +73,23 @@ export namespace WinnerUtils {
 		event: DbEvent,
 	): Promise<{ userId: string, roleId: string }[]> {
 		const deleted = Queries.selectManyEventWinners({ guildId: store.guild.id, eventId: event.id });
-
-		store.deleteManyEventWinners({ eventId: event.id });
-
 		const removals = deleted.map(row => ({ userId: row.userId, roleId: row.roleId }));
+
 		for (const { userId, roleId } of removals) {
 			await applyRole(store, userId, roleId, "remove");
 		}
-		return removals;
-	}
 
-	/**
-	 * Revokes all of an event's winners — the single implementation called from the open-phase
-	 * hook so the badge lasts exactly until the next occurrence opens. A redundant call (e.g. a
-	 * restart re-running a handled open) simply finds no rows and is a no-op.
-	 */
-	export async function revokeEventWinners(store: Store, event: DbEvent) {
-		return clearEventWinners(store, event);
+		try {
+			store.deleteManyEventWinners({ eventId: event.id });
+		}
+		catch (e) {
+			console.error(`WinnerUtils.clearEventWinners: failed to delete winner rows for event ${event.id}:`, e);
+			for (const { userId, roleId } of removals) {
+				await applyRole(store, userId, roleId, "add");
+			}
+			throw e;
+		}
+
+		return removals;
 	}
 }

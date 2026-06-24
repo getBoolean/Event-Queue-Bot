@@ -580,19 +580,19 @@ export class Store {
 	}
 
 	// idempotent: composite PK conflict is a no-op
-	insertOccurrenceRoomPing(row: NewEventOccurrenceRoomPing): DbEventOccurrenceRoomPing {
+	insertOccurrenceRoomPing(row: Omit<NewEventOccurrenceRoomPing, "guildId">): DbEventOccurrenceRoomPing {
 		return db
 			.insert(EVENT_OCCURRENCE_ROOM_PING_TABLE)
-			.values(row)
+			.values({ ...row, guildId: this.guild.id })
 			.onConflictDoNothing()
 			.returning().get();
 	}
 
 	// idempotent: composite PK conflict is a no-op
-	insertOccurrenceRoomPull(row: NewEventOccurrenceRoomPull): DbEventOccurrenceRoomPull {
+	insertOccurrenceRoomPull(row: Omit<NewEventOccurrenceRoomPull, "guildId">): DbEventOccurrenceRoomPull {
 		return db
 			.insert(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
-			.values(row)
+			.values({ ...row, guildId: this.guild.id })
 			.onConflictDoNothing()
 			.returning().get();
 	}

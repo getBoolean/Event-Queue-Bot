@@ -4,6 +4,7 @@ import { checkForMigration } from "../db/legacy-migration/migrate.ts";
 import { ClientListeners } from "../listeners/client.listeners.ts";
 import { ClientUtils } from "../utils/client.utils.ts";
 import { EventUtils } from "../utils/event.utils.ts";
+import { EventSyncLock } from "../utils/event-sync-lock.utils.ts";
 import { ScheduleUtils } from "../utils/schedule.utils.ts";
 
 export const CLIENT = new DiscordClient({
@@ -77,6 +78,8 @@ export namespace Client {
 			await ClientUtils.registerCommands();
 
 			ScheduleUtils.loadSchedules();
+
+			EventSyncLock.cleanupStaleLocks();
 
 			EventUtils.loadOccurrences();
 

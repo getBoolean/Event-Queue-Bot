@@ -2,11 +2,19 @@ node_modules
 npm-debug.log
 Dockerfile
 docker-compose.yml
+docker-compose.app.yml
 .dockerignore
 .git
 .gitignore
+.github
 .idea
+
+.env
+.env.*
+!.env.example
 
 data/backups
 logs
 docs
+*.md
+INFRA.md

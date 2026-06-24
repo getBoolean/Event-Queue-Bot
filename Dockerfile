@@ -13,4 +13,6 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN chown -R node:node /app
+USER node
 ENTRYPOINT ["npm", "start"]

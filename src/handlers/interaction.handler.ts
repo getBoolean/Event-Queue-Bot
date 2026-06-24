@@ -15,6 +15,7 @@ import { ModalHandler } from "./modal.handler.ts";
 // SILENT=true (env) or `--silent` (argv) suppresses true-error logs.
 // Warnings are silent by default; opt-in via `log: true` on the class.
 const IS_SILENT = process.env.SILENT === "true" || process.argv.includes("--silent");
+const DEBUG_INTERACTIONS = process.env.DEBUG_INTERACTIONS === "true";
 
 export class InteractionHandler implements Handler {
 	private readonly inter: AnyInteraction;
@@ -32,7 +33,9 @@ export class InteractionHandler implements Handler {
 						: this.inter.isModalSubmit() ? "modal"
 							: "other";
 			const name = (this.inter as any).commandName ?? (this.inter as any).customId ?? "?";
-			console.log(`InteractionHandler: received ${kind} (${name}) guildId=${this.inter.guildId}`);
+			if (DEBUG_INTERACTIONS) {
+				console.log(`InteractionHandler: received ${kind} (${name}) guildId=${this.inter.guildId}`);
+			}
 
 			if (this.inter.isChatInputCommand()) {
 				await new CommandHandler(this.inter).handle();
@@ -53,7 +56,7 @@ export class InteractionHandler implements Handler {
 	}
 
 	private async handleInteractionError(error: Error | string) {
-		const { stack, embeds, log, ephemeral } = error as AbstractInteractionIssue;
+		const { stack, embeds, log } = error as AbstractInteractionIssue;
 		const message = typeof error === "string" ? error : error.message;
 		const isWarning = error instanceof AbstractWarning;
 
@@ -80,10 +83,9 @@ export class InteractionHandler implements Handler {
 					embed.setFooter({ text: "This error has been logged and will be investigated by the developers." });
 				}
 
-				const isButton = (this.inter as any).isButton?.() === true;
 				await this.inter.respond({
 					embeds: compact(concat(embeds, embed)),
-					...(isButton || ephemeral ? { ephemeral: true } : {}),
+					ephemeral: true,
 				});
 			}
 		}

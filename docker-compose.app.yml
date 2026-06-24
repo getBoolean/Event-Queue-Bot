@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/getboolean/event-queue-bot:${IMAGE_TAG:-master}
+    image: ${GHCR_IMAGE:-ghcr.io/getboolean/event-queue-bot}:${IMAGE_TAG:-master}
     container_name: ${CONTAINER_NAME:-queue-bot}
     restart: always
     env_file: .env
@@ -10,8 +10,11 @@ services:
       - ./data/main.sqlite:/app/data/main.sqlite # Bind mount for database
       - ./data/backups:/app/data/backups # Bind mount for DB backups
       - ./.env:/app/.env # Bind mount for .env file
-    stdin_open: true # Allow stdin to be open
-    tty: true # Allocate a pseudo-TTY
+    deploy:
+      resources:
+        limits:
+          cpus: "0.45"
+          memory: 400M
     logging:
       driver: json-file
       options:

@@ -223,7 +223,14 @@ export function describeTable<T extends object>(options: {
 		const _queueId = BigIntSafe(queueId);
 		const queue = _queueId ? store.dbQueues().get(_queueId) : null;
 
-		const title = queue ? `${queueMention(queue)} ${tableLabel.toLowerCase()}` : `${tableLabel} of all queues`;
+		const entryLabelFallback = entryLabelProperty && queueEntries[0]
+			? formatPropertyValue(queueEntries[0], entryLabelProperty, bold)
+			: null;
+		const title = queue
+			? `${queueMention(queue)} ${tableLabel.toLowerCase()}`
+			: entryLabelFallback
+				? `${entryLabelFallback} ${tableLabel.toLowerCase()}`
+				: `${tableLabel} of all queues`;
 		const _color = color ?? queue?.color ?? (queueEntries[0] as any).color ?? Color.Black;
 		const description = queueEntries.map(entry => formatEntry(entry)).join("\n");
 

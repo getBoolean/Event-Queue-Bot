@@ -1,5 +1,5 @@
 import type { Snowflake } from "discord.js";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { db } from "./db.ts";
 import {
@@ -16,6 +16,7 @@ import {
 	EVENT_QUEUE_TABLE,
 	EVENT_ROOM_CHANNEL_TABLE,
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
+	EVENT_SYNC_LOCK_TABLE,
 	EVENT_TABLE,
 	EVENT_WHITELISTED_TABLE,
 	EVENT_WINNER_TABLE,
@@ -69,6 +70,18 @@ export namespace Queries {
 
 	export function selectManyQueues(by: { guildId: Snowflake }) {
 		return selectManyQueuesByGuildId.all(by);
+	}
+
+	export function selectManyQueuesByIds(by: { guildId: Snowflake, ids: bigint[] }) {
+		if (by.ids.length === 0) return [];
+		return db
+			.select()
+			.from(QUEUE_TABLE)
+			.where(and(
+				eq(QUEUE_TABLE.guildId, by.guildId),
+				inArray(QUEUE_TABLE.id, by.ids),
+			))
+			.all();
 	}
 
 	export function selectAllQueues() {
@@ -294,7 +307,7 @@ export namespace Queries {
 		{ guildId: Snowflake, subjectId: Snowflake } |
 		{ guildId: Snowflake }
 	) {
-		if ("eventId" in by) {
+		if ("eventId" in by && by.eventId !== undefined) {
 			return selectManyEventBlacklistedByGuildIdAndEventId.all(by);
 		}
 		else if ("subjectId" in by) {
@@ -312,7 +325,7 @@ export namespace Queries {
 		{ guildId: Snowflake, subjectId: Snowflake } |
 		{ guildId: Snowflake }
 	) {
-		if ("eventId" in by) {
+		if ("eventId" in by && by.eventId !== undefined) {
 			return selectManyEventWhitelistedByGuildIdAndEventId.all(by);
 		}
 		else if ("subjectId" in by) {
@@ -330,7 +343,7 @@ export namespace Queries {
 		{ guildId: Snowflake, subjectId: Snowflake } |
 		{ guildId: Snowflake }
 	) {
-		if ("eventId" in by) {
+		if ("eventId" in by && by.eventId !== undefined) {
 			return selectManyEventPrioritizedByGuildIdAndEventId.all(by);
 		}
 		else if ("subjectId" in by) {
@@ -446,19 +459,29 @@ export namespace Queries {
 		return selectManyEventsByGuildId.all(by);
 	}
 
+	export function selectManyEventsByIds(by: { guildId: Snowflake, ids: bigint[] }) {
+		if (by.ids.length === 0) return [];
+		return db
+			.select()
+			.from(EVENT_TABLE)
+			.where(and(
+				eq(EVENT_TABLE.guildId, by.guildId),
+				inArray(EVENT_TABLE.id, by.ids),
+			))
+			.all();
+	}
+
 	// Event Occurrences
 
-	export function selectOccurrence(by: { id: bigint }) {
-		return selectOccurrenceById.get(by);
+	export function selectOccurrence(by: { guildId: Snowflake, id: bigint }) {
+		return selectOccurrenceByGuildIdAndId.get(by);
 	}
 
 	export function selectManyOccurrences(by: { guildId: Snowflake, eventId?: bigint }) {
-		if ("eventId" in by) {
+		if (by.eventId !== undefined) {
 			return selectManyOccurrencesByGuildIdAndEventId.all(by);
 		}
-		else {
-			return selectManyOccurrencesByGuildId.all(by);
-		}
+		return selectManyOccurrencesByGuildId.all(by);
 	}
 
 	export function selectAllOccurrences() {
@@ -470,14 +493,75 @@ export namespace Queries {
 
 	// Event Occurrence Room Pings
 
-	export function selectOccurrenceRoomPings(by: { occurrenceId: bigint }) {
-		return selectOccurrenceRoomPingsByOccurrenceId.all(by);
+	export function selectOccurrenceRoomPings(by: { guildId: Snowflake, occurrenceId: bigint }) {
+		return selectOccurrenceRoomPingsByGuildIdAndOccurrenceId.all(by);
+	}
+
+	export function selectManyOccurrenceRoomPingsByOccurrenceIds(by: {
+		guildId: Snowflake,
+		occurrenceIds: bigint[],
+	}) {
+		if (by.occurrenceIds.length === 0) return [];
+		return db
+			.select()
+			.from(EVENT_OCCURRENCE_ROOM_PING_TABLE)
+			.where(and(
+				eq(EVENT_OCCURRENCE_ROOM_PING_TABLE.guildId, by.guildId),
+				inArray(EVENT_OCCURRENCE_ROOM_PING_TABLE.occurrenceId, by.occurrenceIds),
+			))
+			.all();
 	}
 
 	// Event Occurrence Room Pulls
 
-	export function selectOccurrenceRoomPulls(by: { occurrenceId: bigint }) {
-		return selectOccurrenceRoomPullsByOccurrenceId.all(by);
+	export function selectOccurrenceRoomPulls(by: { guildId: Snowflake, occurrenceId: bigint }) {
+		return selectOccurrenceRoomPullsByGuildIdAndOccurrenceId.all(by);
+	}
+
+	export function selectManyOccurrenceRoomPullsByOccurrenceIds(by: {
+		guildId: Snowflake,
+		occurrenceIds: bigint[],
+	}) {
+		if (by.occurrenceIds.length === 0) return [];
+		return db
+			.select()
+			.from(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
+			.where(and(
+				eq(EVENT_OCCURRENCE_ROOM_PULL_TABLE.guildId, by.guildId),
+				inArray(EVENT_OCCURRENCE_ROOM_PULL_TABLE.occurrenceId, by.occurrenceIds),
+			))
+			.all();
+	}
+
+	// Event sync locks (cross-process coordination for event sync)
+
+	export function tryAcquireEventSyncLock(by: { guildId: Snowflake, eventId: bigint }): boolean {
+		const row = db
+			.insert(EVENT_SYNC_LOCK_TABLE)
+			.values({
+				guildId: by.guildId,
+				eventId: by.eventId,
+				lockedAt: BigInt(Date.now()),
+			})
+			.onConflictDoNothing()
+			.returning()
+			.get();
+		return row !== undefined;
+	}
+
+	export function releaseEventSyncLock(by: { guildId: Snowflake, eventId: bigint }) {
+		db.delete(EVENT_SYNC_LOCK_TABLE)
+			.where(and(
+				eq(EVENT_SYNC_LOCK_TABLE.guildId, by.guildId),
+				eq(EVENT_SYNC_LOCK_TABLE.eventId, by.eventId),
+			))
+			.run();
+	}
+
+	export function deleteStaleEventSyncLocks(olderThanMs: bigint) {
+		db.delete(EVENT_SYNC_LOCK_TABLE)
+			.where(lt(EVENT_SYNC_LOCK_TABLE.lockedAt, olderThanMs))
+			.run();
 	}
 
 	// Event Queues
@@ -1171,12 +1255,13 @@ export namespace Queries {
 
 	// Event Occurrences
 
-	const selectOccurrenceById = db
+	const selectOccurrenceByGuildIdAndId = db
 		.select()
 		.from(EVENT_OCCURRENCE_TABLE)
-		.where(
+		.where(and(
+			eq(EVENT_OCCURRENCE_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_OCCURRENCE_TABLE.id, sql.placeholder("id"))
-		)
+		))
 		.prepare();
 
 	const selectManyOccurrencesByGuildId = db
@@ -1198,22 +1283,24 @@ export namespace Queries {
 
 	// Event Occurrence Room Pings
 
-	const selectOccurrenceRoomPingsByOccurrenceId = db
+	const selectOccurrenceRoomPingsByGuildIdAndOccurrenceId = db
 		.select()
 		.from(EVENT_OCCURRENCE_ROOM_PING_TABLE)
-		.where(
+		.where(and(
+			eq(EVENT_OCCURRENCE_ROOM_PING_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_OCCURRENCE_ROOM_PING_TABLE.occurrenceId, sql.placeholder("occurrenceId"))
-		)
+		))
 		.prepare();
 
 	// Event Occurrence Room Pulls
 
-	const selectOccurrenceRoomPullsByOccurrenceId = db
+	const selectOccurrenceRoomPullsByGuildIdAndOccurrenceId = db
 		.select()
 		.from(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
-		.where(
+		.where(and(
+			eq(EVENT_OCCURRENCE_ROOM_PULL_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_OCCURRENCE_ROOM_PULL_TABLE.occurrenceId, sql.placeholder("occurrenceId"))
-		)
+		))
 		.prepare();
 
 	// Event Queues
@@ -1239,7 +1326,10 @@ export namespace Queries {
 	const selectEventMembershipCountQuery = db
 		.select({ count: sql<number>`COUNT(*)`.as("count") })
 		.from(MEMBER_TABLE)
-		.innerJoin(EVENT_QUEUE_TABLE, eq(MEMBER_TABLE.queueId, EVENT_QUEUE_TABLE.queueId))
+		.innerJoin(EVENT_QUEUE_TABLE, and(
+			eq(MEMBER_TABLE.queueId, EVENT_QUEUE_TABLE.queueId),
+			eq(EVENT_QUEUE_TABLE.guildId, sql.placeholder("guildId")),
+		))
 		.where(and(
 			eq(MEMBER_TABLE.guildId, sql.placeholder("guildId")),
 			eq(EVENT_QUEUE_TABLE.eventId, sql.placeholder("eventId")),

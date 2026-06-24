@@ -44,36 +44,105 @@ export type NewGuild = typeof GUILD_TABLE.$inferInsert;
 export type DbGuild = typeof GUILD_TABLE.$inferSelect;
 
 
+/** Keys shared between QUEUE_TABLE config columns and nullable EVENT_DEFAULT_TABLE overrides. */
+export const QUEUE_CONFIG_COLUMN_KEYS = [
+	"autopullToggle",
+	"badgeToggle",
+	"color",
+	"displayUpdateType",
+	"dmOnPullToggle",
+	"buttonsToggle",
+	"header",
+	"inlineToggle",
+	"lockToggle",
+	"memberDisplayType",
+	"pullBatchSize",
+	"pullMessage",
+	"pullMessageDisplayType",
+	"pullMessageChannelId",
+	"rejoinCooldownPeriod",
+	"rejoinGracePeriod",
+	"requireMessageToJoin",
+	"roleInQueueId",
+	"roleOnPullId",
+	"size",
+	"timestampType",
+	"voiceDestinationChannelId",
+	"voiceOnlyToggle",
+] as const;
+
+export type QueueConfigColumnKey = typeof QUEUE_CONFIG_COLUMN_KEYS[number];
+
+/** Factory for queue config columns mirrored on EVENT_DEFAULT_TABLE (nullable overrides). */
+function queueConfigColumns(mode: "required" | "nullable") {
+	const nullable = mode === "nullable";
+	return {
+		autopullToggle: nullable
+			? integer("autopull_toggle", { mode: "boolean" })
+			: integer("autopull_toggle", { mode: "boolean" }).notNull().default(false),
+		badgeToggle: nullable
+			? integer("badge_toggle", { mode: "boolean" })
+			: integer("badge_toggle", { mode: "boolean" }).notNull().default(true),
+		color: nullable
+			? text("color").$type<ColorResolvable>()
+			: text("color").$type<ColorResolvable>().notNull().default(get(Color, process.env.DEFAULT_COLOR) as ColorResolvable),
+		displayUpdateType: nullable
+			? text("display_update_type").$type<DisplayUpdateType>()
+			: text("display_update_type").$type<DisplayUpdateType>().notNull().default(DisplayUpdateType.Edit),
+		dmOnPullToggle: nullable
+			? integer("dm_on_pull_toggle", { mode: "boolean" })
+			: integer("dm_on_pull_toggle", { mode: "boolean" }).notNull().default(true),
+		// SQL column: buttons_toggles
+		buttonsToggle: nullable
+			? text("buttons_toggles").$type<Scope>()
+			: text("buttons_toggles").$type<Scope>().notNull().default(Scope.All),
+		header: text("header"),
+		inlineToggle: nullable
+			? integer("inline_toggle", { mode: "boolean" })
+			: integer("inline_toggle", { mode: "boolean" }).notNull().default(false),
+		lockToggle: nullable
+			? integer("lock_toggle", { mode: "boolean" })
+			: integer("lock_toggle", { mode: "boolean" }).notNull().default(false),
+		memberDisplayType: nullable
+			? text("member_display_type").$type<MemberDisplayType>()
+			: text("member_display_type").$type<MemberDisplayType>().notNull().default(MemberDisplayType.Mention),
+		pullBatchSize: nullable
+			? integer("pull_batch_size").$type<bigint>()
+			: integer("pull_batch_size").$type<bigint>().notNull().default(1 as any),
+		pullMessage: text("pull_message"),
+		pullMessageDisplayType: nullable
+			? text("pull_message_display_type").$type<PullMessageDisplayType>()
+			: text("pull_message_display_type").$type<PullMessageDisplayType>().notNull().default(PullMessageDisplayType.Private),
+		pullMessageChannelId: text("pull_message_channel_id").$type<Snowflake>(),
+		rejoinCooldownPeriod: nullable
+			? integer("rejoin_cooldown_period").$type<bigint>()
+			: integer("rejoin_cooldown_period").$type<bigint>().notNull().default(0 as any),
+		rejoinGracePeriod: nullable
+			? integer("rejoin_grace_period").$type<bigint>()
+			: integer("rejoin_grace_period").$type<bigint>().notNull().default(0 as any),
+		requireMessageToJoin: nullable
+			? integer("require_message_to_join", { mode: "boolean" })
+			: integer("require_message_to_join", { mode: "boolean" }).default(false),
+		roleInQueueId: text("role_in_queue_id").$type<Snowflake>(),
+		roleOnPullId: text("role_on_pull_id").$type<Snowflake>(),
+		size: integer("size").$type<bigint>(),
+		timestampType: nullable
+			? text("time_display_type").$type<TimestampType>()
+			: text("time_display_type").$type<TimestampType>().default(TimestampType.Off),
+		voiceDestinationChannelId: text("voice_destination_channel_id").$type<Snowflake>(),
+		voiceOnlyToggle: nullable
+			? integer("voice_only_toggle", { mode: "boolean" })
+			: integer("voice_only_toggle", { mode: "boolean" }).notNull().default(false),
+	};
+}
+
 export const QUEUE_TABLE = sqliteTable("queue", ({
 	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
 
 	name: text("name").notNull(),
 	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
 
-	// configurable queue properties
-	autopullToggle: integer("autopull_toggle", { mode: "boolean" }).notNull().default(false),
-	badgeToggle: integer("badge_toggle", { mode: "boolean" }).notNull().default(true),
-	color: text("color").$type<ColorResolvable>().notNull().default(get(Color, process.env.DEFAULT_COLOR) as ColorResolvable),
-	displayUpdateType: text("display_update_type").$type<DisplayUpdateType>().notNull().default(DisplayUpdateType.Edit),
-	dmOnPullToggle: integer("dm_on_pull_toggle", { mode: "boolean" }).notNull().default(true),
-	buttonsToggle: text("buttons_toggles").$type<Scope>().notNull().default(Scope.All),
-	header: text("header"),
-	inlineToggle: integer("inline_toggle", { mode: "boolean" }).notNull().default(false),
-	lockToggle: integer("lock_toggle", { mode: "boolean" }).notNull().default(false),
-	memberDisplayType: text("member_display_type").$type<MemberDisplayType>().notNull().default(MemberDisplayType.Mention),
-	pullBatchSize: integer("pull_batch_size").$type<bigint>().notNull().default(1 as any),
-	pullMessage: text("pull_message"),
-	pullMessageDisplayType: text("pull_message_display_type").$type<PullMessageDisplayType>().notNull().default(PullMessageDisplayType.Private),
-	pullMessageChannelId: text("pull_message_channel_id").$type<Snowflake>(),
-	rejoinCooldownPeriod: integer("rejoin_cooldown_period").$type<bigint>().notNull().default(0 as any),
-	rejoinGracePeriod: integer("rejoin_grace_period").$type<bigint>().notNull().default(0 as any),
-	requireMessageToJoin: integer("require_message_to_join", { mode: "boolean" }).default(false),
-	roleInQueueId: text("role_in_queue_id").$type<Snowflake>(),
-	roleOnPullId: text("role_on_pull_id").$type<Snowflake>(),
-	size: integer("size").$type<bigint>(),
-	timestampType: text("time_display_type").$type<TimestampType>().default(TimestampType.Off),
-	voiceDestinationChannelId: text("voice_destination_channel_id").$type<Snowflake>(),
-	voiceOnlyToggle: integer("voice_only_toggle", { mode: "boolean" }).notNull().default(false),
+	...queueConfigColumns("required"),
 }),
 (table) => ({
 	unq: unique().on(table.name, table.guildId),
@@ -82,6 +151,7 @@ export const QUEUE_TABLE = sqliteTable("queue", ({
 
 export type NewQueue = typeof QUEUE_TABLE.$inferInsert;
 export type DbQueue = typeof QUEUE_TABLE.$inferSelect;
+export type QueueConfig = Pick<DbQueue, QueueConfigColumnKey>;
 
 
 export const VOICE_TABLE = sqliteTable("voice", ({
@@ -223,6 +293,7 @@ export type DbEventOccurrence = typeof EVENT_OCCURRENCE_TABLE.$inferSelect;
 
 
 export const EVENT_OCCURRENCE_ROOM_PING_TABLE = sqliteTable("event_occurrence_room_ping", ({
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
 	occurrenceId: integer("occurrence_id").$type<bigint>().notNull()
 		.references(() => EVENT_OCCURRENCE_TABLE.id, { onDelete: "cascade" }),
 	eventQueueId: integer("event_queue_id").$type<bigint>().notNull()
@@ -231,7 +302,7 @@ export const EVENT_OCCURRENCE_ROOM_PING_TABLE = sqliteTable("event_occurrence_ro
 }),
 (table) => ({
 	pk: primaryKey({ columns: [table.occurrenceId, table.eventQueueId] }),
-	occurrenceIdIndex: index("event_occurrence_room_ping_occurrence_id_index").on(table.occurrenceId),
+	guildIdOccurrenceIdIndex: index("event_occurrence_room_ping_guild_id_occurrence_id_index").on(table.guildId, table.occurrenceId),
 }));
 
 export type NewEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.$inferInsert;
@@ -239,6 +310,7 @@ export type DbEventOccurrenceRoomPing = typeof EVENT_OCCURRENCE_ROOM_PING_TABLE.
 
 
 export const EVENT_OCCURRENCE_ROOM_PULL_TABLE = sqliteTable("event_occurrence_room_pull", ({
+	guildId: text("guild_id").$type<Snowflake>().notNull().references(() => GUILD_TABLE.guildId, { onDelete: "cascade" }),
 	occurrenceId: integer("occurrence_id").$type<bigint>().notNull()
 		.references(() => EVENT_OCCURRENCE_TABLE.id, { onDelete: "cascade" }),
 	eventQueueId: integer("event_queue_id").$type<bigint>().notNull()
@@ -247,11 +319,24 @@ export const EVENT_OCCURRENCE_ROOM_PULL_TABLE = sqliteTable("event_occurrence_ro
 }),
 (table) => ({
 	pk: primaryKey({ columns: [table.occurrenceId, table.eventQueueId] }),
-	occurrenceIdIndex: index("event_occurrence_room_pull_occurrence_id_index").on(table.occurrenceId),
+	guildIdOccurrenceIdIndex: index("event_occurrence_room_pull_guild_id_occurrence_id_index").on(table.guildId, table.occurrenceId),
 }));
 
 export type NewEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferInsert;
 export type DbEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferSelect;
+
+
+export const EVENT_SYNC_LOCK_TABLE = sqliteTable("event_sync_lock", ({
+	guildId: text("guild_id").$type<Snowflake>().notNull(),
+	eventId: integer("event_id").$type<bigint>().notNull(),
+	lockedAt: integer("locked_at").$type<bigint>().notNull(),
+}),
+(table) => ({
+	pk: primaryKey({ columns: [table.guildId, table.eventId] }),
+}));
+
+export type NewEventSyncLock = typeof EVENT_SYNC_LOCK_TABLE.$inferInsert;
+export type DbEventSyncLock = typeof EVENT_SYNC_LOCK_TABLE.$inferSelect;
 
 
 export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
@@ -302,30 +387,8 @@ export const EVENT_DEFAULT_TABLE = sqliteTable("event_default", ({
 	eventId: integer("event_id").$type<bigint>().notNull().references(() => EVENT_TABLE.id, { onDelete: "cascade" }),
 	queueRole: text("queue_role").$type<EventQueueRole>().notNull(),
 
-	// Mirrored QUEUE_TABLE config columns (all nullable for defaults)
-	autopullToggle: integer("autopull_toggle", { mode: "boolean" }),
-	badgeToggle: integer("badge_toggle", { mode: "boolean" }),
-	color: text("color").$type<ColorResolvable>(),
-	displayUpdateType: text("display_update_type").$type<DisplayUpdateType>(),
-	dmOnPullToggle: integer("dm_on_pull_toggle", { mode: "boolean" }),
-	buttonsToggle: text("buttons_toggles").$type<Scope>(),
-	header: text("header"),
-	inlineToggle: integer("inline_toggle", { mode: "boolean" }),
-	lockToggle: integer("lock_toggle", { mode: "boolean" }),
-	memberDisplayType: text("member_display_type").$type<MemberDisplayType>(),
-	pullBatchSize: integer("pull_batch_size").$type<bigint>(),
-	pullMessage: text("pull_message"),
-	pullMessageDisplayType: text("pull_message_display_type").$type<PullMessageDisplayType>(),
-	pullMessageChannelId: text("pull_message_channel_id").$type<Snowflake>(),
-	rejoinCooldownPeriod: integer("rejoin_cooldown_period").$type<bigint>(),
-	rejoinGracePeriod: integer("rejoin_grace_period").$type<bigint>(),
-	requireMessageToJoin: integer("require_message_to_join", { mode: "boolean" }),
-	roleInQueueId: text("role_in_queue_id").$type<Snowflake>(),
-	roleOnPullId: text("role_on_pull_id").$type<Snowflake>(),
-	size: integer("size").$type<bigint>(),
-	timestampType: text("time_display_type").$type<TimestampType>(),
-	voiceDestinationChannelId: text("voice_destination_channel_id").$type<Snowflake>(),
-	voiceOnlyToggle: integer("voice_only_toggle", { mode: "boolean" }),
+	// Mirrored QUEUE_TABLE config columns via queueConfigColumns("nullable")
+	...queueConfigColumns("nullable"),
 }),
 (table) => ({
 	unq: unique().on(table.eventId, table.queueRole),
@@ -334,6 +397,7 @@ export const EVENT_DEFAULT_TABLE = sqliteTable("event_default", ({
 
 export type NewEventDefault = typeof EVENT_DEFAULT_TABLE.$inferInsert;
 export type DbEventDefault = typeof EVENT_DEFAULT_TABLE.$inferSelect;
+export type EventDefaultQueueConfig = Pick<DbEventDefault, QueueConfigColumnKey>;
 
 
 export const EVENT_ROOM_CHANNEL_TEMPLATE_TABLE = sqliteTable("event_room_channel_template", ({

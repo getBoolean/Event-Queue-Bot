@@ -37,7 +37,7 @@ export namespace QueueUtils {
 		});
 	}
 
-	export async function deleteQueue(store: Store, queueId: bigint) {
+	export async function deleteQueueDisplayMessages(store: Store, queueId: bigint) {
 		const displays = store.dbDisplays().filter(d => d.queueId === queueId);
 
 		for (const display of displays.values()) {
@@ -47,16 +47,20 @@ export namespace QueueUtils {
 			if (!channel) continue;
 
 			const message = await channel.messages.fetch(display.lastMessageId).catch(e => {
-				console.error(`QueueUtils.deleteQueue: failed to fetch display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+				console.error(`QueueUtils.deleteQueueDisplayMessages: failed to fetch display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
 				return null;
 			});
 			if (!message) continue;
 
 			await message.delete().catch(e => {
-				console.error(`QueueUtils.deleteQueue: failed to delete display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
+				console.error(`QueueUtils.deleteQueueDisplayMessages: failed to delete display message ${display.lastMessageId} in channel ${display.displayChannelId}:`, e);
 				return null;
 			});
 		}
+	}
+
+	export async function deleteQueue(store: Store, queueId: bigint) {
+		await QueueUtils.deleteQueueDisplayMessages(store, queueId);
 
 		return store.deleteQueue({ id: queueId });
 	}

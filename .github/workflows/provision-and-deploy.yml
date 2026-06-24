@@ -302,6 +302,7 @@ jobs:
             printf 'SILENT=%s\n' "${BOT_SILENT:-false}"
             printf 'CONTAINER_NAME=%s\n' "${CONTAINER_NAME}"
             printf 'IMAGE_TAG=%s\n' "${IMAGE_TAG}"
+            printf 'GHCR_IMAGE=%s\n' "ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           } > "${RUNNER_TEMP}/bot.env"
 
       - name: Sync deploy artifacts to VPS
@@ -325,8 +326,8 @@ jobs:
           GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
         run: |
           if [ -n "${GHCR_PULL_TOKEN}" ]; then
-            ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" \
-              "echo '${GHCR_PULL_TOKEN}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+            printf '%s\n' "${GHCR_PULL_TOKEN}" | ssh -i ~/.ssh/bot_deploy_key deploy@"${BOT_HOST}" \
+              "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
           fi
 
       - name: Deploy bot

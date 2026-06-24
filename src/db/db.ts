@@ -10,8 +10,12 @@ export const DB_FILEPATH = process.env.VITEST ? ":memory:" : "data/main.sqlite";
 export const DB_BACKUP_DIRECTORY = "data/backups";
 export const MIGRATIONS_FOLDER = "data/migrations";
 
+let sqlite: Database.Database | undefined;
+
 function connect() {
-	const conn = drizzle(Database(DB_FILEPATH).defaultSafeIntegers(), { schema });
+	const client = Database(DB_FILEPATH).defaultSafeIntegers();
+	sqlite = client;
+	const conn = drizzle(client, { schema });
 	migrate(conn, { migrationsFolder: MIGRATIONS_FOLDER });
 	return conn;
 }
@@ -19,7 +23,12 @@ function connect() {
 export let db = connect();
 
 export namespace Db {
+	/** Rare: tests/dev only — closes and reopens the SQLite handle. */
 	export function reload() {
+		if (sqlite) {
+			sqlite.close();
+			sqlite = undefined;
+		}
 		db = connect();
 	}
 

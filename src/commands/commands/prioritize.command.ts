@@ -167,18 +167,18 @@ export class PrioritizeCommand extends AdminCommand {
 		if (scope === ListScope.Queue) {
 			const queues = await PrioritizeCommand.ADD_OPTIONS.queues.get(inter);
 			if (!queues || queues.size === 0) throw new CustomError({ message: "Queue scope requires the `queues` option." });
-			const { updatedQueueIds, insertedPrioritized } = PriorityUtils.insertQueuePrioritized(inter.store, queues, mentionables, priorityOrder, reason);
+			const { updatedQueueIds, insertedPrioritized } = await PriorityUtils.insertQueuePrioritized(inter.store, queues, mentionables, priorityOrder, reason);
 			const updatedQueues = updatedQueueIds.map(id => inter.store.dbQueues().get(id));
 			await inter.respond(`Prioritized ${mentionablesMention(insertedPrioritized)} in the ${queuesMention(updatedQueues)} queue${updatedQueues.length > 1 ? "s" : ""}.`, true);
 		}
 		else if (scope === ListScope.Event) {
 			const events = await PrioritizeCommand.ADD_OPTIONS.events.get(inter);
 			if (!events || events.size === 0) throw new CustomError({ message: "Event scope requires the `events` option." });
-			const { insertedPrioritized } = PriorityUtils.insertEventPrioritized(inter.store, events, mentionables, priorityOrder, reason);
+			const { insertedPrioritized } = await PriorityUtils.insertEventPrioritized(inter.store, events, mentionables, priorityOrder, reason);
 			await inter.respond(`Prioritized ${mentionablesMention(insertedPrioritized)} in the ${[...events.values()].map(eventMention).join(", ")} event${events.size > 1 ? "s" : ""}.`, true);
 		}
 		else {
-			const { insertedPrioritized } = PriorityUtils.insertGuildPrioritized(inter.store, mentionables, priorityOrder, reason);
+			const { insertedPrioritized } = await PriorityUtils.insertGuildPrioritized(inter.store, mentionables, priorityOrder, reason);
 			await inter.respond(`Prioritized ${mentionablesMention(insertedPrioritized)} in all queues in this server.`, true);
 		}
 	}
@@ -205,15 +205,15 @@ export class PrioritizeCommand extends AdminCommand {
 		const update = { ...(priorityOrder !== undefined ? { priorityOrder } : {}), ...(reason !== undefined && reason !== null ? { reason } : {}) };
 
 		if (selection.scope === ListScope.Queue) {
-			const { updatedPrioritized } = PriorityUtils.updatePrioritized(inter.store, [...selection.entries.keys()], update);
+			const { updatedPrioritized } = await PriorityUtils.updatePrioritized(inter.store, [...selection.entries.keys()], update);
 			await inter.respond(`Updated priority of ${updatedPrioritized.map(mentionableMention).join(", ")}.`, true);
 		}
 		else if (selection.scope === ListScope.Event) {
-			const { updatedPrioritized } = PriorityUtils.updateEventPrioritized(inter.store, [...selection.entries.keys()], update);
+			const { updatedPrioritized } = await PriorityUtils.updateEventPrioritized(inter.store, [...selection.entries.keys()], update);
 			await inter.respond(`Updated priority of ${updatedPrioritized.map(mentionableMention).join(", ")} (event scope).`, true);
 		}
 		else {
-			const { updatedPrioritized } = PriorityUtils.updateGuildPrioritized(inter.store, [...selection.entries.keys()], update);
+			const { updatedPrioritized } = await PriorityUtils.updateGuildPrioritized(inter.store, [...selection.entries.keys()], update);
 			await inter.respond(`Updated priority of ${updatedPrioritized.map(mentionableMention).join(", ")} (global scope).`, true);
 		}
 	}
@@ -238,7 +238,7 @@ export class PrioritizeCommand extends AdminCommand {
 		}
 
 		if (selection.scope === ListScope.Queue) {
-			const { deletedPrioritized } = PriorityUtils.deletePrioritized(inter.store, [...selection.entries.keys()]);
+			const { deletedPrioritized } = await PriorityUtils.deletePrioritized(inter.store, [...selection.entries.keys()]);
 			const lines = deletedPrioritized.map(row => {
 				const queue = inter.store.dbQueues().get(row.queueId);
 				return `- ${mentionableMention(row)} in ${queue ? queueMention(queue) : "unknown queue"}`;
@@ -246,7 +246,7 @@ export class PrioritizeCommand extends AdminCommand {
 			await inter.respond(`Un-prioritized:\n${lines.join("\n")}`, true);
 		}
 		else if (selection.scope === ListScope.Event) {
-			const { deletedPrioritized } = PriorityUtils.deleteEventPrioritized(inter.store, [...selection.entries.keys()]);
+			const { deletedPrioritized } = await PriorityUtils.deleteEventPrioritized(inter.store, [...selection.entries.keys()]);
 			const lines = deletedPrioritized.map(row => {
 				const event = inter.store.dbEvents().get(row.eventId);
 				return `- ${mentionableMention(row)} from ${event ? eventMention(event) : "unknown event"}`;
@@ -254,7 +254,7 @@ export class PrioritizeCommand extends AdminCommand {
 			await inter.respond(`Un-prioritized (event):\n${lines.join("\n")}`, true);
 		}
 		else {
-			const { deletedPrioritized } = PriorityUtils.deleteGuildPrioritized(inter.store, [...selection.entries.keys()]);
+			const { deletedPrioritized } = await PriorityUtils.deleteGuildPrioritized(inter.store, [...selection.entries.keys()]);
 			const lines = deletedPrioritized.map(row => `- ${mentionableMention(row)} (global)`);
 			await inter.respond(`Un-prioritized (global):\n${lines.join("\n")}`, true);
 		}
