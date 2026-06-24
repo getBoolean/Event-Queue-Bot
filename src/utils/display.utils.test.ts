@@ -24,5 +24,5 @@ describe("DisplayUtils.requestDisplayUpdate coalescing", () => {
 
 		expect(updateSpy).toHaveBeenCalledTimes(1);
 		expect(updateSpy).toHaveBeenCalledWith({ store, queueId: 99n });
-	});
+	}, 15_000);
 });

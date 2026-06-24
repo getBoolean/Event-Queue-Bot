@@ -496,10 +496,40 @@ export namespace Queries {
 		return selectOccurrenceRoomPingsByGuildIdAndOccurrenceId.all(by);
 	}
 
+	export function selectManyOccurrenceRoomPingsByOccurrenceIds(by: {
+		guildId: Snowflake,
+		occurrenceIds: bigint[],
+	}) {
+		if (by.occurrenceIds.length === 0) return [];
+		return db
+			.select()
+			.from(EVENT_OCCURRENCE_ROOM_PING_TABLE)
+			.where(and(
+				eq(EVENT_OCCURRENCE_ROOM_PING_TABLE.guildId, by.guildId),
+				inArray(EVENT_OCCURRENCE_ROOM_PING_TABLE.occurrenceId, by.occurrenceIds),
+			))
+			.all();
+	}
+
 	// Event Occurrence Room Pulls
 
 	export function selectOccurrenceRoomPulls(by: { guildId: Snowflake, occurrenceId: bigint }) {
 		return selectOccurrenceRoomPullsByGuildIdAndOccurrenceId.all(by);
+	}
+
+	export function selectManyOccurrenceRoomPullsByOccurrenceIds(by: {
+		guildId: Snowflake,
+		occurrenceIds: bigint[],
+	}) {
+		if (by.occurrenceIds.length === 0) return [];
+		return db
+			.select()
+			.from(EVENT_OCCURRENCE_ROOM_PULL_TABLE)
+			.where(and(
+				eq(EVENT_OCCURRENCE_ROOM_PULL_TABLE.guildId, by.guildId),
+				inArray(EVENT_OCCURRENCE_ROOM_PULL_TABLE.occurrenceId, by.occurrenceIds),
+			))
+			.all();
 	}
 
 	// Event Queues

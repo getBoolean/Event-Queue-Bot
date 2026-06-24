@@ -1,7 +1,7 @@
 import nodeSchedule, { type Job } from "node-schedule";
 
 import { Queries } from "../db/queries.ts";
-import type { DbEvent, DbEventOccurrence } from "../db/schema.ts";
+import type { DbEvent, DbEventOccurrence, DbEventQueue } from "../db/schema.ts";
 import { Store } from "../db/store.ts";
 import { EventQueueRole, RoomScheduling } from "../types/db.types.ts";
 import { ClientUtils } from "./client.utils.ts";
@@ -23,6 +23,12 @@ import {
 } from "./event-lifecycle.utils.ts";
 
 const PHASE_RETRY_BACKOFF_MS = [5_000, 30_000, 120_000];
+
+export type ArmOccurrenceContext = {
+	pingedQueueIdsByOccurrence?: Map<bigint, Set<bigint>>
+	pulledQueueIdsByOccurrence?: Map<bigint, Set<bigint>>
+	roomEventQueuesByEvent?: Map<bigint, DbEventQueue[]>
+};
 
 async function runPhaseWithRetry(label: string, run: () => Promise<void>, markDone: () => void) {
 	for (let attempt = 0; attempt <= PHASE_RETRY_BACKOFF_MS.length; attempt++) {
@@ -68,7 +74,55 @@ function computeRoomPingAt(event: DbEvent, startMs: number, queueIndex: bigint):
 	return startMs;
 }
 
-export async function armOccurrence(event: DbEvent, occurrence: DbEventOccurrence) {
+function groupEventQueueIdsByOccurrence(
+	rows: Array<{ occurrenceId: bigint, eventQueueId: bigint }>,
+): Map<bigint, Set<bigint>> {
+	const map = new Map<bigint, Set<bigint>>();
+	for (const row of rows) {
+		let set = map.get(row.occurrenceId);
+		if (!set) {
+			set = new Set();
+			map.set(row.occurrenceId, set);
+		}
+		set.add(row.eventQueueId);
+	}
+	return map;
+}
+
+function roomQueuesForEvent(guildId: string, eventId: bigint): DbEventQueue[] {
+	return Queries.selectManyEventQueues({ guildId, eventId })
+		.filter(eq => eq.queueRole === EventQueueRole.Room);
+}
+
+export function buildArmOccurrenceContext(
+	guildId: string,
+	occurrences: DbEventOccurrence[],
+): ArmOccurrenceContext {
+	const occurrenceIds = occurrences.map(o => o.id);
+	const pingedQueueIdsByOccurrence = groupEventQueueIdsByOccurrence(
+		Queries.selectManyOccurrenceRoomPingsByOccurrenceIds({ guildId, occurrenceIds }),
+	);
+	const pulledQueueIdsByOccurrence = groupEventQueueIdsByOccurrence(
+		Queries.selectManyOccurrenceRoomPullsByOccurrenceIds({ guildId, occurrenceIds }),
+	);
+
+	const roomEventQueuesByEvent = new Map<bigint, DbEventQueue[]>();
+	for (const eventId of new Set(occurrences.map(o => o.eventId))) {
+		roomEventQueuesByEvent.set(eventId, roomQueuesForEvent(guildId, eventId));
+	}
+
+	return {
+		pingedQueueIdsByOccurrence,
+		pulledQueueIdsByOccurrence,
+		roomEventQueuesByEvent,
+	};
+}
+
+export async function armOccurrence(
+	event: DbEvent,
+	occurrence: DbEventOccurrence,
+	ctx?: ArmOccurrenceContext,
+) {
 	unregisterJobs(occurrence.id);
 
 	const now = Date.now();
@@ -86,12 +140,16 @@ export async function armOccurrence(event: DbEvent, occurrence: DbEventOccurrenc
 	if (!guild) return;
 	const store = new Store(guild);
 
-	const pingedQueueIds = new Set(
-		Queries.selectOccurrenceRoomPings({ guildId: occurrence.guildId, occurrenceId: occurrence.id }).map(r => r.eventQueueId)
-	);
-	const pulledRoomIds = new Set(
-		Queries.selectOccurrenceRoomPulls({ guildId: occurrence.guildId, occurrenceId: occurrence.id }).map(r => r.eventQueueId)
-	);
+	const pingedQueueIds = ctx?.pingedQueueIdsByOccurrence?.get(occurrence.id)
+		?? new Set(
+			Queries.selectOccurrenceRoomPings({ guildId: occurrence.guildId, occurrenceId: occurrence.id })
+				.map(r => r.eventQueueId),
+		);
+	const pulledRoomIds = ctx?.pulledQueueIdsByOccurrence?.get(occurrence.id)
+		?? new Set(
+			Queries.selectOccurrenceRoomPulls({ guildId: occurrence.guildId, occurrenceId: occurrence.id })
+				.map(r => r.eventQueueId),
+		);
 
 	const jobs: OccurrenceJobs = { roomPings: new Map(), roomPulls: new Map() };
 
@@ -116,8 +174,8 @@ export async function armOccurrence(event: DbEvent, occurrence: DbEventOccurrenc
 	);
 
 	// Room pings (and optional room-start auto-pulls)
-	const roomEventQueues = Queries.selectManyEventQueues({ guildId: event.guildId, eventId: event.id })
-		.filter(eq => eq.queueRole === EventQueueRole.Room);
+	const roomEventQueues = ctx?.roomEventQueuesByEvent?.get(event.id)
+		?? roomQueuesForEvent(event.guildId, event.id);
 
 	for (const eq of roomEventQueues) {
 		const pingAt = computeRoomPingAt(event, startMs, eq.queueIndex);
@@ -172,8 +230,9 @@ export async function armOccurrence(event: DbEvent, occurrence: DbEventOccurrenc
 
 export async function rearmAllOccurrences(store: Store, event: DbEvent) {
 	const occurrences = Queries.selectManyOccurrences({ guildId: store.guild.id, eventId: event.id });
+	const ctx = buildArmOccurrenceContext(store.guild.id, occurrences);
 	for (const occ of occurrences) {
-		await armOccurrence(event, occ);
+		await armOccurrence(event, occ, ctx);
 		await updateDiscordScheduledEvent(store, event, occ);
 	}
 }
@@ -221,25 +280,30 @@ export async function loadOccurrences() {
 	const occurrences = Queries.selectAllOccurrences();
 	console.time(`Loaded ${occurrences.length} event occurrences`);
 
-	const eventsByGuild = new Map<string, Map<bigint, DbEvent>>();
+	const occurrencesByGuild = new Map<string, DbEventOccurrence[]>();
 	for (const occurrence of occurrences) {
-		let guildEvents = eventsByGuild.get(occurrence.guildId);
-		if (!guildEvents) {
-			const eventIds = [...new Set(
-				occurrences.filter(o => o.guildId === occurrence.guildId).map(o => o.eventId),
-			)];
-			const events = Queries.selectManyEventsByIds({
-				guildId: occurrence.guildId,
-				ids: eventIds,
-			});
-			guildEvents = new Map(events.map(event => [event.id, event]));
-			eventsByGuild.set(occurrence.guildId, guildEvents);
+		const list = occurrencesByGuild.get(occurrence.guildId);
+		if (list) {
+			list.push(occurrence);
 		}
-		const event = guildEvents.get(occurrence.eventId);
-		if (!event) {
-			continue;
+		else {
+			occurrencesByGuild.set(occurrence.guildId, [occurrence]);
 		}
-		await armOccurrence(event, occurrence);
+	}
+
+	for (const [guildId, guildOccurrences] of occurrencesByGuild) {
+		const eventIds = [...new Set(guildOccurrences.map(o => o.eventId))];
+		const events = Queries.selectManyEventsByIds({ guildId, ids: eventIds });
+		const eventsById = new Map(events.map(event => [event.id, event]));
+		const ctx = buildArmOccurrenceContext(guildId, guildOccurrences);
+
+		for (const occurrence of guildOccurrences) {
+			const event = eventsById.get(occurrence.eventId);
+			if (!event) {
+				continue;
+			}
+			await armOccurrence(event, occurrence, ctx);
+		}
 	}
 
 	console.timeEnd(`Loaded ${occurrences.length} event occurrences`);
