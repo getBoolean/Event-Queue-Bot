@@ -326,6 +326,19 @@ export type NewEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE
 export type DbEventOccurrenceRoomPull = typeof EVENT_OCCURRENCE_ROOM_PULL_TABLE.$inferSelect;
 
 
+export const EVENT_SYNC_LOCK_TABLE = sqliteTable("event_sync_lock", ({
+	guildId: text("guild_id").$type<Snowflake>().notNull(),
+	eventId: integer("event_id").$type<bigint>().notNull(),
+	lockedAt: integer("locked_at").$type<bigint>().notNull(),
+}),
+(table) => ({
+	pk: primaryKey({ columns: [table.guildId, table.eventId] }),
+}));
+
+export type NewEventSyncLock = typeof EVENT_SYNC_LOCK_TABLE.$inferInsert;
+export type DbEventSyncLock = typeof EVENT_SYNC_LOCK_TABLE.$inferSelect;
+
+
 export const EVENT_QUEUE_TABLE = sqliteTable("event_queue", ({
 	id: integer("id").$type<bigint>().primaryKey({ autoIncrement: true }),
 

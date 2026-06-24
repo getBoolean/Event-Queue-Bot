@@ -260,10 +260,16 @@ separate Discord applications.
 
 ## Single-instance requirement
 
-Each environment runs **one** bot container against **one** SQLite database.
-Do not run multiple bot processes against the same `data/main.sqlite` — event
-sync (`EventSyncLock`) and scheduled occurrence jobs are coordinated in-process
-only and are not safe across parallel instances.
+Each environment should run **one** bot container against **one** SQLite database.
+SQLite write concurrency is poor with multiple writers on the same file.
+
+**Event sync** (`EventSyncLock`) uses a row in `event_sync_lock` so two processes
+that accidentally share a database will not run `syncEventQueues` /
+`reconcileRoomChannels` in parallel. Stale locks older than 10 minutes are cleared
+at startup.
+
+**Scheduled occurrence jobs** (`node-schedule` in `event-jobs.registry`) remain
+process-local — do not run multiple bot processes against the same DB.
 
 ## Re-provisioning via the CLI
 

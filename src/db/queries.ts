@@ -1,5 +1,5 @@
 import type { Snowflake } from "discord.js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 
 import { db } from "./db.ts";
 import {
@@ -16,6 +16,7 @@ import {
 	EVENT_QUEUE_TABLE,
 	EVENT_ROOM_CHANNEL_TABLE,
 	EVENT_ROOM_CHANNEL_TEMPLATE_TABLE,
+	EVENT_SYNC_LOCK_TABLE,
 	EVENT_TABLE,
 	EVENT_WHITELISTED_TABLE,
 	EVENT_WINNER_TABLE,
@@ -530,6 +531,37 @@ export namespace Queries {
 				inArray(EVENT_OCCURRENCE_ROOM_PULL_TABLE.occurrenceId, by.occurrenceIds),
 			))
 			.all();
+	}
+
+	// Event sync locks (cross-process coordination for event sync)
+
+	export function tryAcquireEventSyncLock(by: { guildId: Snowflake, eventId: bigint }): boolean {
+		const row = db
+			.insert(EVENT_SYNC_LOCK_TABLE)
+			.values({
+				guildId: by.guildId,
+				eventId: by.eventId,
+				lockedAt: BigInt(Date.now()),
+			})
+			.onConflictDoNothing()
+			.returning()
+			.get();
+		return row !== undefined;
+	}
+
+	export function releaseEventSyncLock(by: { guildId: Snowflake, eventId: bigint }) {
+		db.delete(EVENT_SYNC_LOCK_TABLE)
+			.where(and(
+				eq(EVENT_SYNC_LOCK_TABLE.guildId, by.guildId),
+				eq(EVENT_SYNC_LOCK_TABLE.eventId, by.eventId),
+			))
+			.run();
+	}
+
+	export function deleteStaleEventSyncLocks(olderThanMs: bigint) {
+		db.delete(EVENT_SYNC_LOCK_TABLE)
+			.where(lt(EVENT_SYNC_LOCK_TABLE.lockedAt, olderThanMs))
+			.run();
 	}
 
 	// Event Queues
