@@ -302,7 +302,7 @@ jobs:
             printf 'SILENT=%s\n' "${BOT_SILENT:-false}"
             printf 'CONTAINER_NAME=%s\n' "${CONTAINER_NAME}"
             printf 'IMAGE_TAG=%s\n' "${IMAGE_TAG}"
-            printf 'GHCR_IMAGE=%s\n' "ghcr.io/${{ github.repository }}"
+            printf 'GHCR_IMAGE=%s\n' "ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
           } > "${RUNNER_TEMP}/bot.env"
 
       - name: Sync deploy artifacts to VPS
