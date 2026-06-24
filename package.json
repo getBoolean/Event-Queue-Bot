@@ -8,7 +8,7 @@
     "lint": "eslint src patch-notes drizzle.config.ts vitest.config.ts --fix",
     "lint:check": "eslint src patch-notes drizzle.config.ts vitest.config.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "type": "module",
   "devDependencies": {
@@ -24,7 +24,8 @@
     "globals": "^16.5.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "drizzle-kit": "^0.31.10"
   },
   "dependencies": {
     "@swc-node/register": "^1.9.2",
@@ -33,7 +34,6 @@
     "csv-parser": "^3.0.0",
     "date-fns": "^4.1.0",
     "discord.js": "^14.14.1",
-    "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "lodash-es": "^4.17.21",
     "moment-timezone": "^0.6.2",

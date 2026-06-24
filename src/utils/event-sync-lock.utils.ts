@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { EventSyncInProgressWarning } from "./error.utils.ts";
 
+// Process-local mutex only — one bot container per guild DB (see INFRA.md). Not safe across instances.
 export namespace EventSyncLock {
 
 	const held = new Set<string>();
@@ -60,7 +61,4 @@ export namespace EventSyncLock {
 		}
 	}
 
-	export function isHeld(guildId: string, eventId: bigint): boolean {
-		return held.has(key(guildId, eventId));
-	}
 }

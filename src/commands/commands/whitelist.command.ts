@@ -145,18 +145,18 @@ export class WhitelistCommand extends AdminCommand {
 		if (scope === ListScope.Queue) {
 			const queues = await WhitelistCommand.ADD_OPTIONS.queues.get(inter);
 			if (!queues || queues.size === 0) throw new CustomError({ message: "Queue scope requires the `queues` option." });
-			const { updatedQueueIds, insertedWhitelisted } = WhitelistUtils.insertQueueWhitelisted(inter.store, queues, mentionables, reason);
+			const { updatedQueueIds, insertedWhitelisted } = await WhitelistUtils.insertQueueWhitelisted(inter.store, queues, mentionables, reason);
 			const updatedQueues = updatedQueueIds.map(id => inter.store.dbQueues().get(id));
 			await inter.respond(`Whitelisted ${mentionablesMention(insertedWhitelisted)} in the ${queuesMention(updatedQueues)} queue${updatedQueues.length > 1 ? "s" : ""}.`, true);
 		}
 		else if (scope === ListScope.Event) {
 			const events = await WhitelistCommand.ADD_OPTIONS.events.get(inter);
 			if (!events || events.size === 0) throw new CustomError({ message: "Event scope requires the `events` option." });
-			const { insertedWhitelisted } = WhitelistUtils.insertEventWhitelisted(inter.store, events, mentionables, reason);
+			const { insertedWhitelisted } = await WhitelistUtils.insertEventWhitelisted(inter.store, events, mentionables, reason);
 			await inter.respond(`Whitelisted ${mentionablesMention(insertedWhitelisted)} in the ${[...events.values()].map(eventMention).join(", ")} event${events.size > 1 ? "s" : ""}.`, true);
 		}
 		else {
-			const { insertedWhitelisted } = WhitelistUtils.insertGuildWhitelisted(inter.store, mentionables, reason);
+			const { insertedWhitelisted } = await WhitelistUtils.insertGuildWhitelisted(inter.store, mentionables, reason);
 			await inter.respond(`Whitelisted ${mentionablesMention(insertedWhitelisted)} in all queues in this server.`, true);
 		}
 	}

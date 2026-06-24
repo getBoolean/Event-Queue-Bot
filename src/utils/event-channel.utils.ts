@@ -151,9 +151,14 @@ export namespace EventChannelUtils {
 		untrackedRows: string[];
 		recreatedMissing: string[];
 		nonOwnedAtTop: { id: Snowflake, name: string }[];
+		errors: string[];
 		trackedCount: number;
 		reorderApplied: boolean;
 	}
+
+	type ChannelFetchResult =
+		| { status: "found", channel: GuildBasedChannel }
+		| { status: "missing" };
 
 	function emptyReport(event: DbEvent): SyncReport {
 		return {
@@ -164,6 +169,7 @@ export namespace EventChannelUtils {
 			untrackedRows: [],
 			recreatedMissing: [],
 			nonOwnedAtTop: [],
+			errors: [],
 			trackedCount: 0,
 			reorderApplied: false,
 		};
@@ -251,18 +257,18 @@ export namespace EventChannelUtils {
 					(adopted ? report.adopted : report.created).push(channelName);
 				}
 				else {
-					const channel = await tryFetchChannel(store, existingRow.channelId);
-					if (!channel) {
-					// Tracked channel is gone — drop the row and adopt/create afresh.
+					const fetchResult = await tryFetchChannel(store, existingRow.channelId);
+					if (fetchResult.status === "missing") {
+						// Tracked channel is gone — drop the row and adopt/create afresh.
 						store.deleteEventRoomChannel({ id: existingRow.id });
 						const { id: channelId } = await ensureRoomChannel(store, event, d, overwrites, channelName);
 						trackRoomChannel(store, event, d, channelId);
 						report.recreatedMissing.push(channelName);
 					}
 					else {
-						await applyChannelSettings(channel, overwrites, d.slowmodeSeconds);
-						if (d.suffix === null && d.roomEventQueue.pingChannelId !== channel.id) {
-							store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: channel.id });
+						await applyChannelSettings(fetchResult.channel, overwrites, d.slowmodeSeconds);
+						if (d.suffix === null && d.roomEventQueue.pingChannelId !== fetchResult.channel.id) {
+							store.updateEventQueue({ id: d.roomEventQueue.id, pingChannelId: fetchResult.channel.id });
 						}
 					}
 				}
@@ -417,15 +423,17 @@ export namespace EventChannelUtils {
 		}
 	}
 
-	async function tryFetchChannel(store: Store, channelId: Snowflake): Promise<GuildBasedChannel | undefined> {
+	async function tryFetchChannel(store: Store, channelId: Snowflake): Promise<ChannelFetchResult> {
 		try {
-			return await store.guild.channels.fetch(channelId) ?? undefined;
+			const channel = await store.guild.channels.fetch(channelId);
+			if (!channel) return { status: "missing" };
+			return { status: "found", channel };
 		}
 		catch (e) {
 			const { status } = e as DiscordAPIError;
-			if (status === 404) return undefined;
+			if (status === 404) return { status: "missing" };
 			console.error(`EventChannelUtils.tryFetchChannel: failed to fetch channel ${channelId}:`, e);
-			return undefined;
+			throw e;
 		}
 	}
 

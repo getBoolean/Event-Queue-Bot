@@ -25,7 +25,20 @@ if [ -z "${droplet_id}" ]; then
 	exit 0
 fi
 
-inbound_rules="protocol:tcp,ports:22,address:0.0.0.0/0,address:::/0"
+if [ -n "${SSH_ALLOW_IPS:-}" ]; then
+	inbound_rules="protocol:tcp,ports:22"
+	IFS=',' read -ra ssh_allow_ips <<< "${SSH_ALLOW_IPS}"
+	for ip in "${ssh_allow_ips[@]}"; do
+		ip="${ip#"${ip%%[![:space:]]*}"}"
+		ip="${ip%"${ip##*[![:space:]]}"}"
+		[ -n "${ip}" ] || continue
+		inbound_rules="${inbound_rules},address:${ip}"
+	done
+	echo "Restricting SSH to SSH_ALLOW_IPS: ${SSH_ALLOW_IPS}"
+else
+	inbound_rules="protocol:tcp,ports:22,address:0.0.0.0/0,address:::/0"
+	echo "SSH open to all addresses (set SSH_ALLOW_IPS to restrict)."
+fi
 outbound_rules="protocol:icmp,address:0.0.0.0/0,address:::/0 protocol:tcp,ports:all,address:0.0.0.0/0,address:::/0 protocol:udp,ports:all,address:0.0.0.0/0,address:::/0"
 
 firewalls_json="$(doctl compute firewall list --output json)"

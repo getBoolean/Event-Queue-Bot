@@ -159,6 +159,12 @@ npm run lint
 
 This project is designed to run without compiling thanks to `@swc-node/register/esm`.
 
+### Dependencies
+
+**Dual schedulers:** Both `node-cron` and `node-schedule` are intentional. `node-cron` runs recurring cron expressions (queue `/schedule` jobs and DB maintenance in `db-scheduled-tasks.ts`). `node-schedule` runs one-shot `Date`-based jobs for event occurrence lifecycle (open, lock, cleanup, room pings/pulls in `event.utils.ts`). Consolidating would require reimplementing date-specific scheduling on top of cron or vice versa.
+
+**`drizzle-kit`** is a dev dependency only — migrations are generated at build time and applied at runtime by `drizzle-orm`'s migrator.
+
 ## Migrating from the legacy project (pre June 2024)
 
 Open a terminal and navigate to the following directory in this project: `data/migrations/legacy-export`.

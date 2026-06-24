@@ -37,6 +37,7 @@ export default tseslint.config(
 			// false`). The rest of `tseslint.configs.recommended` is left enabled.
 			"@typescript-eslint/no-namespace": "off",
 			"@typescript-eslint/no-explicit-any": "off",
+			"@typescript-eslint/ban-ts-comment": "off",
 			"@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
 
 			// `no-undef` and `no-unused-vars` are turned off per typescript-eslint convention
@@ -50,6 +51,9 @@ export default tseslint.config(
 			"simple-import-sort/imports": "error",
 
 			// Additional core rules (not in recommended) carried over from the legacy config
+			"no-case-declarations": "off",
+			"no-inner-declarations": "off",
+			"no-unused-expressions": "off",
 			"no-empty-function": ["error", { allow: ["constructors"] }],
 			"no-lonely-if": "error",
 			"no-var": "error",

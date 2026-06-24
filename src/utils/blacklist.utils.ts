@@ -1,7 +1,6 @@
 import { type GuildMember, Role } from "discord.js";
-import { compact, uniq } from "lodash-es";
+import { compact } from "lodash-es";
 
-import { db } from "../db/db.ts";
 import { Queries } from "../db/queries.ts";
 import type { DbEvent, DbQueue } from "../db/schema.ts";
 import type { Store } from "../db/store.ts";
@@ -10,6 +9,7 @@ import type { ArrayOrCollection } from "../types/misc.types.ts";
 import type { Mentionable } from "../types/parsing.types.ts";
 import { MemberUtils } from "./member.utils.ts";
 import { filterDbObjectsOnJsMember, map } from "./misc.utils.ts";
+import { SubjectListUtils } from "./subject-list.utils.ts";
 
 export namespace BlacklistUtils {
 	export async function insertQueueBlacklisted(
@@ -18,26 +18,32 @@ export namespace BlacklistUtils {
 		mentionables: Mentionable[],
 		reason?: string,
 	) {
-		return db.transaction(async () => {
-			const insertedBlacklisted = compact(
-				map(queues, queue =>
-					mentionables.map(mentionable => {
-						const by = (mentionable instanceof Role) ? { roleId: mentionable.id } : { userId: mentionable.id };
-						MemberUtils.deleteMembers({ store, queues, reason: MemberRemovalReason.Kicked, by, force: true });
+		return SubjectListUtils.runTransaction(async () => {
+			const insertedBlacklisted = [];
+			for (const queue of map(queues, queue => queue)) {
+				for (const mentionable of mentionables) {
+					await MemberUtils.deleteMembers({
+						store,
+						queues,
+						reason: MemberRemovalReason.Kicked,
+						by: SubjectListUtils.mentionableFilter(mentionable),
+						force: true,
+					});
 
-						return store.insertBlacklisted({
-							guildId: store.guild.id,
-							queueId: queue.id,
-							subjectId: mentionable.id,
-							isRole: mentionable instanceof Role,
-							reason,
-						});
-					})
-				)
-			).flat(2);
-			const updatedQueueIds = uniq(insertedBlacklisted.map(blacklisted => blacklisted.queueId));
+					insertedBlacklisted.push(store.insertBlacklisted({
+						guildId: store.guild.id,
+						queueId: queue.id,
+						subjectId: mentionable.id,
+						isRole: mentionable instanceof Role,
+						reason,
+					}));
+				}
+			}
 
-			return { insertedBlacklisted, updatedQueueIds };
+			return {
+				insertedBlacklisted,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(insertedBlacklisted),
+			};
 		});
 	}
 
@@ -47,36 +53,33 @@ export namespace BlacklistUtils {
 		mentionables: Mentionable[],
 		reason?: string,
 	) {
-		return db.transaction(async () => {
-			const insertedBlacklisted = compact(
-				map(events, event => {
-					const eventQueues = store.dbEventQueues(event.id);
-					return mentionables.map(mentionable => {
-						const by = (mentionable instanceof Role) ? { roleId: mentionable.id } : { userId: mentionable.id };
-						MemberUtils.deleteMembers({
-							store,
-							queues: eventQueues.map(eq => store.dbQueues().get(eq.queueId)).filter(Boolean) as DbQueue[],
-							reason: MemberRemovalReason.Kicked,
-							by,
-							force: true,
-						});
-
-						return store.insertEventBlacklisted({
-							guildId: store.guild.id,
-							eventId: event.id,
-							subjectId: mentionable.id,
-							isRole: mentionable instanceof Role,
-							reason,
-						});
+		return SubjectListUtils.runTransaction(async () => {
+			const insertedBlacklisted = [];
+			for (const event of map(events, event => event)) {
+				const queues = SubjectListUtils.eventQueuesForEvents(store, [event]);
+				for (const mentionable of mentionables) {
+					await MemberUtils.deleteMembers({
+						store,
+						queues,
+						reason: MemberRemovalReason.Kicked,
+						by: SubjectListUtils.mentionableFilter(mentionable),
+						force: true,
 					});
-				})
-			).flat(2);
 
-			const updatedQueueIds = uniq(insertedBlacklisted.flatMap(blacklisted =>
-				store.dbEventQueues(blacklisted.eventId).map(eq => eq.queueId)
-			));
+					insertedBlacklisted.push(store.insertEventBlacklisted({
+						guildId: store.guild.id,
+						eventId: event.id,
+						subjectId: mentionable.id,
+						isRole: mentionable instanceof Role,
+						reason,
+					}));
+				}
+			}
 
-			return { insertedBlacklisted, updatedQueueIds };
+			return {
+				insertedBlacklisted,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, insertedBlacklisted),
+			};
 		});
 	}
 
@@ -85,69 +88,67 @@ export namespace BlacklistUtils {
 		mentionables: Mentionable[],
 		reason?: string,
 	) {
-		return db.transaction(async () => {
+		return SubjectListUtils.runTransaction(async () => {
 			const allQueues = store.dbQueues();
-			const insertedBlacklisted = compact(
-				mentionables.map(mentionable => {
-					const by = (mentionable instanceof Role) ? { roleId: mentionable.id } : { userId: mentionable.id };
-					MemberUtils.deleteMembers({
-						store,
-						queues: allQueues,
-						reason: MemberRemovalReason.Kicked,
-						by,
-						force: true,
-					});
+			const insertedBlacklisted = [];
+			for (const mentionable of mentionables) {
+				await MemberUtils.deleteMembers({
+					store,
+					queues: allQueues,
+					reason: MemberRemovalReason.Kicked,
+					by: SubjectListUtils.mentionableFilter(mentionable),
+					force: true,
+				});
 
-					return store.insertGuildBlacklisted({
-						guildId: store.guild.id,
-						subjectId: mentionable.id,
-						isRole: mentionable instanceof Role,
-						reason,
-					});
-				})
-			);
+				insertedBlacklisted.push(store.insertGuildBlacklisted({
+					guildId: store.guild.id,
+					subjectId: mentionable.id,
+					isRole: mentionable instanceof Role,
+					reason,
+				}));
+			}
 
-			const updatedQueueIds = uniq([...allQueues.values()].map(queue => queue.id));
-
-			return { insertedBlacklisted, updatedQueueIds };
+			return {
+				insertedBlacklisted,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, insertedBlacklisted.length),
+			};
 		});
 	}
 
 	export function deleteBlacklisted(store: Store, blacklistedIds: bigint[]) {
 		const deletedBlacklisted = compact(blacklistedIds.map(id => store.deleteBlacklisted({ id })));
-		const updatedQueueIds = uniq(deletedBlacklisted.map(blacklisted => blacklisted.queueId));
-		return { deletedBlacklisted, updatedQueueIds };
+		return {
+			deletedBlacklisted,
+			updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(deletedBlacklisted),
+		};
 	}
 
 	export function deleteEventBlacklisted(store: Store, blacklistedIds: bigint[]) {
 		const deletedBlacklisted = compact(blacklistedIds.map(id => store.deleteEventBlacklisted({ id })));
-		const updatedQueueIds = uniq(deletedBlacklisted.flatMap(blacklisted =>
-			store.dbEventQueues(blacklisted.eventId).map(eq => eq.queueId)
-		));
-		return { deletedBlacklisted, updatedQueueIds };
+		return {
+			deletedBlacklisted,
+			updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, deletedBlacklisted),
+		};
 	}
 
 	export function deleteGuildBlacklisted(store: Store, blacklistedIds: bigint[]) {
 		const deletedBlacklisted = compact(blacklistedIds.map(id => store.deleteGuildBlacklisted({ id })));
-		const updatedQueueIds = deletedBlacklisted.length
-			? uniq([...store.dbQueues().values()].map(queue => queue.id))
-			: [];
-		return { deletedBlacklisted, updatedQueueIds };
+		return {
+			deletedBlacklisted,
+			updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, deletedBlacklisted.length),
+		};
 	}
 
 	export function isBlockedByBlacklist(store: Store, queueId: bigint, jsMember: GuildMember): boolean {
-		// Queue scope
 		const queueBlacklist = store.dbBlacklisted().filter(b => b.queueId === queueId);
 		if (filterDbObjectsOnJsMember(queueBlacklist, jsMember).size > 0) return true;
 
-		// Event scope: find the event this queue belongs to, if any
 		const eventQueue = Queries.selectEventQueueByQueueId({ guildId: store.guild.id, queueId });
 		if (eventQueue) {
 			const eventBlacklist = store.dbEventBlacklisted().filter(b => b.eventId === eventQueue.eventId);
 			if (filterDbObjectsOnJsMember(eventBlacklist, jsMember).size > 0) return true;
 		}
 
-		// Guild scope
 		const guildBlacklist = store.dbGuildBlacklisted();
 		if (filterDbObjectsOnJsMember(guildBlacklist, jsMember).size > 0) return true;
 

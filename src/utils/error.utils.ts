@@ -17,7 +17,7 @@ export abstract class AbstractWarning extends AbstractInteractionIssue {
 	message = "Unknown Warning";
 }
 
-export class CustomError extends AbstractWarning {
+export class CustomError extends AbstractError {
 	constructor(opts: {
 		message: string
 		embeds?: EmbedBuilder[],

@@ -1,22 +1,22 @@
 import { type GuildMember, Role } from "discord.js";
-import { compact, uniq } from "lodash-es";
+import { compact } from "lodash-es";
 
-import { db } from "../db/db.ts";
 import { Queries } from "../db/queries.ts";
 import type { DbEvent, DbQueue } from "../db/schema.ts";
 import type { Store } from "../db/store.ts";
 import type { ArrayOrCollection } from "../types/misc.types.ts";
 import type { Mentionable } from "../types/parsing.types.ts";
 import { filterDbObjectsOnJsMember, map } from "./misc.utils.ts";
+import { SubjectListUtils } from "./subject-list.utils.ts";
 
 export namespace WhitelistUtils {
-	export function insertQueueWhitelisted(
+	export async function insertQueueWhitelisted(
 		store: Store,
 		queues: ArrayOrCollection<bigint, DbQueue>,
 		mentionables: Mentionable[],
 		reason?: string,
 	) {
-		return db.transaction(() => {
+		return SubjectListUtils.runTransaction(async () => {
 			const insertedWhitelisted = compact(
 				map(queues, queue =>
 					mentionables.map(mentionable =>
@@ -30,19 +30,21 @@ export namespace WhitelistUtils {
 					)
 				)
 			).flat(2);
-			const updatedQueueIds = uniq(insertedWhitelisted.map(whitelisted => whitelisted.queueId));
 
-			return { insertedWhitelisted, updatedQueueIds };
+			return {
+				insertedWhitelisted,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(insertedWhitelisted),
+			};
 		});
 	}
 
-	export function insertEventWhitelisted(
+	export async function insertEventWhitelisted(
 		store: Store,
 		events: ArrayOrCollection<bigint, DbEvent>,
 		mentionables: Mentionable[],
 		reason?: string,
 	) {
-		return db.transaction(() => {
+		return SubjectListUtils.runTransaction(async () => {
 			const insertedWhitelisted = compact(
 				map(events, event =>
 					mentionables.map(mentionable =>
@@ -57,20 +59,19 @@ export namespace WhitelistUtils {
 				)
 			).flat(2);
 
-			const updatedQueueIds = uniq(insertedWhitelisted.flatMap(whitelisted =>
-				store.dbEventQueues(whitelisted.eventId).map(eq => eq.queueId)
-			));
-
-			return { insertedWhitelisted, updatedQueueIds };
+			return {
+				insertedWhitelisted,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, insertedWhitelisted),
+			};
 		});
 	}
 
-	export function insertGuildWhitelisted(
+	export async function insertGuildWhitelisted(
 		store: Store,
 		mentionables: Mentionable[],
 		reason?: string,
 	) {
-		return db.transaction(() => {
+		return SubjectListUtils.runTransaction(async () => {
 			const insertedWhitelisted = compact(
 				mentionables.map(mentionable =>
 					store.insertGuildWhitelisted({
@@ -81,34 +82,36 @@ export namespace WhitelistUtils {
 					})
 				)
 			);
-			const updatedQueueIds = insertedWhitelisted.length
-				? uniq([...store.dbQueues().values()].map(queue => queue.id))
-				: [];
 
-			return { insertedWhitelisted, updatedQueueIds };
+			return {
+				insertedWhitelisted,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, insertedWhitelisted.length),
+			};
 		});
 	}
 
 	export function deleteWhitelisted(store: Store, whitelistedIds: bigint[]) {
 		const deletedWhitelisted = compact(whitelistedIds.map(id => store.deleteWhitelisted({ id })));
-		const updatedQueueIds = uniq(deletedWhitelisted.map(whitelisted => whitelisted.queueId));
-		return { deletedWhitelisted, updatedQueueIds };
+		return {
+			deletedWhitelisted,
+			updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(deletedWhitelisted),
+		};
 	}
 
 	export function deleteEventWhitelisted(store: Store, whitelistedIds: bigint[]) {
 		const deletedWhitelisted = compact(whitelistedIds.map(id => store.deleteEventWhitelisted({ id })));
-		const updatedQueueIds = uniq(deletedWhitelisted.flatMap(whitelisted =>
-			store.dbEventQueues(whitelisted.eventId).map(eq => eq.queueId)
-		));
-		return { deletedWhitelisted, updatedQueueIds };
+		return {
+			deletedWhitelisted,
+			updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, deletedWhitelisted),
+		};
 	}
 
 	export function deleteGuildWhitelisted(store: Store, whitelistedIds: bigint[]) {
 		const deletedWhitelisted = compact(whitelistedIds.map(id => store.deleteGuildWhitelisted({ id })));
-		const updatedQueueIds = deletedWhitelisted.length
-			? uniq([...store.dbQueues().values()].map(queue => queue.id))
-			: [];
-		return { deletedWhitelisted, updatedQueueIds };
+		return {
+			deletedWhitelisted,
+			updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, deletedWhitelisted.length),
+		};
 	}
 
 	// Union-of-allow-lists: if any applicable scope (queue / event / guild) has any whitelist rows,

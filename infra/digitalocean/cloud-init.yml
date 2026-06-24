@@ -94,6 +94,15 @@ write_files:
     content: |
       deploy ALL=(root) NOPASSWD: /usr/local/bin/deploy-event-queue-bot
 
+  - path: /etc/fail2ban/jail.local
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 5
+      bantime = 1h
+
   - path: /etc/ssh/ssh_host_ed25519_key
     owner: root:root
     permissions: "0600"
@@ -108,7 +117,8 @@ write_files:
 runcmd:
   - systemctl restart ssh
   - apt-get update
-  - apt-get install -y ca-certificates curl git gnupg rsync
+  - apt-get install -y ca-certificates curl fail2ban git gnupg rsync
+  - systemctl enable --now fail2ban
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   - chmod a+r /etc/apt/keyrings/docker.asc

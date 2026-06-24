@@ -128,9 +128,14 @@ and the droplet pulls it during deploy. Make the pull work one of two ways:
 - **Public package (simplest):** in the GHCR package settings, set the package
   visibility to public. No extra secret is needed.
 - **Private package:** create a classic PAT with the `read:packages` scope and
-  save it as the repository secret `GHCR_PULL_TOKEN`. The deploy job uses it to
-  `docker login ghcr.io` on the droplet. If the secret is empty, the login step
-  is skipped (so it is safe to leave unset for a public package).
+  save it as the repository secret `GHCR_PULL_TOKEN`. The deploy job pipes the
+  token to `docker login --password-stdin` on the droplet over SSH (the token is
+  never embedded in the remote command string). If the secret is empty, the login
+  step is skipped (so it is safe to leave unset for a public package).
+
+The deploy job also writes `GHCR_IMAGE=ghcr.io/<owner>/<repo>` into the server
+`.env` so `docker-compose.app.yml` can pull the correct registry path without
+hardcoding it in the compose file.
 
 ## 5. Optional GitHub Variables
 
@@ -147,6 +152,7 @@ default below.
 | `DO_DROPLET_NAME` | repo | `event-queue-bot` |
 | `DO_ENABLE_BACKUPS` | repo | `false` |
 | `DO_SWAP_SIZE` | repo | `1G` |
+| `SSH_ALLOW_IPS` | repo | empty (SSH open to all) |
 | `APP_PATH` | env | branch-derived (see above) |
 | `BOT_TOP_GG_TOKEN` | env | empty |
 | `BOT_PATCH_NOTES_CHANNEL_ID` | env | empty |
@@ -188,6 +194,16 @@ The deploy script and sudoers entry live in cloud-init — changing them require
 a re-provision. Firewall rules are reconciled by `scripts/ensure-firewall.sh`
 in both the `provision` and `deploy` jobs, so firewall changes apply even when
 provision is skipped.
+
+Production containers run as the `node` user (see `Dockerfile`), with per-service
+CPU/memory limits in `docker-compose.app.yml` suited to a 1 GB droplet running
+both prod and dev bots. Patch notes and other stdin prompts are disabled in
+production compose (`stdin_open` / `tty` are local-only in `docker-compose.yml`);
+set `BOT_FORCE_SEND_PATCH_NOTES=true` on the environment when you want patch
+notes sent without an interactive prompt.
+
+Local `.env` files are excluded from the Docker build context (`.dockerignore`)
+so secrets are not baked into images.
 
 Future pushes to `master` deploy to dev automatically; each run pauses at
 `gate` for `dev-gate` reviewer approval before `build-and-push`, `discover`,
@@ -242,6 +258,13 @@ Prod and dev share one droplet but no state: separate containers
 (`queue-bot` vs `queue-bot-nightly`), separate app dirs and `data/main.sqlite`,
 separate Discord applications.
 
+## Single-instance requirement
+
+Each environment runs **one** bot container against **one** SQLite database.
+Do not run multiple bot processes against the same `data/main.sqlite` — event
+sync (`EventSyncLock`) and scheduled occurrence jobs are coordinated in-process
+only and are not safe across parallel instances.
+
 ## Re-provisioning via the CLI
 
 When cloud-init changes (deploy script, sudoers, swap size, etc.), delete the
@@ -263,6 +286,30 @@ including **`droplet:delete`** for teardown. Typical sequence:
    recreates the droplet, then deploy starts the containers.
 4. Restore each database if needed (stop container, copy `main.sqlite` back,
    restart).
+
+## SSH access and hardening
+
+SSH (port 22) is reachable from the public internet by default. The DigitalOcean
+cloud firewall created by `scripts/ensure-firewall.sh` allows inbound TCP/22 from
+`0.0.0.0/0` and `::/0` unless you restrict it.
+
+**Mitigations in this repo:**
+
+- **fail2ban** — installed on first boot via cloud-init with an `sshd` jail
+  (5 failures → 1 hour ban). Requires a **re-provision** to apply on an
+  existing droplet.
+- **Optional IP allowlist** — set the repository variable `SSH_ALLOW_IPS` to a
+  comma-separated list of CIDRs (e.g. `203.0.113.10/32,198.51.100.0/24`). The
+  next deploy run updates the DO firewall to allow SSH only from those addresses.
+  Useful when your admin IP or a VPN egress range is stable. GitHub Actions
+  runners use varying IPs, so do not rely on this alone for CI unless you also
+  allow the ranges you need for deploy SSH.
+- **Project-level controls** — consider a DigitalOcean project firewall,
+  Tailscale-only SSH, or disabling password auth (already off via cloud-init).
+
+Treat an open SSH port as a residual risk: keep the OS patched, rotate deploy
+keys if compromised, and prefer restricting SSH at the network layer when
+feasible.
 
 ## Connect to the Droplet
 

@@ -1,7 +1,6 @@
 import { type GuildMember, Role } from "discord.js";
-import { compact, min, uniq } from "lodash-es";
+import { compact, min } from "lodash-es";
 
-import { db } from "../db/db.ts";
 import { Queries } from "../db/queries.ts";
 import type {
 	DbEvent,
@@ -15,16 +14,17 @@ import type { ArrayOrCollection } from "../types/misc.types.ts";
 import type { Mentionable } from "../types/parsing.types.ts";
 import { DisplayUtils } from "./display.utils.ts";
 import { filterDbObjectsOnJsMember, map } from "./misc.utils.ts";
+import { SubjectListUtils } from "./subject-list.utils.ts";
 
 export namespace PriorityUtils {
-	export function insertQueuePrioritized(
+	export async function insertQueuePrioritized(
 		store: Store,
 		queues: ArrayOrCollection<bigint, DbQueue>,
 		mentionables: Mentionable[],
 		priorityOrder?: bigint,
 		reason?: string,
 	) {
-		const result = db.transaction(() => {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const insertedPrioritized = compact(
 				map(queues, queue =>
 					mentionables.map(mentionable =>
@@ -39,24 +39,26 @@ export namespace PriorityUtils {
 					)
 				)
 			).flat(2);
-			const updatedQueueIds = uniq(insertedPrioritized.map(prioritized => prioritized.queueId));
 
-			return { insertedPrioritized, updatedQueueIds };
+			return {
+				insertedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(insertedPrioritized),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function insertEventPrioritized(
+	export async function insertEventPrioritized(
 		store: Store,
 		events: ArrayOrCollection<bigint, DbEvent>,
 		mentionables: Mentionable[],
 		priorityOrder?: bigint,
 		reason?: string,
 	) {
-		const result = db.transaction(() => {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const insertedPrioritized = compact(
 				map(events, event =>
 					mentionables.map(mentionable =>
@@ -72,25 +74,24 @@ export namespace PriorityUtils {
 				)
 			).flat(2);
 
-			const updatedQueueIds = uniq(insertedPrioritized.flatMap(prioritized =>
-				store.dbEventQueues(prioritized.eventId).map(eq => eq.queueId)
-			));
-
-			return { insertedPrioritized, updatedQueueIds };
+			return {
+				insertedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, insertedPrioritized),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function insertGuildPrioritized(
+	export async function insertGuildPrioritized(
 		store: Store,
 		mentionables: Mentionable[],
 		priorityOrder?: bigint,
 		reason?: string,
 	) {
-		const result = db.transaction(() => {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const insertedPrioritized = compact(
 				mentionables.map(mentionable =>
 					store.insertGuildPrioritized({
@@ -102,94 +103,98 @@ export namespace PriorityUtils {
 					})
 				)
 			);
-			const updatedQueueIds = insertedPrioritized.length
-				? uniq([...store.dbQueues().values()].map(queue => queue.id))
-				: [];
 
-			return { insertedPrioritized, updatedQueueIds };
+			return {
+				insertedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, insertedPrioritized.length),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function updatePrioritized(store: Store, prioritizedIds: bigint[], update: Partial<DbPrioritized>) {
-		const result = db.transaction(() => {
+	export async function updatePrioritized(store: Store, prioritizedIds: bigint[], update: Partial<DbPrioritized>) {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const updatedPrioritized = compact(prioritizedIds.map(id => store.updatePrioritized({ id, ...update })));
-			const updatedQueueIds = uniq(updatedPrioritized.map(prioritized => prioritized.queueId));
-			return { updatedPrioritized, updatedQueueIds };
+			return {
+				updatedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(updatedPrioritized),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function updateEventPrioritized(store: Store, prioritizedIds: bigint[], update: Partial<DbEventPrioritized>) {
-		const result = db.transaction(() => {
+	export async function updateEventPrioritized(store: Store, prioritizedIds: bigint[], update: Partial<DbEventPrioritized>) {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const updatedPrioritized = compact(prioritizedIds.map(id => store.updateEventPrioritized({ id, ...update })));
-			const updatedQueueIds = uniq(updatedPrioritized.flatMap(prioritized =>
-				store.dbEventQueues(prioritized.eventId).map(eq => eq.queueId)
-			));
-			return { updatedPrioritized, updatedQueueIds };
+			return {
+				updatedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, updatedPrioritized),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function updateGuildPrioritized(store: Store, prioritizedIds: bigint[], update: Partial<DbGuildPrioritized>) {
-		const result = db.transaction(() => {
+	export async function updateGuildPrioritized(store: Store, prioritizedIds: bigint[], update: Partial<DbGuildPrioritized>) {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const updatedPrioritized = compact(prioritizedIds.map(id => store.updateGuildPrioritized({ id, ...update })));
-			const updatedQueueIds = updatedPrioritized.length
-				? uniq([...store.dbQueues().values()].map(queue => queue.id))
-				: [];
-			return { updatedPrioritized, updatedQueueIds };
+			return {
+				updatedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, updatedPrioritized.length),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function deletePrioritized(store: Store, prioritizedIds: bigint[]) {
-		const result = db.transaction(() => {
+	export async function deletePrioritized(store: Store, prioritizedIds: bigint[]) {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const deletedPrioritized = compact(prioritizedIds.map(id => store.deletePrioritized({ id })));
-			const updatedQueueIds = uniq(deletedPrioritized.map(prioritized => prioritized.queueId));
-			return { deletedPrioritized, updatedQueueIds };
+			return {
+				deletedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForQueueScope(deletedPrioritized),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function deleteEventPrioritized(store: Store, prioritizedIds: bigint[]) {
-		const result = db.transaction(() => {
+	export async function deleteEventPrioritized(store: Store, prioritizedIds: bigint[]) {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const deletedPrioritized = compact(prioritizedIds.map(id => store.deleteEventPrioritized({ id })));
-			const updatedQueueIds = uniq(deletedPrioritized.flatMap(prioritized =>
-				store.dbEventQueues(prioritized.eventId).map(eq => eq.queueId)
-			));
-			return { deletedPrioritized, updatedQueueIds };
+			return {
+				deletedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForEventScope(store, deletedPrioritized),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
 
-	export function deleteGuildPrioritized(store: Store, prioritizedIds: bigint[]) {
-		const result = db.transaction(() => {
+	export async function deleteGuildPrioritized(store: Store, prioritizedIds: bigint[]) {
+		const result = await SubjectListUtils.runTransaction(async () => {
 			const deletedPrioritized = compact(prioritizedIds.map(id => store.deleteGuildPrioritized({ id })));
-			const updatedQueueIds = deletedPrioritized.length
-				? uniq([...store.dbQueues().values()].map(queue => queue.id))
-				: [];
-			return { deletedPrioritized, updatedQueueIds };
+			return {
+				deletedPrioritized,
+				updatedQueueIds: SubjectListUtils.updatedQueueIdsForGuildScope(store, deletedPrioritized.length),
+			};
 		});
 
-		reEvaluatePrioritized(store, result.updatedQueueIds);
+		await reEvaluatePrioritized(store, result.updatedQueueIds);
 
 		return result;
 	}
@@ -224,10 +229,11 @@ export namespace PriorityUtils {
 			const members = store.dbMembers().filter(member => member.queueId === queueId);
 			for (const member of members.values()) {
 				const jsMember = await store.jsMember(member.userId);
+				if (!jsMember) continue;
 				const priorityOrder = getMemberPriority(store, queueId, jsMember);
 				store.updateMember({ ...member, priorityOrder });
 			}
 		}
-		DisplayUtils.requestDisplaysUpdate({ store, queueIds });
+		await DisplayUtils.requestDisplaysUpdate({ store, queueIds });
 	}
 }

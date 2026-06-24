@@ -80,6 +80,20 @@ import { WinnerUtils } from "../../utils/winner.utils.ts";
 const HOURS_TO_MS = 3_600_000n;
 const MINUTES_TO_MS = 60_000n;
 
+function buildEventOffsetFields(opts: {
+	roomLengthMinutes?: number | null
+	createOffsetHours?: number | null
+	lockOffsetMinutes?: number | null
+	cleanupOffsetHours?: number | null
+}) {
+	return omitBy({
+		roomLengthMs: opts.roomLengthMinutes ? BigInt(opts.roomLengthMinutes) * MINUTES_TO_MS : undefined,
+		createOffsetMs: opts.createOffsetHours != null ? BigInt(opts.createOffsetHours) * HOURS_TO_MS : undefined,
+		lockOffsetMs: opts.lockOffsetMinutes != null ? BigInt(opts.lockOffsetMinutes) * MINUTES_TO_MS : undefined,
+		cleanupOffsetMs: opts.cleanupOffsetHours != null ? BigInt(opts.cleanupOffsetHours) * HOURS_TO_MS : undefined,
+	}, isNil);
+}
+
 function verifyMentionEveryonePermission(inter: SlashInteraction, message: string, channelId: string) {
 	if (/@(everyone|here)/.test(message) && !inter.member.permissionsIn(channelId).has(PermissionsBitField.Flags.MentionEveryone)) {
 		throw new CustomError({
@@ -118,12 +132,17 @@ function renderSyncReport(report: EventChannelUtils.SyncReport): string {
 		lines.push(`• Non-owned channels at top of category (${report.nonOwnedAtTop.length}): ${mentions}`);
 	}
 
+	if (report.errors.length > 0) {
+		lines.push(`• Errors: ${report.errors.map(inlineCode).join(", ")}`);
+	}
+
 	return lines.join("\n");
 }
 
 export class EventsCommand extends AdminCommand {
 	static readonly ID = "events";
-	deferResponse = false;
+
+	ephemeralSubcommands = new Set(["events_get", "events_help"]);
 
 	events_get = EventsCommand.events_get;
 	events_add = EventsCommand.events_add;
@@ -290,7 +309,6 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_get(inter: SlashInteraction, events?: Collection<bigint, DbEvent>) {
-		if (!inter.deferred) await inter.deferReply({ ephemeral: true });
 		events = events ?? await EventsCommand.GET_OPTIONS.events.get(inter);
 
 		if (!events || events.size === 0) {
@@ -333,7 +351,7 @@ export class EventsCommand extends AdminCommand {
 			entryLabelProperty: "name",
 			entries: [...entries.values()],
 			hiddenProperties: ["name", "queueId"],
-			queueIdProperty: "guildId",
+			queueIdProperty: "id",
 		});
 
 		await inter.respond(descriptionMessage);
@@ -372,7 +390,6 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_add(inter: SlashInteraction) {
-		await inter.deferReply();
 		const roomLengthMinutes = EventsCommand.ADD_OPTIONS.roomLengthMinutes.get(inter);
 		const createOffsetHours = EventsCommand.ADD_OPTIONS.createOffsetHours.get(inter);
 		const lockOffsetMinutes = EventsCommand.ADD_OPTIONS.lockOffsetMinutes.get(inter);
@@ -388,10 +405,7 @@ export class EventsCommand extends AdminCommand {
 			roomCategoryId: EventsCommand.ADD_OPTIONS.roomCategory.get(inter)?.id,
 			...omitBy({
 				roomScheduling: EventsCommand.ADD_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
-				roomLengthMs: roomLengthMinutes ? BigInt(roomLengthMinutes) * MINUTES_TO_MS : undefined,
-				createOffsetMs: createOffsetHours != null ? BigInt(createOffsetHours) * HOURS_TO_MS : undefined,
-				lockOffsetMs: lockOffsetMinutes != null ? BigInt(lockOffsetMinutes) * MINUTES_TO_MS : undefined,
-				cleanupOffsetMs: cleanupOffsetHours != null ? BigInt(cleanupOffsetHours) * HOURS_TO_MS : undefined,
+				...buildEventOffsetFields({ roomLengthMinutes, createOffsetHours, lockOffsetMinutes, cleanupOffsetHours }),
 				announcementChannelId,
 				announcementMessage,
 				roomPingMessage: EventsCommand.ADD_OPTIONS.roomPingMessage.get(inter),
@@ -459,12 +473,7 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_set(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.SET_OPTIONS.event.get(inter);
-		const newRoomCategoryId = EventsCommand.SET_OPTIONS.roomCategory.get(inter)?.id;
-		if (!newRoomCategoryId) {
-			EventUtils.assertHasRoomCategory(event);
-		}
 		const roomLengthMinutes = EventsCommand.SET_OPTIONS.roomLengthMinutes.get(inter);
 		const createOffsetHours = EventsCommand.SET_OPTIONS.createOffsetHours.get(inter);
 		const lockOffsetMinutes = EventsCommand.SET_OPTIONS.lockOffsetMinutes.get(inter);
@@ -475,10 +484,7 @@ export class EventsCommand extends AdminCommand {
 		const update = omitBy({
 			roomCount: EventsCommand.SET_OPTIONS.roomCount.get(inter) ? BigInt(EventsCommand.SET_OPTIONS.roomCount.get(inter)) : undefined,
 			roomScheduling: EventsCommand.SET_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
-			roomLengthMs: roomLengthMinutes ? BigInt(roomLengthMinutes) * MINUTES_TO_MS : undefined,
-			createOffsetMs: createOffsetHours != null ? BigInt(createOffsetHours) * HOURS_TO_MS : undefined,
-			lockOffsetMs: lockOffsetMinutes != null ? BigInt(lockOffsetMinutes) * MINUTES_TO_MS : undefined,
-			cleanupOffsetMs: cleanupOffsetHours != null ? BigInt(cleanupOffsetHours) * HOURS_TO_MS : undefined,
+			...buildEventOffsetFields({ roomLengthMinutes, createOffsetHours, lockOffsetMinutes, cleanupOffsetHours }),
 			announcementChannelId,
 			announcementMessage,
 			roomPingMessage: EventsCommand.SET_OPTIONS.roomPingMessage.get(inter),
@@ -514,7 +520,7 @@ export class EventsCommand extends AdminCommand {
 	//                     /events set-room-defaults
 	// ====================================================================
 
-	static readonly SET_ROOM_DEFAULTS_OPTIONS = {
+	static readonly SET_QUEUE_DEFAULTS_OPTIONS = {
 		event: new EventOption({ required: true, description: "Target event" }),
 		autopullToggle: new AutopullToggleOption({ description: "Autopull toggle" }),
 		badgeToggle: new BadgeToggleOption({ description: "Badge toggle" }),
@@ -540,6 +546,8 @@ export class EventsCommand extends AdminCommand {
 		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice-only toggle" }),
 		voiceDestinationChannel: new VoiceDestinationChannelOption({ description: "Voice destination channel" }),
 	};
+
+	static readonly SET_ROOM_DEFAULTS_OPTIONS = EventsCommand.SET_QUEUE_DEFAULTS_OPTIONS;
 
 	static async events_set_room_defaults(inter: SlashInteraction) {
 		await EventsCommand.setDefaults(inter, EventQueueRole.Room, EventsCommand.SET_ROOM_DEFAULTS_OPTIONS);
@@ -549,41 +557,15 @@ export class EventsCommand extends AdminCommand {
 	//                     /events set-sub-defaults
 	// ====================================================================
 
-	static readonly SET_SUB_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		autopullToggle: new AutopullToggleOption({ description: "Autopull toggle" }),
-		badgeToggle: new BadgeToggleOption({ description: "Badge toggle" }),
-		buttonsToggle: new ButtonsToggleOption({ description: "Buttons toggle" }),
-		color: new ColorOption({ description: "Queue color" }),
-		displayUpdateType: new DisplayUpdateTypeOption({ description: "Display update type" }),
-		dmOnPullToggle: new DmOnPullToggleOption({ description: "DM-on-pull toggle" }),
-		header: new HeaderOption({ description: "Display header" }),
-		inlineToggle: new InlineToggleOption({ description: "Inline toggle" }),
-		lockToggle: new LockToggleOption({ description: "Lock toggle" }),
-		memberDisplayType: new MemberDisplayTypeOption({ description: "Member display type" }),
-		pullBatchSize: new PullBatchSizeOption({ description: "Pull batch size" }),
-		pullMessage: new PullMessageOption({ description: "Pull message" }),
-		pullMessageDisplayType: new PullMessageDisplayTypeOption({ description: "Pull message display type" }),
-		pullMessageChannel: new PullMessageChannelOption({ description: "Pull message channel" }),
-		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "Rejoin cooldown (s)" }),
-		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "Rejoin grace (s)" }),
-		requireMessageToJoin: new RequireMessageToJoinOption({ description: "Require message to join" }),
-		roleInQueue: new RoleInQueueOption({ description: "In-queue role" }),
-		roleOnPull: new RoleOnPullOption({ description: "On-pull role" }),
-		size: new SizeOption({ description: "Size limit" }),
-		timestampType: new TimestampTypeOption({ description: "Timestamp format" }),
-		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice-only toggle" }),
-		voiceDestinationChannel: new VoiceDestinationChannelOption({ description: "Voice destination channel" }),
-	};
+	static readonly SET_SUB_DEFAULTS_OPTIONS = EventsCommand.SET_QUEUE_DEFAULTS_OPTIONS;
 
 	static async events_set_sub_defaults(inter: SlashInteraction) {
 		await EventsCommand.setDefaults(inter, EventQueueRole.Sub, EventsCommand.SET_SUB_DEFAULTS_OPTIONS);
 	}
 
-	private static async setDefaults(inter: SlashInteraction, role: EventQueueRole, options: typeof EventsCommand.SET_ROOM_DEFAULTS_OPTIONS) {
+	private static async setDefaults(inter: SlashInteraction, role: EventQueueRole, options: typeof EventsCommand.SET_QUEUE_DEFAULTS_OPTIONS) {
 		await inter.deferReply();
 		const event = await options.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
 
 		const update = omitBy({
 			autopullToggle: options.autopullToggle.get(inter),
@@ -628,9 +610,8 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_add_room_channel(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
+		EventUtils.assertHasRoomCategoryForChannelSync(event);
 		const suffix = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
 		const slowmode = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.slowmode.get(inter);
 		const slowmodeTime = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.slowmodeTime.get(inter);
@@ -671,9 +652,8 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_remove_room_channel(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
+		EventUtils.assertHasRoomCategoryForChannelSync(event);
 		const suffix = EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
 
 		const templates = Queries.selectManyRoomChannelTemplates({ guildId: inter.guildId, eventId: event.id });
@@ -702,14 +682,13 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_sync_room_channels(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS.event.get(inter).catch((e: unknown) => {
 			if (e instanceof EventNotFoundWarning) return undefined;
 			throw e;
 		});
 
 		if (event) {
-			EventUtils.assertHasRoomCategory(event);
+			EventUtils.assertHasRoomCategoryForChannelSync(event);
 			const report = await EventChannelUtils.reconcileRoomChannels(inter.store, event);
 			await inter.respond(renderSyncReport(report), true);
 			return;
@@ -756,14 +735,12 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_sync_queues(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.SYNC_QUEUES_OPTIONS.event.get(inter).catch((e: unknown) => {
 			if (e instanceof EventNotFoundWarning) return undefined;
 			throw e;
 		});
 
 		if (event) {
-			EventUtils.assertHasRoomCategory(event);
 			const result = await EventUtils.syncEventQueues(inter.store, event);
 			await inter.respond(
 				`Synced queues for ${eventMention(event)}: recreated ${result.recreatedCount} queue(s), ` +
@@ -824,7 +801,6 @@ export class EventsCommand extends AdminCommand {
 	static async events_reset(inter: SlashInteraction) {
 		await inter.deferReply();
 		const event = await EventsCommand.RESET_OPTIONS.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
 
 		const ANNOUNCEMENT_PAIR_VALUE = "__announcement_pair__";
 		const selectMenuOptions = [
@@ -908,7 +884,6 @@ export class EventsCommand extends AdminCommand {
 	) {
 		await inter.deferReply();
 		const event = await options.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
 
 		const selectMenuOptions = [
 			{ name: AutopullToggleOption.ID, value: QUEUE_TABLE.autopullToggle.name },
@@ -971,7 +946,6 @@ export class EventsCommand extends AdminCommand {
 		await inter.deferReply();
 
 		const event = await EventsCommand.SCHEDULE_OPTIONS.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
 
 		const yearStr = await EventsCommand.SCHEDULE_OPTIONS.year.get(inter);
 		const monthStr = await EventsCommand.SCHEDULE_OPTIONS.month.get(inter);
@@ -1021,7 +995,6 @@ export class EventsCommand extends AdminCommand {
 	static async events_cancel(inter: SlashInteraction) {
 		await inter.deferReply();
 		const event = await EventsCommand.CANCEL_OPTIONS.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
 		const occurrences = Queries.selectManyOccurrences({ guildId: inter.guildId, eventId: event.id });
 
 		if (occurrences.length === 0) {
@@ -1064,7 +1037,6 @@ export class EventsCommand extends AdminCommand {
 	static async events_delete(inter: SlashInteraction) {
 		await inter.deferReply();
 		const event = await EventsCommand.DELETE_OPTIONS.event.get(inter);
-		EventUtils.assertHasRoomCategory(event);
 
 		const confirmed = await inter.promptConfirmOrCancel(
 			`Are you sure you want to delete the ${eventMention(event)} event? This will also delete all associated queues and displays.`,
@@ -1093,7 +1065,6 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_declare_winners(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.DECLARE_WINNERS_OPTIONS.event.get(inter);
 		if (!event.winnerRoleId) {
 			throw new WinnerRoleNotSetWarning();
@@ -1130,7 +1101,6 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_winners(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.WINNERS_OPTIONS.event.get(inter);
 
 		const rows = Queries.selectManyEventWinners({ guildId: inter.guildId, eventId: event.id });
@@ -1160,7 +1130,6 @@ export class EventsCommand extends AdminCommand {
 	};
 
 	static async events_clear_winners(inter: SlashInteraction) {
-		await inter.deferReply();
 		const event = await EventsCommand.CLEAR_WINNERS_OPTIONS.event.get(inter);
 
 		const removals = await WinnerUtils.clearEventWinners(inter.store, event);
@@ -1176,7 +1145,6 @@ export class EventsCommand extends AdminCommand {
 	// ====================================================================
 
 	static async events_help(inter: SlashInteraction) {
-		await inter.deferReply({ ephemeral: true });
 		const embeds = [new EmbedBuilder()
 			.setTitle("Events")
 			.setColor(Color.Indigo)
