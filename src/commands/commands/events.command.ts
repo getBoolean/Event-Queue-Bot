@@ -1,37 +1,27 @@
-import { channelMention, type Collection, EmbedBuilder, inlineCode, PermissionsBitField, roleMention, SlashCommandBuilder, time, TimestampStyles, userMention } from "discord.js";
+import { channelMention, type Collection, EmbedBuilder, inlineCode, roleMention, SlashCommandBuilder, time, TimestampStyles, userMention } from "discord.js";
 import { SQLiteColumn } from "drizzle-orm/sqlite-core";
 import { compact, findKey, isNil, omitBy } from "lodash-es";
 
 import { Queries } from "../../db/queries.ts";
 import { type DbEvent, EVENT_TABLE, QUEUE_TABLE } from "../../db/schema.ts";
-import { UserOption } from "../../options/base-option.ts";
 import { AnnouncementChannelOption } from "../../options/options/announcement-channel.option.ts";
 import { AnnouncementMessageOption } from "../../options/options/announcement-message.option.ts";
 import { AutoPullSubsAtRoomStartToggleOption } from "../../options/options/auto-pull-subs-at-room-start-toggle.option.ts";
 import { AutopullToggleOption } from "../../options/options/autopull-toggle.option.ts";
 import { BadgeToggleOption } from "../../options/options/badge-toggle.option.ts";
-import { ChannelSuffixOption } from "../../options/options/channel-suffix.option.ts";
-import { CleanupOffsetHoursOption } from "../../options/options/cleanup-offset-hours.option.ts";
 import { ColorOption } from "../../options/options/color.option.ts";
+import { CleanupOffsetHoursOption } from "../../options/options/cleanup-offset-hours.option.ts";
 import { CreateDiscordEventToggleOption } from "../../options/options/create-discord-event-toggle.option.ts";
 import { CreateOffsetHoursOption } from "../../options/options/create-offset-hours.option.ts";
-import { DayOption } from "../../options/options/day.option.ts";
 import { DiscordEventDescriptionOption } from "../../options/options/discord-event-description.option.ts";
 import { ButtonsToggleOption } from "../../options/options/display-buttons.option.ts";
 import { DisplayUpdateTypeOption } from "../../options/options/display-update-type.option.ts";
 import { DmOnPullToggleOption } from "../../options/options/dm-on-pull-toggle.option.ts";
-import { EventOption } from "../../options/options/event.option.ts";
-import { EventsOption } from "../../options/options/events.option.ts";
 import { HeaderOption } from "../../options/options/header.option.ts";
 import { InlineToggleOption } from "../../options/options/inline-toggle.option.ts";
 import { LockOffsetMinutesOption } from "../../options/options/lock-offset-minutes.option.ts";
 import { LockToggleOption } from "../../options/options/lock-toggle.option.ts";
-import { MaxRoomsPerUserOption } from "../../options/options/max-rooms-per-user.option.ts";
-import { MaxSubsPerUserOption } from "../../options/options/max-subs-per-user.option.ts";
 import { MemberDisplayTypeOption } from "../../options/options/member-display-type.option.ts";
-import { MonthOption } from "../../options/options/month.option.ts";
-import { NameOption } from "../../options/options/name.option.ts";
-import { ParentSubMutuallyExclusiveOption } from "../../options/options/parent-sub-mutually-exclusive.option.ts";
 import { PullBatchSizeOption } from "../../options/options/pull-batch-size.option.ts";
 import { PullMessageOption } from "../../options/options/pull-message.option.ts";
 import { PullMessageChannelOption } from "../../options/options/pull-message-channel.option.ts";
@@ -45,25 +35,16 @@ import { RoleInSubQueueOption } from "../../options/options/role-in-sub-queue.op
 import { RoleOnPullOption } from "../../options/options/role-on-pull.option.ts";
 import { RoleOnRoomPullOption } from "../../options/options/role-on-room-pull.option.ts";
 import { RoleOnSubPullOption } from "../../options/options/role-on-sub-pull.option.ts";
-import { RoomCategoryOption } from "../../options/options/room-category.option.ts";
-import { RoomCountOption } from "../../options/options/room-count.option.ts";
 import { RoomLengthMinutesOption } from "../../options/options/room-length-minutes.option.ts";
 import { RoomPingMessageOption } from "../../options/options/room-ping-message.option.ts";
-import { RoomQueuesChannelOption } from "../../options/options/room-queues-channel.option.ts";
 import { RoomSchedulingOption } from "../../options/options/room-scheduling.option.ts";
 import { ShuffleSubsBeforeAutoPullToggleOption } from "../../options/options/shuffle-subs-before-auto-pull-toggle.option.ts";
 import { SizeOption } from "../../options/options/size.option.ts";
-import { SlowmodeOption } from "../../options/options/slowmode.option.ts";
-import { SlowmodeTimeOption } from "../../options/options/slowmode-time.option.ts";
-import { StartTimeOption } from "../../options/options/start-time.option.ts";
 import { SubAutoPullModeOption } from "../../options/options/sub-auto-pull-mode.option.ts";
-import { SubQueuesChannelOption } from "../../options/options/sub-queues-channel.option.ts";
 import { TimestampTypeOption } from "../../options/options/timestamp-type.option.ts";
-import { TimezoneOption } from "../../options/options/timezone.option.ts";
 import { VoiceDestinationChannelOption } from "../../options/options/voice-destination-channel.option.ts";
 import { VoiceOnlyToggleOption } from "../../options/options/voice-only-toggle.option.ts";
 import { WinnerRoleOption } from "../../options/options/winner-role.option.ts";
-import { YearOption } from "../../options/options/year.option.ts";
 import { AdminCommand } from "../../types/command.types.ts";
 import { Color, EventQueueRole, type RoomScheduling, type SubAutoPullMode } from "../../types/db.types.ts";
 import type { SlashInteraction } from "../../types/interaction.types.ts";
@@ -76,68 +57,8 @@ import { SelectMenuTransactor } from "../../utils/message-utils/select-menu-tran
 import { toCollection } from "../../utils/misc.utils.ts";
 import { commandMention, describeTable, eventMention, queuesMention } from "../../utils/string.utils.ts";
 import { WinnerUtils } from "../../utils/winner.utils.ts";
-
-const HOURS_TO_MS = 3_600_000n;
-const MINUTES_TO_MS = 60_000n;
-
-function buildEventOffsetFields(opts: {
-	roomLengthMinutes?: number | null
-	createOffsetHours?: number | null
-	lockOffsetMinutes?: number | null
-	cleanupOffsetHours?: number | null
-}) {
-	return omitBy({
-		roomLengthMs: opts.roomLengthMinutes ? BigInt(opts.roomLengthMinutes) * MINUTES_TO_MS : undefined,
-		createOffsetMs: opts.createOffsetHours != null ? BigInt(opts.createOffsetHours) * HOURS_TO_MS : undefined,
-		lockOffsetMs: opts.lockOffsetMinutes != null ? BigInt(opts.lockOffsetMinutes) * MINUTES_TO_MS : undefined,
-		cleanupOffsetMs: opts.cleanupOffsetHours != null ? BigInt(opts.cleanupOffsetHours) * HOURS_TO_MS : undefined,
-	}, isNil);
-}
-
-function verifyMentionEveryonePermission(inter: SlashInteraction, message: string, channelId: string) {
-	if (/@(everyone|here)/.test(message) && !inter.member.permissionsIn(channelId).has(PermissionsBitField.Flags.MentionEveryone)) {
-		throw new CustomError({
-			message: "Your announcement message contains @everyone or @here, but you lack the 'Mention Everyone' permission in the announcement channel",
-		});
-	}
-}
-
-const DISCORD_MESSAGE_LIMIT = 2000;
-
-function renderSyncReport(report: EventChannelUtils.SyncReport): string {
-	const lines: string[] = [`Synced room channels for **${report.eventName}**.`];
-
-	const namedBucket = (label: string, names: string[]) => {
-		if (names.length === 0) return;
-		lines.push(`• ${label}: ${names.map(inlineCode).join(", ")}`);
-	};
-
-	namedBucket("Created", report.created);
-	namedBucket("Adopted", report.adopted);
-	namedBucket("Untracked rows", report.untrackedRows);
-	namedBucket("Recreated missing", report.recreatedMissing);
-
-	if (report.reorderApplied) {
-		lines.push(`• Reorder: ${report.trackedCount} tracked channel${report.trackedCount === 1 ? "" : "s"} reordered.`);
-	}
-	else {
-		lines.push("• Reorder: already in desired order (no changes).");
-	}
-
-	if (report.nonOwnedAtTop.length === 0) {
-		lines.push("• Non-owned channels at top of category: (none)");
-	}
-	else {
-		const mentions = report.nonOwnedAtTop.map(c => channelMention(c.id)).join(", ");
-		lines.push(`• Non-owned channels at top of category (${report.nonOwnedAtTop.length}): ${mentions}`);
-	}
-
-	if (report.errors.length > 0) {
-		lines.push(`• Errors: ${report.errors.map(inlineCode).join(", ")}`);
-	}
-
-	return lines.join("\n");
-}
+import { EventsOptions } from "./events/options.ts";
+import { buildEventOffsetFields, DISCORD_MESSAGE_LIMIT, renderSyncReport, verifyMentionEveryonePermission } from "./events/shared.ts";
 
 export class EventsCommand extends AdminCommand {
 	static readonly ID = "events";
@@ -171,126 +92,126 @@ export class EventsCommand extends AdminCommand {
 			subcommand
 				.setName("get")
 				.setDescription("Show event details");
-			Object.values(EventsCommand.GET_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.GET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("add")
 				.setDescription("Create event with room + sub queues");
-			Object.values(EventsCommand.ADD_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.ADD_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set")
 				.setDescription("Update event properties");
-			Object.values(EventsCommand.SET_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.SET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set-room-defaults")
 				.setDescription("Set room queue defaults");
-			Object.values(EventsCommand.SET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.SET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("set-sub-defaults")
 				.setDescription("Set sub queue defaults");
-			Object.values(EventsCommand.SET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.SET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("add-room-channel")
 				.setDescription("Add per-room channel template (e.g. room-code-{N})");
-			Object.values(EventsCommand.ADD_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.ADD_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("remove-room-channel")
 				.setDescription("Remove per-room channel template");
-			Object.values(EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.REMOVE_ROOM_CHANNEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("sync-room-channels")
 				.setDescription("Recreate missing room channels, fix perms + order");
-			Object.values(EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.SYNC_ROOM_CHANNELS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("sync-queues")
 				.setDescription("Recreate missing queues, re-apply defaults, fix display order");
-			Object.values(EventsCommand.SYNC_QUEUES_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.SYNC_QUEUES_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset")
 				.setDescription("Reset event properties");
-			Object.values(EventsCommand.RESET_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.RESET_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset-room-defaults")
 				.setDescription("Reset room queue defaults");
-			Object.values(EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.RESET_ROOM_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("reset-sub-defaults")
 				.setDescription("Reset sub queue defaults");
-			Object.values(EventsCommand.RESET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.RESET_SUB_DEFAULTS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("schedule")
 				.setDescription("Schedule an occurrence");
-			Object.values(EventsCommand.SCHEDULE_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.SCHEDULE_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("cancel")
 				.setDescription("Cancel a pending occurrence");
-			Object.values(EventsCommand.CANCEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.CANCEL_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("delete")
 				.setDescription("Delete event + its queues");
-			Object.values(EventsCommand.DELETE_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.DELETE_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("declare-winners")
 				.setDescription("Grant the winner role to the event's winner(s)");
-			Object.values(EventsCommand.DECLARE_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.DECLARE_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("winners")
 				.setDescription("List declared winners");
-			Object.values(EventsCommand.WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
 			subcommand
 				.setName("clear-winners")
 				.setDescription("Revoke the winner role for the event");
-			Object.values(EventsCommand.CLEAR_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
+			Object.values(EventsOptions.CLEAR_WINNERS_OPTIONS).forEach(option => option.addToCommand(subcommand));
 			return subcommand;
 		})
 		.addSubcommand(subcommand => {
@@ -304,12 +225,8 @@ export class EventsCommand extends AdminCommand {
 	//                           /events get
 	// ====================================================================
 
-	static readonly GET_OPTIONS = {
-		events: new EventsOption({ description: "Specific event(s)" }),
-	};
-
 	static async events_get(inter: SlashInteraction, events?: Collection<bigint, DbEvent>) {
-		events = events ?? await EventsCommand.GET_OPTIONS.events.get(inter);
+		events = events ?? await EventsOptions.GET_OPTIONS.events.get(inter);
 
 		if (!events || events.size === 0) {
 			events = inter.store.dbEvents();
@@ -361,66 +278,38 @@ export class EventsCommand extends AdminCommand {
 	//                           /events add
 	// ====================================================================
 
-	static readonly ADD_OPTIONS = {
-		name: new NameOption({ required: true, description: "Event name" }),
-		roomCount: new RoomCountOption({ required: true, description: "Number of rooms" }),
-		roomQueuesChannel: new RoomQueuesChannelOption({ required: true, description: "Parent channel for room queues" }),
-		subQueuesChannel: new SubQueuesChannelOption({ required: true, description: "Parent channel for sub queues" }),
-		roomCategory: new RoomCategoryOption({ required: true, description: "Category for per-room channels" }),
-		roomScheduling: new RoomSchedulingOption({ description: "Room timing (parallel/sequential)" }),
-		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Room length in minutes (sequential req)" }),
-		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open" }),
-		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock (neg=before)" }),
-		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after rooms finish to cleanup" }),
-		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template — placeholders: /events help" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Per-room ping template — placeholders: /events help" }),
-		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
-		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
-		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
-		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign room role while in room queue" }),
-		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
-		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
-		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
-		autoPullSubsAtRoomStartToggle: new AutoPullSubsAtRoomStartToggleOption({ description: "Auto-pull subs at room start" }),
-		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
-		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
-		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description — placeholders: /events help" }),
-	};
-
 	static async events_add(inter: SlashInteraction) {
-		const roomLengthMinutes = EventsCommand.ADD_OPTIONS.roomLengthMinutes.get(inter);
-		const createOffsetHours = EventsCommand.ADD_OPTIONS.createOffsetHours.get(inter);
-		const lockOffsetMinutes = EventsCommand.ADD_OPTIONS.lockOffsetMinutes.get(inter);
-		const cleanupOffsetHours = EventsCommand.ADD_OPTIONS.cleanupOffsetHours.get(inter);
-		const announcementChannelId = EventsCommand.ADD_OPTIONS.announcementChannel.get(inter)?.id;
-		const announcementMessage = EventsCommand.ADD_OPTIONS.announcementMessage.get(inter);
+		const roomLengthMinutes = EventsOptions.ADD_OPTIONS.roomLengthMinutes.get(inter);
+		const createOffsetHours = EventsOptions.ADD_OPTIONS.createOffsetHours.get(inter);
+		const lockOffsetMinutes = EventsOptions.ADD_OPTIONS.lockOffsetMinutes.get(inter);
+		const cleanupOffsetHours = EventsOptions.ADD_OPTIONS.cleanupOffsetHours.get(inter);
+		const announcementChannelId = EventsOptions.ADD_OPTIONS.announcementChannel.get(inter)?.id;
+		const announcementMessage = EventsOptions.ADD_OPTIONS.announcementMessage.get(inter);
 
 		const newEvent = {
-			name: EventsCommand.ADD_OPTIONS.name.get(inter)?.substring(0, 240),
-			roomCount: BigInt(EventsCommand.ADD_OPTIONS.roomCount.get(inter)),
-			roomQueuesChannelId: EventsCommand.ADD_OPTIONS.roomQueuesChannel.get(inter)?.id,
-			subQueuesChannelId: EventsCommand.ADD_OPTIONS.subQueuesChannel.get(inter)?.id,
-			roomCategoryId: EventsCommand.ADD_OPTIONS.roomCategory.get(inter)?.id,
+			name: EventsOptions.ADD_OPTIONS.name.get(inter)?.substring(0, 240),
+			roomCount: BigInt(EventsOptions.ADD_OPTIONS.roomCount.get(inter)),
+			roomQueuesChannelId: EventsOptions.ADD_OPTIONS.roomQueuesChannel.get(inter)?.id,
+			subQueuesChannelId: EventsOptions.ADD_OPTIONS.subQueuesChannel.get(inter)?.id,
+			roomCategoryId: EventsOptions.ADD_OPTIONS.roomCategory.get(inter)?.id,
 			...omitBy({
-				roomScheduling: EventsCommand.ADD_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
+				roomScheduling: EventsOptions.ADD_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
 				...buildEventOffsetFields({ roomLengthMinutes, createOffsetHours, lockOffsetMinutes, cleanupOffsetHours }),
 				announcementChannelId,
 				announcementMessage,
-				roomPingMessage: EventsCommand.ADD_OPTIONS.roomPingMessage.get(inter),
-				maxRoomsPerUser: EventsCommand.ADD_OPTIONS.maxRoomsPerUser.get(inter),
-				maxSubsPerUser: EventsCommand.ADD_OPTIONS.maxSubsPerUser.get(inter),
-				parentSubMutuallyExclusive: EventsCommand.ADD_OPTIONS.parentSubMutuallyExclusive.get(inter),
-				roleInRoomQueue: EventsCommand.ADD_OPTIONS.roleInRoomQueue.get(inter),
-				roleOnRoomPull: EventsCommand.ADD_OPTIONS.roleOnRoomPull.get(inter),
-				roleInSubQueue: EventsCommand.ADD_OPTIONS.roleInSubQueue.get(inter),
-				roleOnSubPull: EventsCommand.ADD_OPTIONS.roleOnSubPull.get(inter),
-				autoPullSubsAtRoomStartToggle: EventsCommand.ADD_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
-				shuffleSubsBeforeAutoPullToggle: EventsCommand.ADD_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
-				subAutoPullMode: EventsCommand.ADD_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
-				createDiscordEvent: EventsCommand.ADD_OPTIONS.createDiscordEvent.get(inter),
-				discordEventDescription: EventsCommand.ADD_OPTIONS.discordEventDescription.get(inter),
+				roomPingMessage: EventsOptions.ADD_OPTIONS.roomPingMessage.get(inter),
+				maxRoomsPerUser: EventsOptions.ADD_OPTIONS.maxRoomsPerUser.get(inter),
+				maxSubsPerUser: EventsOptions.ADD_OPTIONS.maxSubsPerUser.get(inter),
+				parentSubMutuallyExclusive: EventsOptions.ADD_OPTIONS.parentSubMutuallyExclusive.get(inter),
+				roleInRoomQueue: EventsOptions.ADD_OPTIONS.roleInRoomQueue.get(inter),
+				roleOnRoomPull: EventsOptions.ADD_OPTIONS.roleOnRoomPull.get(inter),
+				roleInSubQueue: EventsOptions.ADD_OPTIONS.roleInSubQueue.get(inter),
+				roleOnSubPull: EventsOptions.ADD_OPTIONS.roleOnSubPull.get(inter),
+				autoPullSubsAtRoomStartToggle: EventsOptions.ADD_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
+				shuffleSubsBeforeAutoPullToggle: EventsOptions.ADD_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
+				subAutoPullMode: EventsOptions.ADD_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
+				createDiscordEvent: EventsOptions.ADD_OPTIONS.createDiscordEvent.get(inter),
+				discordEventDescription: EventsOptions.ADD_OPTIONS.discordEventDescription.get(inter),
 			}, isNil),
 		};
 
@@ -445,63 +334,36 @@ export class EventsCommand extends AdminCommand {
 	//                           /events set
 	// ====================================================================
 
-	static readonly SET_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		roomCount: new RoomCountOption({ description: "Number of rooms (grow only)" }),
-		roomScheduling: new RoomSchedulingOption({ description: "Room timing (parallel/sequential)" }),
-		roomLengthMinutes: new RoomLengthMinutesOption({ description: "Room length in minutes" }),
-		createOffsetHours: new CreateOffsetHoursOption({ description: "Hours before start to open" }),
-		lockOffsetMinutes: new LockOffsetMinutesOption({ description: "Minutes after start to lock" }),
-		cleanupOffsetHours: new CleanupOffsetHoursOption({ description: "Hours after rooms finish to cleanup" }),
-		announcementChannel: new AnnouncementChannelOption({ description: "Announcement channel" }),
-		announcementMessage: new AnnouncementMessageOption({ description: "Announcement template — placeholders: /events help" }),
-		roomPingMessage: new RoomPingMessageOption({ description: "Per-room ping template — placeholders: /events help" }),
-		maxRoomsPerUser: new MaxRoomsPerUserOption({ description: "Max rooms per user (0=unlimited)" }),
-		maxSubsPerUser: new MaxSubsPerUserOption({ description: "Max subs per user (0=unlimited)" }),
-		parentSubMutuallyExclusive: new ParentSubMutuallyExclusiveOption({ description: "Room + matching sub mutually exclusive" }),
-		roomCategory: new RoomCategoryOption({ description: "Category for per-room channels" }),
-		roleInRoomQueue: new RoleInRoomQueueOption({ description: "Assign room role while in room queue" }),
-		roleOnRoomPull: new RoleOnRoomPullOption({ description: "Assign room role on room queue pull" }),
-		roleInSubQueue: new RoleInSubQueueOption({ description: "Assign room role while in sub queue" }),
-		roleOnSubPull: new RoleOnSubPullOption({ description: "Assign room role on sub queue pull" }),
-		autoPullSubsAtRoomStartToggle: new AutoPullSubsAtRoomStartToggleOption({ description: "Auto-pull subs at room start" }),
-		shuffleSubsBeforeAutoPullToggle: new ShuffleSubsBeforeAutoPullToggleOption({ description: "Shuffle subs before auto-pull" }),
-		subAutoPullMode: new SubAutoPullModeOption({ description: "Auto-pull mode" }),
-		createDiscordEvent: new CreateDiscordEventToggleOption({ description: "Create Discord scheduled event per occurrence" }),
-		discordEventDescription: new DiscordEventDescriptionOption({ description: "Discord event description — placeholders: /events help" }),
-		winnerRole: new WinnerRoleOption({ description: "Role granted to declared winners" }),
-	};
-
 	static async events_set(inter: SlashInteraction) {
-		const event = await EventsCommand.SET_OPTIONS.event.get(inter);
-		const roomLengthMinutes = EventsCommand.SET_OPTIONS.roomLengthMinutes.get(inter);
-		const createOffsetHours = EventsCommand.SET_OPTIONS.createOffsetHours.get(inter);
-		const lockOffsetMinutes = EventsCommand.SET_OPTIONS.lockOffsetMinutes.get(inter);
-		const cleanupOffsetHours = EventsCommand.SET_OPTIONS.cleanupOffsetHours.get(inter);
-		const announcementChannelId = EventsCommand.SET_OPTIONS.announcementChannel.get(inter)?.id;
-		const announcementMessage = EventsCommand.SET_OPTIONS.announcementMessage.get(inter);
+		const event = await EventsOptions.SET_OPTIONS.event.get(inter);
+		const roomLengthMinutes = EventsOptions.SET_OPTIONS.roomLengthMinutes.get(inter);
+		const createOffsetHours = EventsOptions.SET_OPTIONS.createOffsetHours.get(inter);
+		const lockOffsetMinutes = EventsOptions.SET_OPTIONS.lockOffsetMinutes.get(inter);
+		const cleanupOffsetHours = EventsOptions.SET_OPTIONS.cleanupOffsetHours.get(inter);
+		const announcementChannelId = EventsOptions.SET_OPTIONS.announcementChannel.get(inter)?.id;
+		const announcementMessage = EventsOptions.SET_OPTIONS.announcementMessage.get(inter);
 
 		const update = omitBy({
-			roomCount: EventsCommand.SET_OPTIONS.roomCount.get(inter) ? BigInt(EventsCommand.SET_OPTIONS.roomCount.get(inter)) : undefined,
-			roomScheduling: EventsCommand.SET_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
+			roomCount: EventsOptions.SET_OPTIONS.roomCount.get(inter) ? BigInt(EventsOptions.SET_OPTIONS.roomCount.get(inter)) : undefined,
+			roomScheduling: EventsOptions.SET_OPTIONS.roomScheduling.get(inter) as RoomScheduling,
 			...buildEventOffsetFields({ roomLengthMinutes, createOffsetHours, lockOffsetMinutes, cleanupOffsetHours }),
 			announcementChannelId,
 			announcementMessage,
-			roomPingMessage: EventsCommand.SET_OPTIONS.roomPingMessage.get(inter),
-			maxRoomsPerUser: EventsCommand.SET_OPTIONS.maxRoomsPerUser.get(inter),
-			maxSubsPerUser: EventsCommand.SET_OPTIONS.maxSubsPerUser.get(inter),
-			parentSubMutuallyExclusive: EventsCommand.SET_OPTIONS.parentSubMutuallyExclusive.get(inter),
-			roomCategoryId: EventsCommand.SET_OPTIONS.roomCategory.get(inter)?.id,
-			roleInRoomQueue: EventsCommand.SET_OPTIONS.roleInRoomQueue.get(inter),
-			roleOnRoomPull: EventsCommand.SET_OPTIONS.roleOnRoomPull.get(inter),
-			roleInSubQueue: EventsCommand.SET_OPTIONS.roleInSubQueue.get(inter),
-			roleOnSubPull: EventsCommand.SET_OPTIONS.roleOnSubPull.get(inter),
-			autoPullSubsAtRoomStartToggle: EventsCommand.SET_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
-			shuffleSubsBeforeAutoPullToggle: EventsCommand.SET_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
-			subAutoPullMode: EventsCommand.SET_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
-			createDiscordEvent: EventsCommand.SET_OPTIONS.createDiscordEvent.get(inter),
-			discordEventDescription: EventsCommand.SET_OPTIONS.discordEventDescription.get(inter),
-			winnerRoleId: EventsCommand.SET_OPTIONS.winnerRole.get(inter)?.id,
+			roomPingMessage: EventsOptions.SET_OPTIONS.roomPingMessage.get(inter),
+			maxRoomsPerUser: EventsOptions.SET_OPTIONS.maxRoomsPerUser.get(inter),
+			maxSubsPerUser: EventsOptions.SET_OPTIONS.maxSubsPerUser.get(inter),
+			parentSubMutuallyExclusive: EventsOptions.SET_OPTIONS.parentSubMutuallyExclusive.get(inter),
+			roomCategoryId: EventsOptions.SET_OPTIONS.roomCategory.get(inter)?.id,
+			roleInRoomQueue: EventsOptions.SET_OPTIONS.roleInRoomQueue.get(inter),
+			roleOnRoomPull: EventsOptions.SET_OPTIONS.roleOnRoomPull.get(inter),
+			roleInSubQueue: EventsOptions.SET_OPTIONS.roleInSubQueue.get(inter),
+			roleOnSubPull: EventsOptions.SET_OPTIONS.roleOnSubPull.get(inter),
+			autoPullSubsAtRoomStartToggle: EventsOptions.SET_OPTIONS.autoPullSubsAtRoomStartToggle.get(inter),
+			shuffleSubsBeforeAutoPullToggle: EventsOptions.SET_OPTIONS.shuffleSubsBeforeAutoPullToggle.get(inter),
+			subAutoPullMode: EventsOptions.SET_OPTIONS.subAutoPullMode.get(inter) as SubAutoPullMode,
+			createDiscordEvent: EventsOptions.SET_OPTIONS.createDiscordEvent.get(inter),
+			discordEventDescription: EventsOptions.SET_OPTIONS.discordEventDescription.get(inter),
+			winnerRoleId: EventsOptions.SET_OPTIONS.winnerRole.get(inter)?.id,
 		}, isNil);
 
 		const effectiveMessage = announcementMessage ?? event.announcementMessage;
@@ -520,50 +382,19 @@ export class EventsCommand extends AdminCommand {
 	//                     /events set-room-defaults
 	// ====================================================================
 
-	static readonly SET_QUEUE_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		autopullToggle: new AutopullToggleOption({ description: "Autopull toggle" }),
-		badgeToggle: new BadgeToggleOption({ description: "Badge toggle" }),
-		buttonsToggle: new ButtonsToggleOption({ description: "Buttons toggle" }),
-		color: new ColorOption({ description: "Queue color" }),
-		displayUpdateType: new DisplayUpdateTypeOption({ description: "Display update type" }),
-		dmOnPullToggle: new DmOnPullToggleOption({ description: "DM-on-pull toggle" }),
-		header: new HeaderOption({ description: "Display header" }),
-		inlineToggle: new InlineToggleOption({ description: "Inline toggle" }),
-		lockToggle: new LockToggleOption({ description: "Lock toggle" }),
-		memberDisplayType: new MemberDisplayTypeOption({ description: "Member display type" }),
-		pullBatchSize: new PullBatchSizeOption({ description: "Pull batch size" }),
-		pullMessage: new PullMessageOption({ description: "Pull message" }),
-		pullMessageDisplayType: new PullMessageDisplayTypeOption({ description: "Pull message display type" }),
-		pullMessageChannel: new PullMessageChannelOption({ description: "Pull message channel" }),
-		rejoinCooldownPeriod: new RejoinCooldownPeriodOption({ description: "Rejoin cooldown (s)" }),
-		rejoinGracePeriod: new RejoinGracePeriodOption({ description: "Rejoin grace (s)" }),
-		requireMessageToJoin: new RequireMessageToJoinOption({ description: "Require message to join" }),
-		roleInQueue: new RoleInQueueOption({ description: "In-queue role" }),
-		roleOnPull: new RoleOnPullOption({ description: "On-pull role" }),
-		size: new SizeOption({ description: "Size limit" }),
-		timestampType: new TimestampTypeOption({ description: "Timestamp format" }),
-		voiceOnlyToggle: new VoiceOnlyToggleOption({ description: "Voice-only toggle" }),
-		voiceDestinationChannel: new VoiceDestinationChannelOption({ description: "Voice destination channel" }),
-	};
-
-	static readonly SET_ROOM_DEFAULTS_OPTIONS = EventsCommand.SET_QUEUE_DEFAULTS_OPTIONS;
-
 	static async events_set_room_defaults(inter: SlashInteraction) {
-		await EventsCommand.setDefaults(inter, EventQueueRole.Room, EventsCommand.SET_ROOM_DEFAULTS_OPTIONS);
+		await EventsCommand.setDefaults(inter, EventQueueRole.Room, EventsOptions.SET_ROOM_DEFAULTS_OPTIONS);
 	}
 
 	// ====================================================================
 	//                     /events set-sub-defaults
 	// ====================================================================
 
-	static readonly SET_SUB_DEFAULTS_OPTIONS = EventsCommand.SET_QUEUE_DEFAULTS_OPTIONS;
-
 	static async events_set_sub_defaults(inter: SlashInteraction) {
-		await EventsCommand.setDefaults(inter, EventQueueRole.Sub, EventsCommand.SET_SUB_DEFAULTS_OPTIONS);
+		await EventsCommand.setDefaults(inter, EventQueueRole.Sub, EventsOptions.SET_SUB_DEFAULTS_OPTIONS);
 	}
 
-	private static async setDefaults(inter: SlashInteraction, role: EventQueueRole, options: typeof EventsCommand.SET_QUEUE_DEFAULTS_OPTIONS) {
+	private static async setDefaults(inter: SlashInteraction, role: EventQueueRole, options: typeof EventsOptions.SET_QUEUE_DEFAULTS_OPTIONS) {
 		await inter.deferReply();
 		const event = await options.event.get(inter);
 
@@ -602,19 +433,12 @@ export class EventsCommand extends AdminCommand {
 	//                     /events add-room-channel
 	// ====================================================================
 
-	static readonly ADD_ROOM_CHANNEL_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		suffix: new ChannelSuffixOption({ required: true, description: "Suffix (e.g. \"code\" → room-code-{N})" }),
-		slowmode: new SlowmodeOption({ description: "Slowmode value (0=none)" }),
-		slowmodeTime: new SlowmodeTimeOption({ description: "Slowmode unit" }),
-	};
-
 	static async events_add_room_channel(inter: SlashInteraction) {
-		const event = await EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.event.get(inter);
+		const event = await EventsOptions.ADD_ROOM_CHANNEL_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategoryForChannelSync(event);
-		const suffix = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
-		const slowmode = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.slowmode.get(inter);
-		const slowmodeTime = EventsCommand.ADD_ROOM_CHANNEL_OPTIONS.slowmodeTime.get(inter);
+		const suffix = EventsOptions.ADD_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
+		const slowmode = EventsOptions.ADD_ROOM_CHANNEL_OPTIONS.slowmode.get(inter);
+		const slowmodeTime = EventsOptions.ADD_ROOM_CHANNEL_OPTIONS.slowmodeTime.get(inter);
 		const slowmodeSeconds = EventChannelUtils.toSlowmodeSeconds(slowmode, slowmodeTime);
 
 		const cleanSuffix = suffix.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -646,15 +470,10 @@ export class EventsCommand extends AdminCommand {
 	//                   /events remove-room-channel
 	// ====================================================================
 
-	static readonly REMOVE_ROOM_CHANNEL_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		suffix: new ChannelSuffixOption({ required: true, description: "Suffix to remove (autocompletes)" }),
-	};
-
 	static async events_remove_room_channel(inter: SlashInteraction) {
-		const event = await EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.event.get(inter);
+		const event = await EventsOptions.REMOVE_ROOM_CHANNEL_OPTIONS.event.get(inter);
 		EventUtils.assertHasRoomCategoryForChannelSync(event);
-		const suffix = EventsCommand.REMOVE_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
+		const suffix = EventsOptions.REMOVE_ROOM_CHANNEL_OPTIONS.suffix.get(inter);
 
 		const templates = Queries.selectManyRoomChannelTemplates({ guildId: inter.guildId, eventId: event.id });
 		const tmpl = templates.find(t => t.suffix === suffix);
@@ -677,12 +496,8 @@ export class EventsCommand extends AdminCommand {
 	//                   /events sync-room-channels
 	// ====================================================================
 
-	static readonly SYNC_ROOM_CHANNELS_OPTIONS = {
-		event: new EventOption({ description: "Event to sync (omit = all)" }),
-	};
-
 	static async events_sync_room_channels(inter: SlashInteraction) {
-		const event = await EventsCommand.SYNC_ROOM_CHANNELS_OPTIONS.event.get(inter).catch((e: unknown) => {
+		const event = await EventsOptions.SYNC_ROOM_CHANNELS_OPTIONS.event.get(inter).catch((e: unknown) => {
 			if (e instanceof EventNotFoundWarning) return undefined;
 			throw e;
 		});
@@ -730,12 +545,8 @@ export class EventsCommand extends AdminCommand {
 	//                       /events sync-queues
 	// ====================================================================
 
-	static readonly SYNC_QUEUES_OPTIONS = {
-		event: new EventOption({ description: "Event to sync (omit = all)" }),
-	};
-
 	static async events_sync_queues(inter: SlashInteraction) {
-		const event = await EventsCommand.SYNC_QUEUES_OPTIONS.event.get(inter).catch((e: unknown) => {
+		const event = await EventsOptions.SYNC_QUEUES_OPTIONS.event.get(inter).catch((e: unknown) => {
 			if (e instanceof EventNotFoundWarning) return undefined;
 			throw e;
 		});
@@ -794,13 +605,9 @@ export class EventsCommand extends AdminCommand {
 	//                           /events reset
 	// ====================================================================
 
-	static readonly RESET_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_reset(inter: SlashInteraction) {
 		await inter.deferReply();
-		const event = await EventsCommand.RESET_OPTIONS.event.get(inter);
+		const event = await EventsOptions.RESET_OPTIONS.event.get(inter);
 
 		const ANNOUNCEMENT_PAIR_VALUE = "__announcement_pair__";
 		const selectMenuOptions = [
@@ -857,30 +664,22 @@ export class EventsCommand extends AdminCommand {
 	//                     /events reset-room-defaults
 	// ====================================================================
 
-	static readonly RESET_ROOM_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_reset_room_defaults(inter: SlashInteraction) {
-		await EventsCommand.resetDefaults(inter, EventQueueRole.Room, EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS);
+		await EventsCommand.resetDefaults(inter, EventQueueRole.Room, EventsOptions.RESET_ROOM_DEFAULTS_OPTIONS);
 	}
 
 	// ====================================================================
 	//                     /events reset-sub-defaults
 	// ====================================================================
 
-	static readonly RESET_SUB_DEFAULTS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_reset_sub_defaults(inter: SlashInteraction) {
-		await EventsCommand.resetDefaults(inter, EventQueueRole.Sub, EventsCommand.RESET_SUB_DEFAULTS_OPTIONS);
+		await EventsCommand.resetDefaults(inter, EventQueueRole.Sub, EventsOptions.RESET_SUB_DEFAULTS_OPTIONS);
 	}
 
 	private static async resetDefaults(
 		inter: SlashInteraction,
 		role: EventQueueRole,
-		options: typeof EventsCommand.RESET_ROOM_DEFAULTS_OPTIONS,
+		options: typeof EventsOptions.RESET_ROOM_DEFAULTS_OPTIONS,
 	) {
 		await inter.deferReply();
 		const event = await options.event.get(inter);
@@ -933,25 +732,16 @@ export class EventsCommand extends AdminCommand {
 	//                           /events schedule
 	// ====================================================================
 
-	static readonly SCHEDULE_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		year: new YearOption({ required: true, description: "Start year" }),
-		month: new MonthOption({ required: true, description: "Start month" }),
-		day: new DayOption({ required: true, description: "Start day" }),
-		startTime: new StartTimeOption({ required: true, description: "Start time (12-hour, e.g. 9 AM, 9:30 PM)" }),
-		timezone: new TimezoneOption({ required: false, description: "IANA timezone", defaultValue: process.env.DEFAULT_SCHEDULE_TIMEZONE }),
-	};
-
 	static async events_schedule(inter: SlashInteraction) {
 		await inter.deferReply();
 
-		const event = await EventsCommand.SCHEDULE_OPTIONS.event.get(inter);
+		const event = await EventsOptions.SCHEDULE_OPTIONS.event.get(inter);
 
-		const yearStr = await EventsCommand.SCHEDULE_OPTIONS.year.get(inter);
-		const monthStr = await EventsCommand.SCHEDULE_OPTIONS.month.get(inter);
-		const dayStr = await EventsCommand.SCHEDULE_OPTIONS.day.get(inter);
-		const startTime = await EventsCommand.SCHEDULE_OPTIONS.startTime.get(inter);
-		const timezoneRaw = await EventsCommand.SCHEDULE_OPTIONS.timezone.get(inter);
+		const yearStr = await EventsOptions.SCHEDULE_OPTIONS.year.get(inter);
+		const monthStr = await EventsOptions.SCHEDULE_OPTIONS.month.get(inter);
+		const dayStr = await EventsOptions.SCHEDULE_OPTIONS.day.get(inter);
+		const startTime = await EventsOptions.SCHEDULE_OPTIONS.startTime.get(inter);
+		const timezoneRaw = await EventsOptions.SCHEDULE_OPTIONS.timezone.get(inter);
 
 		const parsed = DateUtils.parseScheduledStart({
 			yearStr,
@@ -988,13 +778,9 @@ export class EventsCommand extends AdminCommand {
 	//                           /events cancel
 	// ====================================================================
 
-	static readonly CANCEL_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_cancel(inter: SlashInteraction) {
 		await inter.deferReply();
-		const event = await EventsCommand.CANCEL_OPTIONS.event.get(inter);
+		const event = await EventsOptions.CANCEL_OPTIONS.event.get(inter);
 		const occurrences = Queries.selectManyOccurrences({ guildId: inter.guildId, eventId: event.id });
 
 		if (occurrences.length === 0) {
@@ -1030,13 +816,9 @@ export class EventsCommand extends AdminCommand {
 	//                           /events delete
 	// ====================================================================
 
-	static readonly DELETE_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_delete(inter: SlashInteraction) {
 		await inter.deferReply();
-		const event = await EventsCommand.DELETE_OPTIONS.event.get(inter);
+		const event = await EventsOptions.DELETE_OPTIONS.event.get(inter);
 
 		const confirmed = await inter.promptConfirmOrCancel(
 			`Are you sure you want to delete the ${eventMention(event)} event? This will also delete all associated queues and displays.`,
@@ -1055,27 +837,18 @@ export class EventsCommand extends AdminCommand {
 	//                       /events declare-winners
 	// ====================================================================
 
-	static readonly DECLARE_WINNERS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-		winner1: new UserOption({ required: true, id: "winner_1", description: "A winner" }),
-		winner2: new UserOption({ id: "winner_2", description: "A winner" }),
-		winner3: new UserOption({ id: "winner_3", description: "A winner" }),
-		winner4: new UserOption({ id: "winner_4", description: "A winner" }),
-		winner5: new UserOption({ id: "winner_5", description: "A winner" }),
-	};
-
 	static async events_declare_winners(inter: SlashInteraction) {
-		const event = await EventsCommand.DECLARE_WINNERS_OPTIONS.event.get(inter);
+		const event = await EventsOptions.DECLARE_WINNERS_OPTIONS.event.get(inter);
 		if (!event.winnerRoleId) {
 			throw new WinnerRoleNotSetWarning();
 		}
 
 		const userIds = new Set(compact([
-			EventsCommand.DECLARE_WINNERS_OPTIONS.winner1.get(inter),
-			EventsCommand.DECLARE_WINNERS_OPTIONS.winner2.get(inter),
-			EventsCommand.DECLARE_WINNERS_OPTIONS.winner3.get(inter),
-			EventsCommand.DECLARE_WINNERS_OPTIONS.winner4.get(inter),
-			EventsCommand.DECLARE_WINNERS_OPTIONS.winner5.get(inter),
+			EventsOptions.DECLARE_WINNERS_OPTIONS.winner1.get(inter),
+			EventsOptions.DECLARE_WINNERS_OPTIONS.winner2.get(inter),
+			EventsOptions.DECLARE_WINNERS_OPTIONS.winner3.get(inter),
+			EventsOptions.DECLARE_WINNERS_OPTIONS.winner4.get(inter),
+			EventsOptions.DECLARE_WINNERS_OPTIONS.winner5.get(inter),
 		]).map(user => user.id));
 
 		const added = await WinnerUtils.declareWinners(inter.store, event, userIds);
@@ -1096,12 +869,8 @@ export class EventsCommand extends AdminCommand {
 	//                           /events winners
 	// ====================================================================
 
-	static readonly WINNERS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_winners(inter: SlashInteraction) {
-		const event = await EventsCommand.WINNERS_OPTIONS.event.get(inter);
+		const event = await EventsOptions.WINNERS_OPTIONS.event.get(inter);
 
 		const rows = Queries.selectManyEventWinners({ guildId: inter.guildId, eventId: event.id });
 		const roleLine = `Winner role: ${event.winnerRoleId ? roleMention(event.winnerRoleId) : "not set"}`;
@@ -1125,12 +894,8 @@ export class EventsCommand extends AdminCommand {
 	//                        /events clear-winners
 	// ====================================================================
 
-	static readonly CLEAR_WINNERS_OPTIONS = {
-		event: new EventOption({ required: true, description: "Target event" }),
-	};
-
 	static async events_clear_winners(inter: SlashInteraction) {
-		const event = await EventsCommand.CLEAR_WINNERS_OPTIONS.event.get(inter);
+		const event = await EventsOptions.CLEAR_WINNERS_OPTIONS.event.get(inter);
 
 		const removals = await WinnerUtils.clearEventWinners(inter.store, event);
 
