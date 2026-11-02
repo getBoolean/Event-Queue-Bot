@@ -94,7 +94,7 @@ jobs:
         uses: digitalocean/action-doctl@v2.5.2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          version: 1.159.0
+          version: 2.1.0
 
       - name: Look up existing droplet
         id: lookup
@@ -174,7 +174,7 @@ jobs:
         uses: digitalocean/action-doctl@v2.5.2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          version: 1.159.0
+          version: 2.1.0
 
       - name: Validate provisioning script
         run: bash -n scripts/provision-digitalocean.sh
@@ -231,7 +231,7 @@ jobs:
         uses: digitalocean/action-doctl@v2.5.2
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          version: 1.159.0
+          version: 2.1.0
 
       - name: Ensure firewall allows bot ports
         env:
