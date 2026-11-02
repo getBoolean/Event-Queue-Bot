@@ -60,6 +60,15 @@ jobs:
         run: |
           set -euo pipefail
           esc_current="${CURRENT//./\\.}"
+          expected_count=$(grep -cE "^\s+version:\s+${esc_current}\s*$" \
+            .github/workflows/provision-and-deploy.yml \
+            .github/workflows/restart-bot.yml | awk -F: '{s+=$2} END {print s}')
+
+          if [ "${expected_count}" -eq 0 ]; then
+            echo "No doctl pins found at ${CURRENT}" >&2
+            exit 1
+          fi
+
           sed -i -E "s/^(\s+version:\s+)${esc_current}(\s*)$/\1${LATEST}\2/" \
             .github/workflows/provision-and-deploy.yml \
             .github/workflows/restart-bot.yml
@@ -67,12 +76,13 @@ jobs:
           new_count=$(grep -cE "^\s+version:\s+${LATEST}\s*$" \
             .github/workflows/provision-and-deploy.yml \
             .github/workflows/restart-bot.yml | awk -F: '{s+=$2} END {print s}')
-          old_count=$(grep -cE "^\s+version:\s+${esc_current}\s*$" \
+          # grep exits 1 when nothing matches (the success case here); keep pipefail from aborting.
+          old_count=$({ grep -cE "^\s+version:\s+${esc_current}\s*$" \
             .github/workflows/provision-and-deploy.yml \
-            .github/workflows/restart-bot.yml | awk -F: '{s+=$2} END {print s}')
+            .github/workflows/restart-bot.yml || true; } | awk -F: '{s+=$2} END {print s}')
 
-          if [ "${new_count}" -ne 3 ] || [ "${old_count}" -ne 0 ]; then
-            echo "Unexpected sed result: new=${new_count} old=${old_count} (expected 3 and 0)" >&2
+          if [ "${new_count}" -ne "${expected_count}" ] || [ "${old_count}" -ne 0 ]; then
+            echo "Unexpected sed result: new=${new_count} old=${old_count} (expected ${expected_count} and 0)" >&2
             exit 1
           fi
 
